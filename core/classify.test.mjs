@@ -127,6 +127,17 @@ test('compound tampering with state anywhere is category G', () => {
 test('operators inside quotes do not split the command', () => {
   assert.equal(classify('Bash', { command: `python -c "a && b"` }, cfg), 'B');
 });
+test('a wrapper prefix cannot hide a source-mutating command', () => {
+  assert.equal(classify('Bash', { command: 'env cp /tmp/sol.py src/main.py' }, cfg), 'E');
+  assert.equal(classify('Bash', { command: 'sudo mv sol src/x.py' }, cfg), 'E');
+});
+test('in-place editors that write source are category E', () => {
+  assert.equal(classify('Bash', { command: `awk -i inplace "{print}" src/main.py` }, cfg), 'E');
+  assert.equal(classify('Bash', { command: `ruby -i -pe s/a/b/ src/main.py` }, cfg), 'E');
+});
+test('benign shell-prep leading a compound does not force an ask', () => {
+  assert.equal(classify('Bash', { command: 'cd sub && pytest' }, cfg), 'B');
+});
 test('redirect into a test path is category D not E', () => {
   assert.equal(classify('Bash', { command: 'echo x > test/foo_test.mjs' }, cfg), 'D');
 });

@@ -19,7 +19,6 @@ export const DEFAULTS = {
   mode: 'ask', // 'coach' | 'pair' | 'ask'
   t3TimeboxMinutes: 120,
   preambleMinChars: 40,
-  tier1MaxFenceLines: 6, // Phase 3 config default; carried now, unused in Phase 1.
   testGlobs: [
     'test/**', 'tests/**', 'spec/**',
     '**/*_test.*', '**/*.test.*', '**/*.spec.*',

@@ -92,6 +92,8 @@ const AUTHORING_SHAPES = [
   /\btee\b/,
   /\bsed\s+-i\b/,
   /\bperl\s+-i\b/,
+  /\bg?awk\s+-i\b/, // gawk in-place edit (-i inplace)
+  /\bruby\s+-i\b/, // ruby in-place edit
   /\bgit\s+apply\b/,
   /<<-?\s*['"]?[A-Za-z_]/, // heredoc
   /\bspit\b/, // clojure file write
@@ -100,6 +102,26 @@ const AUTHORING_SHAPES = [
   // NOTE: deliberately no generic `.write(` — it would misclassify a
   // sys.stdout.write() REPL probe as a file write and break the run loop.
 ];
+
+// Wrappers that run another command; a leading one must not hide the real
+// command word from command-position detection.
+const WRAPPER_CMDS = new Set(['env', 'nice', 'time', 'nohup', 'sudo', 'command', 'stdbuf', 'ionice', 'xargs']);
+
+// Strip leading VAR=val assignments and wrapper commands (with their options)
+// so `env cp …` / `sudo mv …` expose their real command word.
+function stripWrappers(cmd) {
+  let s = String(cmd).trim();
+  for (;;) {
+    const assign = s.match(/^[A-Za-z_][A-Za-z0-9_]*=\S*\s+/);
+    if (assign) { s = s.slice(assign[0].length); continue; }
+    const opt = s.match(/^-\S*\s+/);
+    if (opt) { s = s.slice(opt[0].length); continue; }
+    const word = s.match(/^(\S+)(?:\s+|$)/);
+    if (word && WRAPPER_CMDS.has(word[1])) { s = s.slice(word[0].length); continue; }
+    break;
+  }
+  return s;
+}
 
 // Bare-word mutation commands. These share their name with subcommands and
 // arguments (`npm run patch-package`, `docker cp`, `git mv`), so they only
@@ -113,7 +135,7 @@ const COMMAND_MUTATORS = [
 ];
 
 // Read-only inspection commands (first token, or after a pipe).
-const READONLY_CMDS = ['ls', 'cat', 'rg', 'grep', 'find', 'head', 'tail', 'wc', 'less', 'more', 'stat', 'file', 'tree', 'pwd', 'echo', 'which', 'env', 'printenv', 'date', 'df', 'du', 'ps', 'top', 'diff', 'jq', 'awk', 'sort', 'uniq', 'cut'];
+const READONLY_CMDS = ['ls', 'cat', 'rg', 'grep', 'find', 'head', 'tail', 'wc', 'less', 'more', 'stat', 'file', 'tree', 'pwd', 'echo', 'which', 'env', 'printenv', 'date', 'df', 'du', 'ps', 'top', 'diff', 'jq', 'awk', 'sort', 'uniq', 'cut', 'cd', 'pushd', 'popd', 'export', 'set', 'umask', 'mkdir', 'true', 'false', ':'];
 const READONLY_GIT = /^git\s+(log|diff|status|show|blame|branch|remote|rev-parse|describe|ls-files|shortlog|stash\s+list)\b/;
 
 // Commands that execute / build / run / eval (do not author source).
@@ -252,14 +274,17 @@ function classifyBashSegment(cmd, cfg) {
 
   // B: run / build / test / eval.
   if (RUN_PATTERNS.some((rx) => rx.test(c))) return 'B';
-  const first = c.trim().split(/\s+/)[0];
+  // Command-word detection runs on the wrapper-stripped command so a wrapper
+  // prefix cannot hide the real command.
+  const bare = stripWrappers(c);
+  const first = bare.split(/\s+/)[0];
   if (RUN_CMDS.includes(first)) return 'B';
 
   // Bare-word mutation commands only when in command position.
-  if (COMMAND_MUTATORS.some((rx) => rx.test(c))) return routeByTarget();
+  if (COMMAND_MUTATORS.some((rx) => rx.test(bare))) return routeByTarget();
 
   // A: read-only inspection.
-  if (READONLY_GIT.test(c.trim())) return 'A';
+  if (READONLY_GIT.test(bare)) return 'A';
   if (READONLY_CMDS.includes(first)) return 'A';
 
   // U: unknown shape.
