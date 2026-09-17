@@ -19,6 +19,10 @@ export const DEFAULTS = {
   mode: 'ask', // 'coach' | 'pair' | 'ask'
   t3TimeboxMinutes: 120,
   preambleMinChars: 40,
+  graderModel: 'haiku',
+  graderTimeoutMs: 120_000,
+  attemptMinChars: 80,
+  auditRuns: 3,
   testGlobs: [
     'test/**', 'tests/**', 'spec/**',
     '**/*_test.*', '**/*.test.*', '**/*.spec.*',
@@ -60,6 +64,8 @@ export function projectPaths(repoRoot) {
     dir,
     stateFile: join(dir, 'state.json'),
     attemptsDir: join(dir, 'attempts'),
+    verdictsDir: join(dir, 'verdicts'),
+    checksDir: join(dir, 'checks'),
     t3Dir: join(dir, 't3'),
     preambleFile: join(dir, 't3', 'preamble.md'),
     gitignore: join(dir, '.gitignore'),
@@ -107,6 +113,9 @@ export function readProjectState(repoRoot, env = process.env) {
     tier: raw.tier === 2 ? 2 : 1,
     mode: raw.mode || cfg.mode,
     unlocked: Boolean(raw.unlocked),
+    lastUnlock: raw.lastUnlock || null,
+    lastDiagnosis: raw.lastDiagnosis || null,
+    pendingTutorNote: raw.pendingTutorNote || null,
     ...(raw.t3ExpiresAtMs != null ? { t3ExpiresAtMs: raw.t3ExpiresAtMs } : {}),
   };
 }

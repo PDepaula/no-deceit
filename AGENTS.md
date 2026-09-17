@@ -17,14 +17,21 @@ Read it before changing enforcement semantics.
 - `core/*.mjs` — PURE, zero-dependency policy owner; no fs/clock/env reads.
   `classify.mjs` (tool call → category A–G/U), `policy.mjs` (`resolveEffective`
   tier resolution incl. Tier 3 expiry + `decide` the tier × category table),
-  `scope.mjs` (Step 0 opt-in + worker exemption). Keep these pure so Phase 4
-  per-harness adapters import them unchanged.
-- `core/state.mjs`, `core/control.mjs`, `core/gate.mjs` — the imperative shell:
-  XDG state I/O, ledger, tier/mode/unlock ops, and the fail-closed orchestrator.
+  `scope.mjs` (Step 0 opt-in + worker exemption), `prefilter.mjs` /
+  `rubric.mjs` / `grader-parse.mjs` / `grader-job.mjs` / `audit.mjs` (Phase 2
+  engagement grader: pre-filter, mechanical verdict, blindness, gold scoring).
+  Keep these pure so Phase 4 per-harness adapters import them unchanged.
+- `core/state.mjs`, `core/control.mjs`, `core/gate.mjs`, `core/grader.mjs`,
+  `core/git-evidence.mjs` — the imperative shell: XDG state I/O, ledger,
+  tier/mode/unlock ops, fail-closed orchestrator, and the mockable grader spawn.
 - `hooks/nd-hook.mjs` + `hooks/hooks.json` — the Claude Code hook shim
   (`SessionStart`, `UserPromptSubmit`, `PreToolUse`); thin, all policy in core.
-- `bin/nd` — the developer's shell CLI (`init|tier|mode|status|unlock|ledger|
-  doctor`), auto-added to PATH by the plugin.
+- `bin/nd` — the developer's shell CLI (`init|tier|mode|status|unlock|check|
+  audit|ledger|doctor`), auto-added to PATH by the plugin.
+- `agents/nd-grader.md` — the blind grader agent; spawned only by the hook or
+  `nd`, never by the tutor. Model is `graderModel` (default `haiku`).
+- `gold/unlock-gold.mjs` — adversarial gold set; `nd audit` release gate is
+  `graded_up = 0` before accepting a grader-prompt change.
 - `skills/no-deceit/SKILL.md` — the teaching layer.
 
 ## Non-negotiable invariants (do not regress)
@@ -36,12 +43,18 @@ Read it before changing enforcement semantics.
   are pass-through no-ops (`core/scope.mjs`).
 - Fail-closed: any internal hook error is an explicit deny, never a silent
   allow (`core/gate.mjs`).
+- The tutor must NEVER spawn or grade a Tier 2 unlock. The grader is a
+  fresh process (`agents/nd-grader.md`) that reads evidence only from files;
+  it is invoked by `nd unlock` / the in-hook command. Category G denies
+  `nd unlock`/`nd check` from the agent shell. Round down when torn.
+  `nd audit` release gate is `graded_up = 0`.
 
 ## Test
 
 `node --test 'core/*.test.mjs' 'hooks/*.test.mjs' 'bin/*.test.mjs'` — pure Node
-test runner, no deps. The tier × category matrix and the tamper / scope /
-fail-closed paths are all covered; keep them green.
+test runner, no deps. The tier × category matrix, tamper / scope / fail-closed
+paths, and the grader pre-filter / gold set / `nd audit` gate are covered;
+keep them green. CI must not call a live model (`nd audit --oracle` / `--inflate`).
 
 ## Maintaining this file
 

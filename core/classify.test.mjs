@@ -169,8 +169,14 @@ test('Bash mutating nd subcommand (tier) is category G', () => {
 test('Bash mutating nd subcommand (unlock) is category G', () => {
   assert.equal(classify('Bash', { command: 'nd unlock --override "because"' }, cfg), 'G');
 });
+test('Bash mutating nd check (blind grader) is category G — tutor must not spawn it', () => {
+  assert.equal(classify('Bash', { command: 'nd check parser' }, cfg), 'G');
+});
 test('Bash read-only nd status is NOT tamper (category A)', () => {
   assert.equal(classify('Bash', { command: 'nd status' }, cfg), 'A');
+});
+test('Bash read-only nd audit is NOT tamper (category A)', () => {
+  assert.equal(classify('Bash', { command: 'nd audit' }, cfg), 'A');
 });
 test('Bash relative redirect into state dir is category G', () => {
   assert.equal(classify('Bash', { command: `echo '{"tier":1}' > .no-deceit/state.json` }, cfg), 'G');

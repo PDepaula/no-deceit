@@ -1,4 +1,4 @@
-# Verification — Claude Code (Phase 0 + Phase 1)
+# Verification — Claude Code (Phase 0–2)
 
 What was verified for the Claude Code gate, how, and against which versions.
 Convention borrowed from firstmate's adapter notes: record the evidence, don't
@@ -34,6 +34,16 @@ which drives the real hook shim and CLI as subprocesses with piped payloads:
   is set (agent shell) but allows read-only `status`. (defense-in-depth guard)
 - **`core/gate.test.mjs`** — the fail-closed path: an internal error yields an
   explicit `deny`, never a silent allow.
+- **`core/grader.test.mjs`**, **`core/gold.test.mjs`**, **`core/audit.test.mjs`**,
+  **`bin/nd.test.mjs`** — Phase 2 grader:
+  - pre-filter rejects empty / error-paste / short attempts and cosmetic commits
+    with no LLM call
+  - torn evidence rounds down to `not_yet`
+  - spawn payload has no tutoring dialogue
+  - timeout and spawn failure default to `not_yet`; override remains available
+  - one appeal per verdict
+  - `nd audit --oracle` → `graded_up: 0` / gate pass; `--inflate` → gate block
+  - live LLM is not required (oracle/inflate/ND_GRADER_MOCK_JSON)
 
 ## To do a live end-to-end check by hand
 

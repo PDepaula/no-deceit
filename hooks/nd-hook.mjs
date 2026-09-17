@@ -10,8 +10,10 @@
 
 import { evaluate } from '../core/gate.mjs';
 import { decide, REASONS } from '../core/policy.mjs';
-import { appendLedger, gitToplevel, isGoverned } from '../core/state.mjs';
-import { parseCommand, setTier, setMode, unlockOverride, renderStatus, renderStatusShort } from '../core/control.mjs';
+import { appendLedger, gitToplevel, isGoverned, readProjectState, writeProjectState } from '../core/state.mjs';
+import { parseCommand, setTier, setMode, renderStatus, renderStatusShort } from '../core/control.mjs';
+import { parseUnlockArgs, parseCheckArgs } from '../core/unlock-args.mjs';
+import { runUnlock, runCheck } from '../core/grader.mjs';
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -28,16 +30,27 @@ function emit(obj) {
   process.stdout.write(JSON.stringify(obj));
 }
 
-function contextFacts(repoRoot, env, sessionId) {
+function contextFacts(repoRoot, env, sessionId, { consumeNote = false } = {}) {
   const badge = renderStatusShort({ repoRoot, env, sessionId });
   const status = renderStatus({ repoRoot, env, sessionId });
+  let extra = '';
+  if (isGoverned(repoRoot)) {
+    const project = readProjectState(repoRoot, env);
+    if (project.pendingTutorNote) {
+      extra += `\n${project.pendingTutorNote}`;
+      if (consumeNote) writeProjectState(repoRoot, { ...project, pendingTutorNote: null });
+    } else if (project.lastDiagnosis && project.lastDiagnosis.error_class) {
+      extra += `\nGrader diagnosis: ${project.lastDiagnosis.error_class}; misconceptions: ${(project.lastDiagnosis.misconceptions || []).join('; ') || '(none)'}.`;
+    }
+  }
   return (
     `No Deceit is active in this project. ${badge}\n` +
     `${status}\n` +
     `Your tier is stored outside this conversation and you cannot change it — ` +
     `tier and mode change only through the developer's own /no-deceit: prompt ` +
     `commands or their own \`nd\` shell CLI. A denied tool call is the system ` +
-    `working as intended; do not route around it.`
+    `working as intended; do not route around it. You never spawn the grader.` +
+    extra
   );
 }
 
@@ -114,13 +127,15 @@ async function main() {
         } else if (cmd.name === 'mode') {
           message = setMode({ repoRoot, env, mode: cmd.arg });
         } else if (cmd.name === 'unlock') {
-          const m = /--override\s+["']?(.+?)["']?\s*$/.exec(cmd.arg);
-          if (m) message = unlockOverride({ repoRoot, env, reason: m[1] });
-          else message = 'Tier 2 unlock in Phase 1 is override-only. Run `/no-deceit:unlock --override "<your reason>"` (the reason is written to the ledger).';
+          const args = parseUnlockArgs(cmd.arg);
+          message = await runUnlock({ repoRoot, env, ...args });
+        } else if (cmd.name === 'check') {
+          const args = parseCheckArgs(cmd.arg);
+          message = await runCheck({ repoRoot, env, task: args.task });
         } else if (cmd.name === 'status') {
           message = renderStatus({ repoRoot, env, sessionId: input.session_id });
         } else {
-          message = `Unknown No Deceit command: ${cmd.name}. Try tier, mode, unlock, or status.`;
+          message = `Unknown No Deceit command: ${cmd.name}. Try tier, mode, unlock, check, or status.`;
         }
       } catch (err) {
         message = `No Deceit: ${String((err && err.message) || err)}`;
@@ -132,7 +147,7 @@ async function main() {
     }
     // Not a command: inject the current tier/mode as context, when governed.
     if (isGoverned(repoRoot)) {
-      emit({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: contextFacts(repoRoot, env, input.session_id) } });
+      emit({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: contextFacts(repoRoot, env, input.session_id, { consumeNote: true }) } });
     }
     return;
   }

@@ -7,9 +7,11 @@
 // PreToolUse gate denies any tool call that invokes a mutating `nd`
 // subcommand or touches the state paths (category G).
 
-import { isGoverned, readProjectState, writeProjectState, readSession, writeSession, appendLedger, loadConfig, projectPaths } from './state.mjs';
+import { isGoverned, readProjectState, writeProjectState, readSession, writeSession, appendLedger, loadConfig, readLedger } from './state.mjs';
 import { resolveEffective } from './policy.mjs';
 import { preamblePresent } from './state.mjs';
+import { suggestDomainMode } from './rubric.mjs';
+import { unlockOverride as applyUnlockOverride } from './grader.mjs';
 
 const MODES = ['coach', 'pair', 'ask'];
 
@@ -61,13 +63,7 @@ export function setMode({ repoRoot, env, mode, nowMs = Date.now() }) {
 }
 
 export function unlockOverride({ repoRoot, env, reason, nowMs = Date.now() }) {
-  if (!reason || !String(reason).trim()) {
-    throw new Error('unlock override requires a typed reason (this is written to the ledger; honesty, not prohibition)');
-  }
-  const before = readProjectState(repoRoot, env);
-  writeProjectState(repoRoot, { ...before, unlocked: true });
-  appendLedger(env, { event: 'unlock_override', tier: before.tier, reason: String(reason).trim() });
-  return `Tier 2 unlocked by override. Recorded to the ledger: "${String(reason).trim()}".`;
+  return applyUnlockOverride({ repoRoot, env, reason, nowMs });
 }
 
 function effectiveNow({ repoRoot, env, sessionId, nowMs }) {
@@ -93,7 +89,14 @@ export function renderStatus({ repoRoot, env, sessionId, nowMs = Date.now() }) {
     `  Tier:  ${e.tier}${e.tier === 3 ? ' (Narrated Velocity, granted)' : e.tier === 2 ? ' (Guided)' : ' (Tutor)'}`,
     `  Mode:  ${e.mode}`,
   ];
-  if (e.tier === 2) lines.push(`  Unlock: ${e.t2Unlocked ? 'unlocked (override)' : 'locked'}`);
+  if (e.tier === 2) lines.push(`  Unlock: ${e.t2Unlocked ? 'unlocked' : 'locked'}`);
+  const project = readProjectState(repoRoot, env);
+  if (project.lastDiagnosis && project.lastDiagnosis.error_class) {
+    lines.push(`  Last error_class: ${project.lastDiagnosis.error_class}`);
+  }
+  const classes = readLedger(env, 50).map((x) => x.error_class).filter(Boolean);
+  const suggested = suggestDomainMode(classes);
+  if (suggested) lines.push(`  Suggested mode: ${suggested} (from error_class trend; Coach if conceptual repeats, Pair if mostly slip)`);
   if (e.tier === 3) lines.push(`  Preamble: ${e.t3PreamblePresent ? 'present' : 'MISSING (source writes blocked until filled)'}`);
   for (const n of e.notes) lines.push(`  Note:  ${n}`);
   return lines.join('\n');

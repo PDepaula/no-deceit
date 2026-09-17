@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,6 +57,29 @@ test('UserPromptSubmit /no-deceit:tier 2 is handled in-hook, blocks the prompt, 
     assert.equal(out.decision, 'block');
     assert.match(out.reason, /Tier set to 2/);
     assert.equal(readProjectState(s.repo, s.env).tier, 2);
+  } finally { s.cleanup(); }
+});
+
+test('UserPromptSubmit /no-deceit:unlock --override still unlocks in-hook', () => {
+  const s = scratch();
+  try {
+    const out = runHook('UserPromptSubmit', { session_id: 's', cwd: s.repo, prompt: '/no-deceit:unlock --override "deadline; I know the approach"' }, s.env);
+    assert.equal(out.decision, 'block');
+    assert.match(out.reason, /override/);
+    assert.equal(readProjectState(s.repo, s.env).unlocked, true);
+  } finally { s.cleanup(); }
+});
+
+test('UserPromptSubmit /no-deceit:unlock runs the grader (mockable, never the tutor)', () => {
+  const s = scratch();
+  try {
+    mkdirSync(projectPaths(s.repo).attemptsDir, { recursive: true });
+    writeFileSync(join(projectPaths(s.repo).attemptsDir, 'default.md'), 'idk it just doesn\'t work');
+    const env = { ...s.env, ND_GRADER_MOCK_JSON: JSON.stringify({ verdict: 'unlocked', criteria: { R1: { met: true, span: 'x' } } }) };
+    const out = runHook('UserPromptSubmit', { session_id: 's', cwd: s.repo, prompt: '/no-deceit:unlock' }, env);
+    assert.equal(out.decision, 'block');
+    assert.match(out.reason, /not_yet/);
+    assert.equal(readProjectState(s.repo, s.env).unlocked, false);
   } finally { s.cleanup(); }
 });
 

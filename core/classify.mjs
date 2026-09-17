@@ -82,8 +82,8 @@ function namesStatePath(path, prefixes) {
 
 // --- Bash shape detection ------------------------------------------------
 
-const RE_MUTATING_ND = /(^|[\s;&|(])nd\s+(tier|mode|unlock|init|reset|set)\b/;
-const RE_READONLY_ND = /(^|[\s;&|(])nd\s+(status|ledger|show|doctor|help)\b/;
+const RE_MUTATING_ND = /(^|[\s;&|(])nd\s+(tier|mode|unlock|init|reset|set|check)\b/;
+const RE_READONLY_ND = /(^|[\s;&|(])nd\s+(status|ledger|show|doctor|help|audit)\b/;
 
 // Unambiguous file-authoring shapes: specific syntax that always writes, so
 // they route by target before run/pkg-manager commands are considered.
