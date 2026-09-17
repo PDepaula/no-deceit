@@ -139,6 +139,22 @@ test('relative state tamper is denied even at Tier 3 with preamble present', () 
   assert.equal(decide(effective, { category: redirect }).decision, 'deny');
   assert.equal(decide(effective, { category: write }).decision, 'deny');
 });
+// Mutation shapes writeTargets() cannot parse, or bare relative args preceded
+// by space or '=', must still be caught by the command-level state match.
+const T3 = { tier: 3, t2Unlocked: true, t3PreamblePresent: true };
+for (const command of [
+  'dd if=/tmp/forged.json of=.no-deceit/state.json',
+  'patch .no-deceit/state.json < p',
+  `perl -i -pe 's/1/3/' .no-deceit/state.json`,
+  'install -m 644 forged.json .no-deceit/state.json',
+  'cat .no-deceit/state.json',
+]) {
+  test(`Bash referencing a relative state path is G and denied at Tier 3: ${command}`, () => {
+    const cat = classify('Bash', { command }, cfg);
+    assert.equal(cat, 'G');
+    assert.equal(decide(T3, { category: cat }).decision, 'deny');
+  });
+}
 
 // --- Category U: unknown Bash ---
 test('unrecognized Bash command is category U', () => {
