@@ -104,6 +104,16 @@ test('Bash git apply is category E', () => {
 test('eval that writes a file (python open w) is category E', () => {
   assert.equal(classify('Bash', { command: `python -c "open('src/main.py','w').write('x')"` }, cfg), 'E');
 });
+test('patch in command position is category E', () => {
+  assert.equal(classify('Bash', { command: 'patch src/main.mjs < p.diff' }, cfg), 'E');
+});
+test('npm run patch-package is a run, category B not E', () => {
+  assert.equal(classify('Bash', { command: 'npm run patch-package' }, cfg), 'B');
+});
+test('patch as a subcommand/argument is not forced to source mutation', () => {
+  assert.notEqual(classify('Bash', { command: 'docker cp local remote:/x' }, cfg), 'E');
+  assert.notEqual(classify('Bash', { command: 'git mv a b' }, cfg), 'E');
+});
 test('redirect into a test path is category D not E', () => {
   assert.equal(classify('Bash', { command: 'echo x > test/foo_test.mjs' }, cfg), 'D');
 });

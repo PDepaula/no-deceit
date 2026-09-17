@@ -85,23 +85,31 @@ function namesStatePath(path, prefixes) {
 const RE_MUTATING_ND = /(^|[\s;&|(])nd\s+(tier|mode|unlock|init|reset|set)\b/;
 const RE_READONLY_ND = /(^|[\s;&|(])nd\s+(status|ledger|show|doctor|help)\b/;
 
-// Shapes that author/overwrite a file.
-const MUTATION_SHAPES = [
+// Unambiguous file-authoring shapes: specific syntax that always writes, so
+// they route by target before run/pkg-manager commands are considered.
+const AUTHORING_SHAPES = [
   /(^|[^0-9<>&])>>?(?![>&])/, // > or >> redirect (not >> heredoc-close, not 2>&1)
   /\btee\b/,
   /\bsed\s+-i\b/,
   /\bperl\s+-i\b/,
-  /\bpatch\b/,
   /\bgit\s+apply\b/,
-  /\bdd\s+.*\bof=/,
-  /\bcp\b/,
-  /\bmv\b/,
   /<<-?\s*['"]?[A-Za-z_]/, // heredoc
   /\bspit\b/, // clojure file write
   /open\s*\([^)]*['"][wa]\+?['"]/, // python open(...,'w'|'a')
   /\bwrite_?[Ff]ile(Sync)?\b/, // node fs.writeFile / writeFileSync
   // NOTE: deliberately no generic `.write(` — it would misclassify a
   // sys.stdout.write() REPL probe as a file write and break the run loop.
+];
+
+// Bare-word mutation commands. These share their name with subcommands and
+// arguments (`npm run patch-package`, `docker cp`, `git mv`), so they only
+// count when the word is in command position: at the start, or right after a
+// pipe / ; / && / || / ( separator.
+const COMMAND_MUTATORS = [
+  /(^|[;&|(])\s*patch\s/,
+  /(^|[;&|(])\s*cp\s/,
+  /(^|[;&|(])\s*mv\s/,
+  /(^|[;&|(])\s*dd\s+.*\bof=/,
 ];
 
 // Read-only inspection commands (first token, or after a pipe).
@@ -178,9 +186,8 @@ function classifyBash(cmd, cfg) {
   // Read-only nd is inspect.
   if (RE_READONLY_ND.test(c)) return 'A';
 
-  // E/C/D: mutation shapes — route by target path.
-  const mutates = MUTATION_SHAPES.some((rx) => rx.test(c));
-  if (mutates) {
+  // E/C/D: route a file mutation by its target path.
+  const routeByTarget = () => {
     const targets = writeTargets(c);
     // A write whose target names state is tamper, absolute or relative.
     if (targets.some((t) => namesStatePath(t, prefixes))) return 'G';
@@ -188,7 +195,10 @@ function classifyBash(cmd, cfg) {
     if (targets.some((t) => matchesAny(t, cfg.testGlobs || []))) return 'D';
     if (targets.some((t) => matchesAny(t, cfg.toolingGlobs || []))) return 'C';
     return 'E';
-  }
+  };
+
+  // Unambiguous file-authoring shapes first (specific, target-bearing syntax).
+  if (AUTHORING_SHAPES.some((rx) => rx.test(c))) return routeByTarget();
 
   // C: package managers / env tooling.
   if (PKG_MANAGER.some((rx) => rx.test(c))) return 'C';
@@ -197,6 +207,9 @@ function classifyBash(cmd, cfg) {
   if (RUN_PATTERNS.some((rx) => rx.test(c))) return 'B';
   const first = c.trim().split(/\s+/)[0];
   if (RUN_CMDS.includes(first)) return 'B';
+
+  // Bare-word mutation commands only when in command position.
+  if (COMMAND_MUTATORS.some((rx) => rx.test(c))) return routeByTarget();
 
   // A: read-only inspection.
   if (READONLY_GIT.test(c.trim())) return 'A';
