@@ -14,8 +14,8 @@ report referenced from `AGENTS.md` (phases, decisions D1–D8, gating matrix).
 - **Phase 2:** the blind fresh-process LLM engagement grader for the Tier 2
   unlock (grades genuineness of engagement, not correctness). Out of scope here.
 - **Phase 3:** policing code in chat — a `Stop`-hook fenced-code check at Tier 1
-  plus optional on-screen redaction. The `tier1MaxFenceLines` config default
-  (6) is carried now, unused until then.
+  plus optional on-screen redaction. Phase 3 will add its own
+  `tier1MaxFenceLines` config default; it is not carried in Phase 1.
 - **Phase 4:** OpenCode / Pi / Cursor adapters over the shared policy core.
 - **Phase 5:** the earned-time `nd report` loop and firstmate `learn:` tagging.
 

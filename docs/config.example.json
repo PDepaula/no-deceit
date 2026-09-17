@@ -4,7 +4,6 @@
   "mode": "coach",
   "t3TimeboxMinutes": 120,
   "preambleMinChars": 40,
-  "tier1MaxFenceLines": 6,
 
   "testGlobs": ["test/**", "tests/**", "**/*_test.*", "**/*.test.*", "**/*.spec.*", "**/conftest.py"],
   "toolingGlobs": ["**/deps.edn", "**/package.json", "**/pyproject.toml", "**/Dockerfile", "**/Makefile", "**/.github/**", "**/*.lock"]
