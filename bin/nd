@@ -1,0 +1,129 @@
+#!/usr/bin/env node
+// No Deceit — `nd` CLI: the developer's own out-of-band control channel.
+//
+// Set/show the tier and mode, unlock by override, and read the ledger. This
+// is one of the two forge-proof channels for state changes (the other is the
+// developer's /no-deceit: prompt commands, handled in the hook). The model
+// cannot use it to change its own tier: the PreToolUse gate denies any tool
+// call that invokes a mutating `nd` subcommand (category G), and — as
+// defense-in-depth if the gate is disabled — mutating subcommands here refuse
+// when they detect they are running inside an agent shell (CLAUDECODE set).
+
+import { gitToplevel, homePaths, projectPaths, isGoverned, readLedger } from '../core/state.mjs';
+import { setTier, setMode, unlockOverride, renderStatus, renderStatusShort } from '../core/control.mjs';
+import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+const env = process.env;
+const cwd = process.cwd();
+const repoRoot = gitToplevel(cwd);
+const sessionId = env.ND_SESSION || env.CLAUDE_SESSION_ID || null;
+
+const MUTATING = new Set(['init', 'tier', 'mode', 'unlock', 'reset']);
+
+function die(msg, code = 1) { process.stderr.write(msg + '\n'); process.exit(code); }
+function say(msg) { process.stdout.write(msg + '\n'); }
+
+function guardAgentShell(sub) {
+  if (MUTATING.has(sub) && env.CLAUDECODE && !env.ND_ALLOW_AGENT) {
+    die(
+      'No Deceit: refusing to run a state-changing `nd` subcommand from inside an ' +
+      'agent shell. The agent may never change its own tier. Run this in your own ' +
+      'terminal, or use the /no-deceit: prompt commands.',
+    );
+  }
+}
+
+function cmdInit() {
+  const p = projectPaths(repoRoot);
+  mkdirSync(p.dir, { recursive: true });
+  mkdirSync(p.attemptsDir, { recursive: true });
+  mkdirSync(p.t3Dir, { recursive: true });
+  if (!existsSync(p.stateFile)) writeFileSync(p.stateFile, JSON.stringify({ tier: 1, mode: 'ask', unlocked: false }, null, 2) + '\n');
+  if (!existsSync(p.gitignore)) writeFileSync(p.gitignore, '# Local No Deceit state — not shared.\nstate.json\n');
+  say(`No Deceit initialised in ${p.dir}. This project is now governed (Tier 1, mode ask).`);
+}
+
+const [sub, ...rest] = process.argv.slice(2);
+
+switch (sub) {
+  case undefined:
+  case 'help':
+  case '--help':
+  case '-h':
+    say(`nd — No Deceit control CLI
+
+  nd init                         opt this project in (create .no-deceit/)
+  nd tier <1|2|3>                 set the tier (3 is a time-boxed grant)
+  nd mode <coach|pair|ask>        set the domain mode
+  nd status [--short]             show the current tier/mode
+  nd unlock --override "<reason>" unlock Tier 2 by override (ledgered)
+  nd ledger [N]                   show the last N ledger entries (default 20)
+  nd doctor                       report paths and run the armed self-check`);
+    break;
+
+  case 'init':
+    guardAgentShell('init');
+    cmdInit();
+    break;
+
+  case 'tier': {
+    guardAgentShell('tier');
+    try { say(setTier({ repoRoot, env, sessionId, tier: rest[0] })); }
+    catch (e) { die(`No Deceit: ${e.message}`); }
+    break;
+  }
+
+  case 'mode': {
+    guardAgentShell('mode');
+    try { say(setMode({ repoRoot, env, mode: rest[0] })); }
+    catch (e) { die(`No Deceit: ${e.message}`); }
+    break;
+  }
+
+  case 'unlock': {
+    guardAgentShell('unlock');
+    const i = rest.indexOf('--override');
+    const reason = i >= 0 ? rest.slice(i + 1).join(' ').replace(/^["']|["']$/g, '') : '';
+    try { say(unlockOverride({ repoRoot, env, reason })); }
+    catch (e) { die(`No Deceit: ${e.message}`); }
+    break;
+  }
+
+  case 'status':
+    say(rest.includes('--short')
+      ? renderStatusShort({ repoRoot, env, sessionId })
+      : renderStatus({ repoRoot, env, sessionId }));
+    break;
+
+  case 'ledger': {
+    const n = Number(rest[0]) || 20;
+    const entries = readLedger(env, n);
+    if (entries.length === 0) { say('No Deceit ledger is empty.'); break; }
+    for (const e of entries) say(JSON.stringify(e));
+    break;
+  }
+
+  case 'doctor': {
+    const home = homePaths(env);
+    const proj = projectPaths(repoRoot);
+    say('No Deceit doctor');
+    say(`  repo root:   ${repoRoot}`);
+    say(`  governed:    ${isGoverned(repoRoot) ? 'yes' : 'no (run `nd init`)'}`);
+    say(`  project dir: ${proj.dir}`);
+    say(`  ledger:      ${home.ledger}`);
+    say(`  config:      ${home.configFile}`);
+    // Armed self-check via the pure policy core.
+    try {
+      const { decide } = await import('../core/policy.mjs');
+      const r = decide({ tier: 1, mode: 'coach', t2Unlocked: false, t3Active: false, t3PreamblePresent: false, notes: [] }, { category: 'E' });
+      say(`  gate armed:  ${r.decision === 'deny' ? 'yes (Tier 1 source write is denied)' : 'NO — gate not blocking!'}`);
+    } catch (e) {
+      say(`  gate armed:  NO — ${e.message}`);
+    }
+    break;
+  }
+
+  default:
+    die(`nd: unknown subcommand "${sub}". Try \`nd help\`.`);
+}

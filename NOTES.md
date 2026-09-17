@@ -1,39 +1,45 @@
 # Open Threads / Design Notes
 
-Running list of unresolved questions and ideas for the skill. Move items
-into `CHANGELOG.md` once actually decided and implemented in `SKILL.md`.
-Consider migrating this to GitHub Issues once other people start using
-the skill and contributing friction points.
+Running list of unresolved questions and ideas. Move items into `CHANGELOG.md`
+once actually decided and implemented. The full design authority is the scout
+report referenced from `AGENTS.md` (phases, decisions D1–D8, gating matrix).
+
+## Phase roadmap (from the design report)
+
+- **Phase 1 (this build):** the enforcing gate for Claude Code — plugin
+  manifest, pure `.mjs` policy core, `SessionStart`/`UserPromptSubmit`/
+  `PreToolUse` hooks, `nd` CLI, ledger, tamper-proofing, scope guard, and the
+  rewritten teaching skill. Tier 2 unlock is override-only; Tier 3 gates on a
+  deterministic preamble check and expires.
+- **Phase 2:** the blind fresh-process LLM engagement grader for the Tier 2
+  unlock (grades genuineness of engagement, not correctness). Out of scope here.
+- **Phase 3:** policing code in chat — a `Stop`-hook fenced-code check at Tier 1
+  plus optional on-screen redaction. The `tier1MaxFenceLines` config default
+  (6) is carried now, unused until then.
+- **Phase 4:** OpenCode / Pi / Cursor adapters over the shared policy core.
+- **Phase 5:** the earned-time `nd report` loop and firstmate `learn:` tagging.
 
 ## Not yet decided
 
-- **Khononov's connascence** ("Balancing Coupling in Software Design") was
-  considered as an additional Coach Mode lens but left out. It may
-  substantially overlap with the existing Simple vs Easy (Hickey) frame —
-  neither confirmed nor ruled out, since neither the book nor the overlap
-  has been examined closely enough yet. Revisit if a concrete case shows
-  the existing lenses are insufficient.
-- Whether Ousterhout's "deep modules" (*A Philosophy of Software Design*)
-  deserves a secondary/optional-lens appendix for larger-system
-  architecture questions, rather than staying fully excluded. Currently
-  excluded because it assumes an OO/interface-programming worldview that
-  doesn't transfer cleanly to Clojure. Revisit with a concrete case.
+- **Bash classifier coverage.** The category-E deny-list (redirects, `sed -i`,
+  `patch`, heredocs, file-writing eval) is best-effort by design; unknown Bash
+  becomes an `ask` at gated tiers. The exception globs (categories C/D) and the
+  deny-list will be wrong in ways only real use reveals — the ledger records
+  every denial to tune from.
+- **Khononov's connascence** as an additional Coach lens — may overlap with
+  Hickey's simple-vs-easy. Revisit with a concrete case.
+- **Ousterhout's deep modules** as a secondary architecture lens — currently
+  excluded (assumes an OO/interface worldview). Revisit with a concrete case.
+
+## Resolved since the last version
+
+- **The Cursor / VS Code "rules-file wrapper" plan is dropped.** Cursor now
+  reads `SKILL.md` natively and has a real `preToolUse` hook; a rules file is
+  advisory and would reproduce the exact enforcement gap this plugin closes.
+  The right path is a thin Cursor hook adapter over the shared core (Phase 4).
 
 ## Not yet done
 
-- Actual sustained use of the skill in practice (Tier 1 / Coach mode on
-  full-stack product work, Clojure/ClojureScript with tools.deps and
-  shadow-cljs). The tooling-exception addition was itself the direct
-  result of early friction here — expect more refinements from real use.
-- A thin Cursor / VS Code wrapper file, for people who want to use this
-  outside Claude Code / OpenCode (which read `SKILL.md` natively).
-
-## Natural next steps
-
-1. Keep collecting real-usage friction points — this has been the most
-   productive way to refine the skill so far (see the tooling exception).
-2. Decide on Ousterhout / Khononov once a concrete case for either comes
-   up.
-3. Consider whether Tier 3 ("Narrated Velocity Mode") needs a worked
-   example once it's actually been invoked under real deadline pressure.
-4. Draft the Cursor/VS Code wrapper file if/when needed.
+- Actual sustained use of the gate in practice. The exception globs and Bash
+  deny-list will need refinement from real friction — the most productive way
+  the skill has improved so far. Log every denial and review the ledger weekly.
