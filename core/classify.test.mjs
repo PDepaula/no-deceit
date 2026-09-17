@@ -155,6 +155,23 @@ for (const command of [
     assert.equal(decide(T3, { category: cat }).decision, 'deny');
   });
 }
+// Undotted home state/config dirs in tilde/$HOME/relative spellings must be G too.
+for (const command of [
+  'echo x > ~/.config/no-deceit/config.json',
+  'echo x > $HOME/.local/state/no-deceit/ledger.jsonl',
+  'tee ~/.config/no-deceit/config.json',
+  'dd of=.local/state/no-deceit/ledger.jsonl',
+]) {
+  test(`Bash referencing a home state path is G and denied at Tier 3: ${command}`, () => {
+    const cat = classify('Bash', { command }, cfg);
+    assert.equal(cat, 'G');
+    assert.equal(decide(T3, { category: cat }).decision, 'deny');
+  });
+}
+// The repo is itself named no-deceit; a bare reference must NOT be tamper.
+test('bare repo-name reference is not tamper', () => {
+  assert.equal(classify('Bash', { command: 'cat no-deceit/README.md' }, cfg), 'A');
+});
 
 // --- Category U: unknown Bash ---
 test('unrecognized Bash command is category U', () => {

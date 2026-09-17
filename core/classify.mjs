@@ -57,6 +57,12 @@ const RE_STATE_SEGMENT = /(^|\/)\.no-deceit(\/|$)/;
 // quote, or any boundary — so tamper is caught regardless of mutation shape.
 const RE_STATE_SEGMENT_CMD = /\.no-deceit(\/|$|\b)/;
 
+// The undotted home state/config dirs (~/.config/no-deceit, ~/.local/state/no-deceit,
+// or their XDG-var forms). Tilde, $HOME, and relative spellings all reduce to one of
+// these location-anchored segments, so match the segment rather than a resolved prefix
+// — and never a bare 'no-deceit' token, which is the repo's own name.
+const RE_HOME_STATE_CMD = /(?:\.config\/|\.local\/state\/|XDG_(?:CONFIG|STATE)_HOME\}?\/)no-deceit(\/|$|\b)/;
+
 /** Is `absPath` under one of the No Deceit state-path prefixes? */
 function underStatePath(absPath, prefixes) {
   if (!absPath) return false;
@@ -166,8 +172,9 @@ function classifyBash(cmd, cfg) {
 
   // G: tamper — mutating nd subcommand, or any reference to a state path.
   if (RE_MUTATING_ND.test(c)) return 'G';
+  const nc = c.replace(/\\/g, '/');
   const touchesState = prefixes.some((p) => c.includes(String(p).replace(/\/+$/, '')));
-  if (touchesState || RE_STATE_SEGMENT_CMD.test(c.replace(/\\/g, '/'))) return 'G';
+  if (touchesState || RE_STATE_SEGMENT_CMD.test(nc) || RE_HOME_STATE_CMD.test(nc)) return 'G';
 
   // Read-only nd is inspect.
   if (RE_READONLY_ND.test(c)) return 'A';
