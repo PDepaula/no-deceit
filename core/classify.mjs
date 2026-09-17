@@ -94,7 +94,6 @@ const MUTATION_SHAPES = [
   /\bpatch\b/,
   /\bgit\s+apply\b/,
   /\bdd\s+.*\bof=/,
-  /\binstall\s+-[^\s]*\s/, // install -m ... dest
   /\bcp\b/,
   /\bmv\b/,
   /<<-?\s*['"]?[A-Za-z_]/, // heredoc
@@ -140,7 +139,7 @@ const PKG_MANAGER = [
   /\bapt(-get)?\s+(install|update)\b/,
   /\bbrew\s+(install|update|upgrade)\b/,
   /\bgem\s+install\b/,
-  /\bcargo\s+add\b/,
+  /\bcargo\s+(add|install)\b/,
   /\bgo\s+(get|mod)\b/,
 ];
 

@@ -55,6 +55,18 @@ test('Edit to deps.edn is category C', () => {
 test('package manager install is category C', () => {
   assert.equal(classify('Bash', { command: 'npm install lodash' }, cfg), 'C');
 });
+// Flagged package-manager installs must not misread the `install -flag` shape as source mutation.
+for (const command of [
+  'npm install -D lodash',
+  'pip install -r requirements.txt',
+  'apt-get install -y jq',
+  'cargo install --locked ripgrep',
+  'gem install -v 1.2 rails',
+]) {
+  test(`flagged package-manager install is category C: ${command}`, () => {
+    assert.equal(classify('Bash', { command }, cfg), 'C');
+  });
+}
 
 // --- Category D: test scaffold ---
 test('Write to test/ path is category D', () => {
