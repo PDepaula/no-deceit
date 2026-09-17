@@ -91,6 +91,15 @@ export function liveInvoke({ env, pluginRoot: root, model, timeoutMs, jobPath })
   return executeSpawnPlan(plan, { env });
 }
 
+export function makeLiveInvoke(env, { spawnImpl } = {}) {
+  return async ({ job, plan }) => {
+    assertJobBlind(job);
+    mkdirSync(dirname(plan.jobPath), { recursive: true });
+    writeFileSync(plan.jobPath, JSON.stringify(job));
+    return executeSpawnPlan(plan, { env, spawnImpl });
+  };
+}
+
 export function invokeFromEnv(env = process.env, fallback) {
   if (typeof fallback === 'function') return fallback;
   if (env.ND_GRADER_MOCK_JSON) {
@@ -336,12 +345,13 @@ export async function runUnlock({
   invoke,
   timeoutMs,
   model,
+  spawnImpl,
 } = {}) {
   if (override != null) {
     return unlockOverride({ repoRoot, env, reason: override });
   }
 
-  const resolved = invokeFromEnv(env, invoke);
+  const resolved = invokeFromEnv(env, invoke) || makeLiveInvoke(env, { spawnImpl });
 
   if (appeal) {
     const before = readProjectState(repoRoot, env);
@@ -351,8 +361,10 @@ export async function runUnlock({
     if (before.lastUnlock.appealed) {
       throw new Error('one appeal per verdict (the honesty valve is still `nd unlock --override "<reason>"`)');
     }
+    const storedRoute = before.lastUnlock.route;
+    const appealGit = storedRoute ? storedRoute === 'commit-history' : git;
     const result = await gradeFromDisk({
-      repoRoot, env, task: before.lastUnlock.task || task, git, files, since,
+      repoRoot, env, task: before.lastUnlock.task || task, git: appealGit, files, since,
       invoke: resolved, timeoutMs, model,
     });
     persistUnlock({ repoRoot, env, task: before.lastUnlock.task || task, route: result.route || before.lastUnlock.route, result, appealed: true });
@@ -386,6 +398,7 @@ export async function runCheck({
   invoke,
   timeoutMs,
   model,
+  spawnImpl,
 } = {}) {
   const paths = projectPaths(repoRoot);
   const dir = join(paths.checksDir, task);
@@ -400,7 +413,7 @@ export async function runCheck({
   }
   const rubric = JSON.parse(readFileSync(rubricPath, 'utf8'));
   const cfg = loadConfig(env);
-  const resolved = invokeFromEnv(env, invoke);
+  const resolved = invokeFromEnv(env, invoke) || makeLiveInvoke(env, { spawnImpl });
   const outputPath = join(paths.verdictsDir, `check-${task}.json`);
   const result = await gradeCheckAttempt({
     invoke: resolved,

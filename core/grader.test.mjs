@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from 'node:fs';
+import { EventEmitter } from 'node:events';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { projectPaths, readProjectState, readLedger, writeProjectState } from './state.mjs';
@@ -25,6 +27,21 @@ function scratch() {
   mkdirSync(projectPaths(repo).checksDir, { recursive: true });
   writeProjectState(repo, { tier: 2, mode: 'coach', unlocked: false });
   return { dir, env, repo, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+}
+
+function fakeSpawn(json, calls) {
+  return (command, args) => {
+    if (calls) calls.push({ command, args });
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.kill = () => {};
+    setImmediate(() => {
+      child.stdout.emit('data', typeof json === 'string' ? json : JSON.stringify(json));
+      child.emit('close', 0);
+    });
+    return child;
+  };
 }
 
 function passingMentalInvoke() {
@@ -160,6 +177,99 @@ test('runUnlock grades a mental-model file, writes a verdict, and ledgers', asyn
     const verdict = JSON.parse(readFileSync(join(projectPaths(s.repo).verdictsDir, 'parser.json'), 'utf8'));
     assert.equal(verdict.verdict, 'unlocked');
     assert.ok(readLedger(s.env, 20).some((e) => e.event === 'unlock_grade' && e.verdict === 'unlocked'));
+  } finally { s.cleanup(); }
+});
+
+test('real unlock path (no invoke, no mock env) spawns the blind grader and unlocks', async () => {
+  const s = scratch();
+  try {
+    writeFileSync(
+      join(projectPaths(s.repo).attemptsDir, 'parser.md'),
+      'The walker is supposed to cons-recurse on list cells. It returns nil on `(a . b)` because I think dotted pairs skip the cdr walk — the failing REPL result was nil. Tried quoting.',
+    );
+    const calls = [];
+    const msg = await runUnlock({
+      repoRoot: s.repo, env: s.env, task: 'parser',
+      spawnImpl: fakeSpawn(await passingMentalInvoke()(), calls),
+    });
+    assert.equal(calls.length, 1, 'the grader child was spawned');
+    assert.equal(calls[0].command, 'claude');
+    assert.match(msg, /unlocked/i);
+    assert.equal(readProjectState(s.repo, s.env).unlocked, true);
+    assert.ok(
+      existsSync(join(projectPaths(s.repo).verdictsDir, 'parser.job.json')),
+      'the blind job was materialized to disk for the child',
+    );
+  } finally { s.cleanup(); }
+});
+
+test('real check path (no invoke, no mock env) spawns the grader and records landed', async () => {
+  const s = scratch();
+  try {
+    const dir = join(projectPaths(s.repo).checksDir, 'heap');
+    mkdirSync(dir, { recursive: true });
+    const rubric = join(dir, 'rubric.json');
+    const answer = join(dir, 'answer.md');
+    writeFileSync(rubric, JSON.stringify({
+      question: 'What was inverted?',
+      criteria: { Q1: 'Names the compare-sign inversion' },
+    }));
+    utimesSync(rubric, new Date('2020-01-01'), new Date('2020-01-01'));
+    writeFileSync(answer, 'compare() had the subtract operands swapped, so the heap order inverted.');
+    utimesSync(answer, new Date('2024-01-01'), new Date('2024-01-01'));
+    const calls = [];
+    const msg = await runCheck({
+      repoRoot: s.repo, env: s.env, task: 'heap',
+      spawnImpl: fakeSpawn({
+        verdict: 'landed',
+        error_class: 'slip',
+        misconceptions: [],
+        criteria: { Q1: { met: true, span: 'subtract operands swapped' } },
+      }, calls),
+    });
+    assert.equal(calls.length, 1, 'the grader child was spawned');
+    assert.match(msg, /landed/);
+    const led = readLedger(s.env, 20).find((e) => e.event === 'check_grade');
+    assert.equal(led.verdict, 'landed');
+  } finally { s.cleanup(); }
+});
+
+test('appeal re-grades the stored route when --git is not re-passed', async () => {
+  const s = scratch();
+  try {
+    const git = (...args) => execFileSync('git', args, { cwd: s.repo, stdio: ['ignore', 'ignore', 'ignore'] });
+    git('init', '-q');
+    git('config', 'user.email', 'a@b.c');
+    git('config', 'user.name', 'Tester');
+    const unit = join(s.repo, 'src', 'walk.js');
+    mkdirSync(join(s.repo, 'src'), { recursive: true });
+    writeFileSync(unit, 'function walk(cell) { return cell.car; }\n');
+    git('add', '-A'); git('commit', '-q', '-m', 'first cut: read car only');
+    writeFileSync(unit, 'function walk(cell) { return isPair(cell) ? walk(cell.cdr) : cell; }\n');
+    git('add', '-A'); git('commit', '-q', '-m', 'recurse the cdr instead');
+    writeProjectState(s.repo, {
+      tier: 2, mode: 'coach', unlocked: false,
+      lastUnlock: { id: 'v1', task: 'parser', route: 'commit-history', verdict: 'not_yet', appealed: false },
+    });
+    let seenRoute;
+    await runUnlock({
+      repoRoot: s.repo, env: s.env, appeal: true,
+      invoke: async ({ job }) => {
+        seenRoute = job.route;
+        return {
+          verdict: 'unlocked',
+          criteria: {
+            C1: { met: true, span: 'two attempts' },
+            C2: { met: true, span: 'different strategy' },
+            C3: { met: true, span: 'ran the tests' },
+          },
+        };
+      },
+    });
+    assert.equal(seenRoute, 'commit-history', 'the stored commit-history route is re-graded, not mental-model');
+    const state = readProjectState(s.repo, s.env);
+    assert.equal(state.lastUnlock.route, 'commit-history');
+    assert.equal(state.unlocked, true);
   } finally { s.cleanup(); }
 });
 
