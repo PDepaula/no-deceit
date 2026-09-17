@@ -1,0 +1,16 @@
+{
+  "name": "no-deceit",
+  "owner": {
+    "name": "Patrick De Paula"
+  },
+  "metadata": {
+    "description": "No Deceit — the repo doubles as its own single-plugin marketplace."
+  },
+  "plugins": [
+    {
+      "name": "no-deceit",
+      "source": "./",
+      "description": "Tier-enforcing AI coding-assistance gate for Claude Code."
+    }
+  ]
+}

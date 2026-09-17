@@ -1,0 +1,150 @@
+#!/usr/bin/env node
+// No Deceit — Claude Code hook shim.
+//
+// One entry point for every event; the event name is argv[2]. Reads the hook
+// payload as JSON on stdin, calls the tested core, and prints the Claude Code
+// hook-output JSON. It is deliberately thin: all policy lives in ../core.
+//
+// Fail-closed: on PreToolUse, ANY error becomes an explicit `deny` decision,
+// never a bare non-zero exit that the harness might treat as a pass.
+
+import { evaluate } from '../core/gate.mjs';
+import { decide, REASONS } from '../core/policy.mjs';
+import { appendLedger, gitToplevel, isGoverned } from '../core/state.mjs';
+import { parseCommand, setTier, setMode, unlockOverride, renderStatus, renderStatusShort } from '../core/control.mjs';
+
+function readStdin() {
+  return new Promise((resolve) => {
+    let data = '';
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (c) => (data += c));
+    process.stdin.on('end', () => resolve(data));
+    // If nothing is piped, don't hang forever.
+    if (process.stdin.isTTY) resolve('');
+  });
+}
+
+function emit(obj) {
+  process.stdout.write(JSON.stringify(obj));
+}
+
+function contextFacts(repoRoot, env, sessionId) {
+  const badge = renderStatusShort({ repoRoot, env, sessionId });
+  const status = renderStatus({ repoRoot, env, sessionId });
+  return (
+    `No Deceit is active in this project. ${badge}\n` +
+    `${status}\n` +
+    `Your tier is stored outside this conversation and you cannot change it — ` +
+    `tier and mode change only through the developer's own /no-deceit: prompt ` +
+    `commands or their own \`nd\` shell CLI. A denied tool call is the system ` +
+    `working as intended; do not route around it.`
+  );
+}
+
+/** Armed self-check: prove the policy core loaded and denies a Tier 1 source write. */
+function armedSelfCheck() {
+  try {
+    const r = decide(
+      { tier: 1, mode: 'coach', t2Unlocked: false, t3Active: false, t3PreamblePresent: false, notes: [] },
+      { category: 'E' },
+    );
+    if (r.decision === 'deny' && r.reason === REASONS.T1) return { armed: true };
+    return { armed: false, why: 'policy core returned an unexpected decision' };
+  } catch (err) {
+    return { armed: false, why: String((err && err.message) || err) };
+  }
+}
+
+async function main() {
+  const event = process.argv[2];
+  const raw = await readStdin();
+  let input = {};
+  try { input = raw ? JSON.parse(raw) : {}; } catch { input = {}; }
+  const env = process.env;
+
+  if (event === 'PreToolUse') {
+    let result;
+    try {
+      const repoRoot = gitToplevel(input.cwd || process.cwd());
+      result = evaluate({
+        toolName: input.tool_name,
+        toolInput: input.tool_input || {},
+        cwd: repoRoot,
+        env,
+        sessionId: input.session_id,
+      });
+    } catch (err) {
+      result = { decision: 'deny', reason: `No Deceit gate error (fail-closed): ${String((err && err.message) || err)}`, ledgerEntry: { event: 'gate_error', error: String(err) } };
+    }
+    if (result.ledgerEntry) { try { appendLedger(env, result.ledgerEntry); } catch { /* never fail the gate on a ledger write */ } }
+    if (result.decision === 'allow') return; // no output == allow
+    emit({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: result.decision, // 'deny' | 'ask'
+        permissionDecisionReason: result.reason,
+      },
+    });
+    return;
+  }
+
+  if (event === 'SessionStart') {
+    const repoRoot = gitToplevel(input.cwd || process.cwd());
+    if (!isGoverned(repoRoot)) return; // ungoverned: stay silent
+    const check = armedSelfCheck();
+    let context = contextFacts(repoRoot, env, input.session_id);
+    if (!check.armed) {
+      context =
+        `WARNING: the No Deceit gate FAILED its armed self-check (${check.why}). ` +
+        `The enforcement gate may not be blocking. Tell the developer loudly; ` +
+        `do not assume tier rules are enforced.\n\n` + context;
+    }
+    emit({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context } });
+    return;
+  }
+
+  if (event === 'UserPromptSubmit') {
+    const repoRoot = gitToplevel(input.cwd || process.cwd());
+    const cmd = parseCommand(input.prompt || '');
+    if (cmd) {
+      let message;
+      try {
+        if (cmd.name === 'tier') {
+          message = setTier({ repoRoot, env, sessionId: input.session_id, tier: cmd.arg });
+        } else if (cmd.name === 'mode') {
+          message = setMode({ repoRoot, env, mode: cmd.arg });
+        } else if (cmd.name === 'unlock') {
+          const m = /--override\s+["']?(.+?)["']?\s*$/.exec(cmd.arg);
+          if (m) message = unlockOverride({ repoRoot, env, reason: m[1] });
+          else message = 'Tier 2 unlock in Phase 1 is override-only. Run `/no-deceit:unlock --override "<your reason>"` (the reason is written to the ledger).';
+        } else if (cmd.name === 'status') {
+          message = renderStatus({ repoRoot, env, sessionId: input.session_id });
+        } else {
+          message = `Unknown No Deceit command: ${cmd.name}. Try tier, mode, unlock, or status.`;
+        }
+      } catch (err) {
+        message = `No Deceit: ${String((err && err.message) || err)}`;
+      }
+      // Block the prompt: it is a control command, handled by the hook, and
+      // must not be executed by the model. The reason is shown to the developer.
+      emit({ decision: 'block', reason: `[No Deceit] ${message}` });
+      return;
+    }
+    // Not a command: inject the current tier/mode as context, when governed.
+    if (isGoverned(repoRoot)) {
+      emit({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: contextFacts(repoRoot, env, input.session_id) } });
+    }
+    return;
+  }
+
+  // Unknown event: no-op.
+}
+
+main().catch((err) => {
+  // Absolute last resort. For a PreToolUse this still fails closed via exit 2.
+  if (process.argv[2] === 'PreToolUse') {
+    process.stderr.write(`No Deceit gate crashed (fail-closed deny): ${String((err && err.message) || err)}`);
+    process.exit(2);
+  }
+  process.exit(0);
+});

@@ -1,0 +1,10 @@
+{
+  "_comment": "Optional user config at ~/.config/no-deceit/config.json (XDG). All keys are optional; built-in defaults apply otherwise. JSON, not TOML, to keep the core dependency-free (D6).",
+
+  "mode": "coach",
+  "t3TimeboxMinutes": 120,
+  "preambleMinChars": 40,
+
+  "testGlobs": ["test/**", "tests/**", "**/*_test.*", "**/*.test.*", "**/*.spec.*", "**/conftest.py"],
+  "toolingGlobs": ["**/deps.edn", "**/package.json", "**/pyproject.toml", "**/Dockerfile", "**/Makefile", "**/.github/**", "**/*.lock"]
+}

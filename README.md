@@ -1,86 +1,131 @@
 # No Deceit
 
-A Claude Code / OpenCode skill that governs how much AI coding assistance
-you get, based on a manually chosen tier — forcing a conscious, honest
-choice between optimizing for **learning** and optimizing for **velocity**,
-instead of silently defaulting into either one.
+A Claude Code **plugin** that governs how much AI coding assistance you get,
+based on a manually chosen tier — forcing a conscious, honest choice between
+optimizing for **learning** and optimizing for **velocity**, instead of
+silently defaulting into either one.
+
+The difference from a plain skill: a skill can only *advise*, and the agent can
+read the advice and keep going. No Deceit ships as one plugin where a
+`PreToolUse` **hook is the enforcement** (it can hard-deny a tool call, even
+under `--dangerously-skip-permissions`) and a bundled **skill is the teacher**.
+The hook blocks; the skill explains why and what to do instead.
 
 ## Why this exists
 
-The danger of AI coding assistance isn't that it makes you less capable.
-It's that it lets you *feel* productive while quietly hollowing out the
-understanding you'll need later. Programming knowledge is procedural, not
-just theoretical — it's a habit, not a fact you can recognize on a
-multiple-choice test. The real test of whether you know something is what
-you can produce facing a blank file, with nothing to lean on. That's
-Bloom's highest level of learning: **create**, not just remember,
-understand, apply, analyze, or evaluate.
-
-Every mechanism in this skill exists to protect that ability, even when
-it's slower in the moment.
+The danger of AI coding assistance isn't that it makes you less capable. It's
+that it lets you *feel* productive while quietly hollowing out the understanding
+you'll need later. Programming knowledge is procedural, not just theoretical —
+it's a habit, not a fact you can recognize on a multiple-choice test. The real
+test of whether you know something is what you can produce facing a blank file.
+That's Bloom's highest level: **create**. Every mechanism here exists to protect
+that ability, even when it's slower in the moment.
 
 ## How it works
 
-The skill has two independent axes:
+Two independent axes.
 
-**Tier** (you select manually; default is Tier 1):
-- **Tier 1 — Tutor Mode.** No working code, ever. The agent responds with
+**Tier** (you select it; default in a governed project is Tier 1):
+
+- **Tier 1 — Tutor.** No working code, ever. The hook denies `Write`/`Edit`/
+  `NotebookEdit` and code-writing shell commands; the agent responds with
   Socratic questions that redirect you back to the problem.
-- **Tier 2 — Guided Mode.** Unlocks once you show real engagement — either
-  a commit history of meaningfully different attempts, or your own
-  articulated mental model of what's going wrong. The agent can then
-  explain and show a worked solution, but you type the implementation
-  yourself. No copy-paste.
-- **Tier 3 — Narrated Velocity Mode.** Invoked explicitly, for real
-  deadline pressure. Requires you to give a high-level view of the problem
-  and your own naive first-instinct approach *before* any code gets
-  written. The agent then moves fast with full agentic tooling, but must
-  narrate its reasoning and flag any divergence from your original
+- **Tier 2 — Guided.** Unlocks once you show real engagement. **In this phase
+  the unlock is override-only** — `nd unlock --override "<reason>"`, recorded to
+  the ledger (an automated engagement grader is a later phase). Even unlocked,
+  the agent has no write path: it may explain and show a worked solution in
+  chat, and **you type the implementation** — no copy-paste.
+- **Tier 3 — Narrated Velocity.** Invoked explicitly, for real deadline
+  pressure, and it **expires** (a time box) then falls back. Requires a
+  non-trivial `.no-deceit/t3/preamble.md` — a high-level view and your own naive
+  first instinct — before any source is written. Then the agent moves fast with
+  full tooling but must narrate its reasoning and flag divergence from your
   approach.
 
-**Domain mode** (crosses all tiers):
-- **Coach mode** — for domains you don't have solid footing in yet. The
-  agent acts like a senior engineer correcting your mental model, always
-  with reasoning, not just assertion.
-- **Pair mode** — for domains you're already competent in. The agent acts
-  like a roughly-equal pair programmer: fast, concise, catching mistakes.
+**Domain mode** (crosses all tiers): **Coach** for domains you don't have solid
+footing in (the agent corrects your mental model with reasoning, from named
+lenses), **Pair** for domains you're competent in (fast, concise, catching
+slips).
 
-Three cross-tier exceptions apply at every tier, including Tier 1, because
-gating them the same way as core logic adds cost without adding learning:
-- **Test scaffolding** (structure only, not logic/assertions) on request.
-- **Tooling and environment setup** (build config, dependency management,
-  build errors) — one genuine attempt, then direct help.
-- **Interactive development** (REPL, notebook, hot reload, print-statement
-  debugging) is always encouraged — tightening the feedback loop isn't the
-  same as giving you the answer.
+**Always allowed at every tier**, because gating them adds cost without adding
+learning:
+
+- **Interactive development** — REPL, notebook, hot reload, print debugging, and
+  **running your code, tests, and linters**. The feedback loop is never blocked.
+- **Test scaffolding** (structure, not logic/assertions) on request.
+- **Tooling and environment setup** (build config, dependency management, build
+  errors).
+
+**You can never be tricked, and neither can the agent.** The tier lives on disk,
+outside the conversation. The agent cannot change its own tier: changes come
+only from your own `/no-deceit:` prompt commands (handled inside the hook, from
+your literal text) or your own `nd` shell CLI. Every tier change, override, and
+denial is written to an append-only ledger.
+
+## Install
+
+This repo is a Claude Code plugin and doubles as its own single-plugin
+marketplace.
+
+```bash
+# As a skills-dir plugin (drop-in, hooks included, no marketplace):
+git clone https://github.com/PDepaula/no-deceipt ~/.claude/skills/no-deceit
+
+# Or via the marketplace:
+claude plugin marketplace add PDepaula/no-deceipt
+claude plugin install no-deceit
+```
+
+Requires Node (for the `.mjs` policy core and hooks; zero external
+dependencies). Then, in a project you want governed:
+
+```bash
+nd init        # opt this project in (creates .no-deceit/)
+nd status      # show the current tier and mode
+nd tier 1      # or 2 / 3
+nd mode coach  # or pair / ask
+```
+
+Only projects with a `.no-deceit/` directory are governed — every other repo is
+untouched. Worker/headless sessions (e.g. a firstmate crewmate, marked by
+`FM_TASK_ID`) are exempt so the gate never wedges an automated fleet.
+
+Control it from the chat prompt, too — these are handled inside the hook, so the
+agent never sees them as something it can forge:
+
+```
+/no-deceit:status
+/no-deceit:tier 2
+/no-deceit:mode coach
+/no-deceit:unlock --override "deadline; I know the approach"
+```
 
 Coach mode reasons from a small set of named, citable lenses (Rich Hickey's
 simple-vs-easy, Grokking Simplicity's actions/calculations/data, Bernhardt's
-functional-core/imperative-shell, CodeScene's code health smells, and
-state-minimization heuristics from the Clojure community) rather than vague
-assertions like "this is cleaner." See `SKILL.md` for the full writeup and
-citations.
+functional-core/imperative-shell, CodeScene's code-health smells, and
+state-minimization heuristics from the Clojure community). See
+`skills/no-deceit/SKILL.md` for the full writeup and citations.
 
-## Using it
+## Other harnesses
 
-Drop `SKILL.md` into your skills folder. It's plain-language instructions,
-not code, so it works as-is with:
-- **Claude Code** and **OpenCode** — both read the same
-  `SKILL.md` / skills-folder format natively.
-- **Cursor / VS Code–style tools** — these use a different rules-file
-  convention, so you'll likely want a thin wrapper file pointing at this
-  content. (Not included yet — see `NOTES.md`.)
-
-Once loaded, just tell the agent which tier and domain mode to use, e.g.
-"Tier 1, coach mode" or "Tier 3" for a deadline crunch. Domain mode can also
-be left for the agent to ask about if it's unclear.
+The advisory half is already portable: OpenCode and Cursor both read `SKILL.md`
+natively (Cursor also reads from `~/.claude/skills/`), so the teaching layer
+works there today. The *enforcing* half — a real pre-tool deny — exists in
+OpenCode (`tool.execute.before`), Cursor (`.cursor/hooks.json`), and Pi
+(`tool_call`), but each has a different shape and failure direction, so thin
+per-harness adapters over the shared policy core are a later phase (not the
+earlier README's "you'll want a rules-file wrapper" — a rules file is advisory
+and would reproduce the exact gap this plugin closes). The policy core
+(`core/*.mjs`) is pure and dependency-free precisely so those adapters can
+import it unchanged.
 
 ## Status
 
-This is a personal skill I'm actively using and refining based on real
-friction points (see `NOTES.md` for open questions and `CHANGELOG.md` for
-what's changed). Feedback, issues, and PRs — especially real usage
-friction you hit while using it — are welcome.
+Phase 1: the enforcing gate for Claude Code (this build). Later phases add a
+blind engagement grader for the Tier 2 unlock, chat-text policing, the other
+harness adapters, and an earned-time reporting loop. See `NOTES.md` for open
+threads and `CHANGELOG.md` for what's changed. The full design rationale lives
+in the scout report referenced from `AGENTS.md`.
 
 ## License
 
