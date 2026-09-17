@@ -18,7 +18,7 @@ with the skill kept as the teaching layer.
   grant expiry, and the tier × category decision table), `scope.mjs` (Step 0
   opt-in + worker/headless exemption), `state.mjs` (XDG state I/O + ledger),
   `control.mjs` (tier/mode/unlock/status), `gate.mjs` (fail-closed
-  orchestrator). Fully unit-tested (118 tests via `node --test`).
+  orchestrator). Fully unit-tested (148 tests via `node --test`).
 - **Hooks (`hooks/hooks.json` + `hooks/nd-hook.mjs`):** `SessionStart` injects
   tier/mode context and runs an armed self-check; `UserPromptSubmit` injects
   context and handles `/no-deceit:tier|:mode|:unlock|:status` in-hook (the
