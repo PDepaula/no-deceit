@@ -273,6 +273,76 @@ test('appeal re-grades the stored route when --git is not re-passed', async () =
   } finally { s.cleanup(); }
 });
 
+test('flagless commit-history appeal reuses the original files/since, not the whole repo', async () => {
+  const s = scratch();
+  try {
+    const git = (...args) => execFileSync('git', args, { cwd: s.repo, stdio: ['ignore', 'ignore', 'ignore'] });
+    git('init', '-q');
+    git('config', 'user.email', 'a@b.c');
+    git('config', 'user.name', 'Tester');
+    mkdirSync(join(s.repo, 'src'), { recursive: true });
+    const feature = join(s.repo, 'src', 'feature.js');
+    const other = join(s.repo, 'src', 'other.js');
+    writeFileSync(feature, 'export function feature() { return 1; }\n');
+    git('add', '-A'); git('commit', '-q', '-m', 'add feature (single attempt)');
+    writeFileSync(other, 'export function other() { return {}; }\n');
+    git('add', '-A'); git('commit', '-q', '-m', 'first cut at other');
+    writeFileSync(other, 'export function other() { return new Map(); }\n');
+    git('add', '-A'); git('commit', '-q', '-m', 'reshape other to a Map');
+    writeProjectState(s.repo, {
+      tier: 2, mode: 'coach', unlocked: false,
+      lastUnlock: {
+        id: 'v1', task: 'feature', route: 'commit-history',
+        files: ['src/feature.js'], since: null, verdict: 'not_yet', appealed: false,
+      },
+    });
+    let called = 0;
+    const msg = await runUnlock({
+      repoRoot: s.repo, env: s.env, appeal: true,
+      invoke: async () => {
+        called++;
+        return { verdict: 'unlocked', criteria: {
+          C1: { met: true, span: 'a' }, C2: { met: true, span: 'b' }, C3: { met: true, span: 'c' },
+        } };
+      },
+    });
+    assert.equal(called, 0, 'scoped to one-attempt feature.js: prefilter rejects before any grader call');
+    assert.match(msg, /not_yet/i);
+    assert.equal(readProjectState(s.repo, s.env).unlocked, false);
+    const patch = readFileSync(join(projectPaths(s.repo).attemptsDir, 'feature.git.patch'), 'utf8');
+    assert.ok(!patch.includes('other.js'), 'the appeal evidence stays scoped to the original files');
+  } finally { s.cleanup(); }
+});
+
+test('checking-question with an omitted criterion is partial, not landed (round down)', async () => {
+  const s = scratch();
+  try {
+    const dir = join(projectPaths(s.repo).checksDir, 'heap');
+    mkdirSync(dir, { recursive: true });
+    const rubric = join(dir, 'rubric.json');
+    const answer = join(dir, 'answer.md');
+    writeFileSync(rubric, JSON.stringify({
+      question: 'What was inverted?',
+      criteria: { Q1: 'Names the compare-sign inversion', Q2: 'Says how to falsify' },
+    }));
+    utimesSync(rubric, new Date('2020-01-01'), new Date('2020-01-01'));
+    writeFileSync(answer, 'compare() had the subtract operands swapped, so the heap order inverted.');
+    utimesSync(answer, new Date('2024-01-01'), new Date('2024-01-01'));
+    const msg = await runCheck({
+      repoRoot: s.repo, env: s.env, task: 'heap',
+      invoke: async () => ({
+        verdict: 'landed',
+        error_class: 'slip',
+        misconceptions: [],
+        criteria: { Q1: { met: true, span: 'subtract operands swapped' } },
+      }),
+    });
+    assert.match(msg, /partial/);
+    const led = readLedger(s.env, 20).find((e) => e.event === 'check_grade');
+    assert.equal(led.verdict, 'partial');
+  } finally { s.cleanup(); }
+});
+
 test('one appeal per verdict is enforced; a second appeal is refused', async () => {
   const s = scratch();
   try {

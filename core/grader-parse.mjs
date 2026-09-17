@@ -30,11 +30,11 @@ function errorClass(v) {
  * Turn raw model text into a mechanical verdict.
  * kind: 'unlock' (default) | 'check'
  */
-export function parseGraderOutput(text, { route = 'mental-model', kind = 'unlock' } = {}) {
+export function parseGraderOutput(text, { route = 'mental-model', kind = 'unlock', checkIds = null } = {}) {
   const obj = extractJson(text);
   if (!obj) {
     if (kind === 'check') {
-      const { verdict, criteria } = finalizeCheckVerdict({});
+      const { verdict, criteria } = finalizeCheckVerdict({}, checkIds);
       return {
         verdict,
         criteria,
@@ -59,7 +59,7 @@ export function parseGraderOutput(text, { route = 'mental-model', kind = 'unlock
 
   const torn = obj.torn === true;
   if (kind === 'check') {
-    const { verdict, criteria } = finalizeCheckVerdict(obj.criteria || {}, torn);
+    const { verdict, criteria } = finalizeCheckVerdict(obj.criteria || {}, checkIds, torn);
     return {
       verdict,
       criteria,

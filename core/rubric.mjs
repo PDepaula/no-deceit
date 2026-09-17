@@ -76,10 +76,10 @@ export function finalizeUnlockVerdict({ route, rawCriteria, llmVerdict, torn = f
   return { verdict, criteria };
 }
 
-export function finalizeCheckVerdict(rawCriteria = {}, torn = false) {
+export function finalizeCheckVerdict(rawCriteria = {}, ids = null, torn = false) {
   const criteria = {};
-  const ids = Object.keys(rawCriteria);
-  for (const id of ids) criteria[id] = normalizeCriterion(rawCriteria[id]);
+  const idList = Array.isArray(ids) ? ids : Object.keys(rawCriteria);
+  for (const id of idList) criteria[id] = normalizeCriterion(rawCriteria[id]);
   if (torn) {
     return { verdict: 'not_landed', criteria };
   }

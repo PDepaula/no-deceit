@@ -205,7 +205,7 @@ export async function gradeCheckAttempt({
       timeoutMs,
     }), item }), timeoutMs);
     const text = typeof raw === 'string' ? raw : JSON.stringify(raw);
-    const parsed = parseGraderOutput(text, { kind: 'check' });
+    const parsed = parseGraderOutput(text, { kind: 'check', checkIds: Object.keys(rubric || {}) });
     return { ...parsed, source: 'grader', calledLlm: true };
   } catch (err) {
     const source = err && err.code === 'TIMEOUT' ? 'timeout' : 'grader_failure';
@@ -228,12 +228,14 @@ function tutorNoteFor(result) {
   );
 }
 
-function persistUnlock({ repoRoot, env, task, route, result, appealed = false }) {
+function persistUnlock({ repoRoot, env, task, route, files = [], since = null, result, appealed = false }) {
   const before = readProjectState(repoRoot, env);
   const lastUnlock = {
     id: randomUUID(),
     task,
     route,
+    files,
+    since,
     verdict: result.verdict,
     appealed,
     source: result.source,
@@ -363,11 +365,14 @@ export async function runUnlock({
     }
     const storedRoute = before.lastUnlock.route;
     const appealGit = storedRoute ? storedRoute === 'commit-history' : git;
+    const appealFiles = before.lastUnlock.files ?? files;
+    const appealSince = before.lastUnlock.since ?? since;
+    const appealTask = before.lastUnlock.task || task;
     const result = await gradeFromDisk({
-      repoRoot, env, task: before.lastUnlock.task || task, git: appealGit, files, since,
+      repoRoot, env, task: appealTask, git: appealGit, files: appealFiles, since: appealSince,
       invoke: resolved, timeoutMs, model,
     });
-    persistUnlock({ repoRoot, env, task: before.lastUnlock.task || task, route: result.route || before.lastUnlock.route, result, appealed: true });
+    persistUnlock({ repoRoot, env, task: appealTask, route: result.route || before.lastUnlock.route, files: appealFiles, since: appealSince, result, appealed: true });
     if (result.verdict === 'unlocked') {
       return `Appeal accepted. Tier 2 unlocked. Diagnosis: ${result.error_class}.`;
     }
@@ -380,7 +385,7 @@ export async function runUnlock({
   const result = await gradeFromDisk({
     repoRoot, env, task, git, files, since, invoke: resolved, timeoutMs, model,
   });
-  persistUnlock({ repoRoot, env, task, route: git ? 'commit-history' : 'mental-model', result, appealed: false });
+  persistUnlock({ repoRoot, env, task, route: git ? 'commit-history' : 'mental-model', files, since, result, appealed: false });
   if (result.verdict === 'unlocked') {
     return `Tier 2 unlocked by the blind grader (${result.source}). error_class=${result.error_class}.`;
   }
