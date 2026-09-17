@@ -173,7 +173,54 @@ function writeTargets(cmd) {
   return targets;
 }
 
+// Split a command into segments on the shell operators && || ; | and newlines,
+// leaving operators that appear inside single/double quotes untouched.
+function splitSegments(cmd) {
+  const segs = [];
+  let cur = '';
+  let quote = null;
+  for (let i = 0; i < cmd.length; i++) {
+    const ch = cmd[i];
+    if (quote) {
+      cur += ch;
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"') { quote = ch; cur += ch; continue; }
+    if (ch === '\n' || ch === ';') { segs.push(cur); cur = ''; continue; }
+    if ((ch === '&' || ch === '|') && cmd[i + 1] === ch) { segs.push(cur); cur = ''; i++; continue; }
+    if (ch === '|') { segs.push(cur); cur = ''; continue; }
+    cur += ch;
+  }
+  segs.push(cur);
+  return segs.map((s) => s.trim()).filter(Boolean);
+}
+
+// Most-restrictive-wins rank across the segments of a compound command.
+const CATEGORY_RANK = { G: 6, E: 5, U: 4, C: 3, D: 3, B: 2, A: 1 };
+
 function classifyBash(cmd, cfg) {
+  const c = String(cmd || '');
+  const prefixes = cfg.statePathPrefixes || [];
+
+  // G: tamper is judged on the whole command so a state reference anywhere wins.
+  if (RE_MUTATING_ND.test(c)) return 'G';
+  const nc = c.replace(/\\/g, '/');
+  const touchesState = prefixes.some((p) => c.includes(String(p).replace(/\/+$/, '')));
+  if (touchesState || RE_STATE_SEGMENT_CMD.test(nc) || RE_HOME_STATE_CMD.test(nc)) return 'G';
+
+  // Classify each segment; return the most restrictive category.
+  const segs = splitSegments(c);
+  const list = segs.length ? segs : [c];
+  let worst = null;
+  for (const seg of list) {
+    const cat = classifyBashSegment(seg, cfg);
+    if (worst === null || CATEGORY_RANK[cat] > CATEGORY_RANK[worst]) worst = cat;
+  }
+  return worst;
+}
+
+function classifyBashSegment(cmd, cfg) {
   const c = String(cmd || '');
   const prefixes = cfg.statePathPrefixes || [];
 

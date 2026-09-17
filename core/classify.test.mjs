@@ -114,6 +114,19 @@ test('patch as a subcommand/argument is not forced to source mutation', () => {
   assert.notEqual(classify('Bash', { command: 'docker cp local remote:/x' }, cfg), 'E');
   assert.notEqual(classify('Bash', { command: 'git mv a b' }, cfg), 'E');
 });
+test('compound run-then-mutate is category E (most restrictive segment wins)', () => {
+  assert.equal(classify('Bash', { command: 'pytest && mv /tmp/sol.py src/main.py' }, cfg), 'E');
+  assert.equal(classify('Bash', { command: 'pip install -r req.txt && cp sol src/x.py' }, cfg), 'E');
+});
+test('compound of read-only segments stays category A', () => {
+  assert.equal(classify('Bash', { command: 'git log && cat x' }, cfg), 'A');
+});
+test('compound tampering with state anywhere is category G', () => {
+  assert.equal(classify('Bash', { command: 'echo x > .no-deceit/state.json && pytest' }, cfg), 'G');
+});
+test('operators inside quotes do not split the command', () => {
+  assert.equal(classify('Bash', { command: `python -c "a && b"` }, cfg), 'B');
+});
 test('redirect into a test path is category D not E', () => {
   assert.equal(classify('Bash', { command: 'echo x > test/foo_test.mjs' }, cfg), 'D');
 });
