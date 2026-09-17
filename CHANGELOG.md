@@ -3,6 +3,36 @@
 All notable changes to this plugin are recorded here. Format is loosely
 based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.0] — Phase 2: blind Tier 2 unlock grader
+
+The differentiator: Tier 2 is *earned* (genuineness of engagement, never
+correctness), judged by a blind fresh-process grader, not by the tutor.
+
+- **`agents/nd-grader.md`:** grader agent definition. Receives only file-path
+  evidence and a rubric fixed before the evidence is read. Runtime model is
+  `graderModel` in config (default `haiku`), overridable.
+- **Fresh-process spawn** from the hook (`/no-deceit:unlock`) or `nd unlock`,
+  never from the tutor. Mental-model evidence is `.no-deceit/attempts/<task>.md`;
+  commit-history evidence is `git log -p` over the task's files.
+- **Deterministic pre-filter** (no LLM): mental-model must be non-empty, above
+  `attemptMinChars`, and not an error paste; commit-history needs ≥ 2
+  substantive commits on the same unit after dropping whitespace/rename/format
+  diffs. A reject is `not_yet` with no model call.
+- **Mechanical rubrics:** mental-model pass = R1 ∧ R3 plus one of R2/R4;
+  commit-history pass = C1 ∧ C2. Round down when torn. Expertise flows into
+  `misconceptions[]` / `next_smaller_question` / `error_class`, never into
+  softening the verdict. JSON verdict written under `.no-deceit/verdicts/`.
+- **Honesty valve (D3):** `nd unlock --override "<reason>"` unlocks and is
+  ledgered; one `nd unlock --appeal` per verdict; Tier 3 still available.
+  Grader timeout (~120 s) or spawn failure defaults to `not_yet`.
+- **Checking questions:** tutor writes `.no-deceit/checks/<task>/rubric.json`
+  *before* the answer; `nd check` / `/no-deceit:check` returns
+  `landed | partial | not_landed` plus `misconceptions[]`. `error_class` trends
+  suggest Coach vs Pair.
+- **Gold set + `nd audit`:** 37 adversarial items; three runs; release gate
+  `graded_up = 0`. Live LLM is mockable (`--oracle` / `--inflate` /
+  `ND_GRADER_MOCK_JSON`) so CI never needs a key.
+
 ## [0.2.0] — Phase 1: skill → hook-enforced plugin
 
 The turning point: No Deceit is no longer advice a skill can only *state*. It

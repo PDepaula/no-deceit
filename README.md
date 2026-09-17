@@ -30,11 +30,14 @@ Two independent axes.
 - **Tier 1 — Tutor.** No working code, ever. The hook denies `Write`/`Edit`/
   `NotebookEdit` and code-writing shell commands; the agent responds with
   Socratic questions that redirect you back to the problem.
-- **Tier 2 — Guided.** Unlocks once you show real engagement. **In this phase
-  the unlock is override-only** — `nd unlock --override "<reason>"`, recorded to
-  the ledger (an automated engagement grader is a later phase). Even unlocked,
-  the agent has no write path: it may explain and show a worked solution in
-  chat, and **you type the implementation** — no copy-paste.
+- **Tier 2 — Guided.** Unlocks once you show real engagement. Write your mental
+  model to `.no-deceit/attempts/<task>.md` (or keep a commit history of
+  meaningfully different attempts) and run `nd unlock`. A **blind grader** in a
+  fresh process — never the tutor — judges genuineness of engagement, not
+  correctness. You can still `nd unlock --override "<reason>"` (ledgered) or
+  escalate to Tier 3; one appeal per verdict. Even unlocked, the agent has no
+  write path: it may explain and show a worked solution in chat, and **you
+  type the implementation** — no copy-paste.
 - **Tier 3 — Narrated Velocity.** Invoked explicitly, for real deadline
   pressure, and it **expires** (a time box) then falls back. Requires a
   non-trivial `.no-deceit/t3/preamble.md` — a high-level view and your own naive
@@ -84,6 +87,8 @@ nd init        # opt this project in (creates .no-deceit/)
 nd status      # show the current tier and mode
 nd tier 1      # or 2 / 3
 nd mode coach  # or pair / ask
+nd unlock      # grade .no-deceit/attempts/default.md
+nd audit       # gold-set release gate (graded_up = 0)
 ```
 
 Only projects with a `.no-deceit/` directory are governed — every other repo is
@@ -97,7 +102,9 @@ agent never sees them as something it can forge:
 /no-deceit:status
 /no-deceit:tier 2
 /no-deceit:mode coach
+/no-deceit:unlock
 /no-deceit:unlock --override "deadline; I know the approach"
+/no-deceit:check parser
 ```
 
 Coach mode reasons from a small set of named, citable lenses (Rich Hickey's
@@ -121,11 +128,11 @@ import it unchanged.
 
 ## Status
 
-Phase 1: the enforcing gate for Claude Code (this build). Later phases add a
-blind engagement grader for the Tier 2 unlock, chat-text policing, the other
-harness adapters, and an earned-time reporting loop. See `NOTES.md` for open
-threads and `CHANGELOG.md` for what's changed. The full design rationale lives
-in the scout report referenced from `AGENTS.md`.
+Phase 2: the enforcing gate for Claude Code plus the blind Tier 2 engagement
+grader. Later phases add chat-text policing, the other harness adapters, and
+an earned-time reporting loop. See `NOTES.md` for open threads and
+`CHANGELOG.md` for what's changed. The full design rationale lives in the
+scout report referenced from `AGENTS.md`.
 
 ## License
 

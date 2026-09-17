@@ -32,17 +32,21 @@ export const REASONS = {
     'No Deceit Tier 2 is not unlocked for this task, so writing source is ' +
     'blocked (as in Tier 1) — do not route around it via shell, patch, or ' +
     'eval. The developer unlocks by writing their mental model to ' +
-    '.no-deceit/attempts/<task>.md or pointing at commits of differing ' +
-    'attempts, then running `nd unlock` (or, to unlock anyway, ' +
-    '`nd unlock --override "<reason>"`). Until then, behave as Tier 1: ask a ' +
-    'question that makes them compare or judge, not a fix.',
+    '.no-deceit/attempts/<task>.md (or pointing at commits of differing ' +
+    'attempts) and running `nd unlock` / `/no-deceit:unlock`. A blind grader ' +
+    'in a fresh process judges genuineness of engagement, not correctness. ' +
+    'To skip the grader, `nd unlock --override "<reason>"` (ledgered). Until ' +
+    'then, behave as Tier 1: ask a question that makes them compare or judge, not a fix.',
 
   T2_UNLOCKED:
     'No Deceit Tier 2 is unlocked: you may explain and show a worked solution ' +
     'in chat. You still may not write it to disk, and must not route around ' +
     'that via shell, patch, or eval — the developer types the implementation ' +
-    'themselves, no copy-paste. Afterwards, ask one checking question about ' +
-    'the concept, not just whether the code runs.',
+    'themselves, no copy-paste. Afterwards, write a checking-question rubric ' +
+    'to .no-deceit/checks/<task>/rubric.json BEFORE you see the answer, then ' +
+    'ask the question. Do not grade it yourself; the developer runs `nd check ' +
+    '<task>` (or `/no-deceit:check <task>`), which spawns the same blind grader. ' +
+    'You never spawn the grader.',
 
   T3_NO_PREAMBLE:
     'No Deceit Tier 3 (Narrated Velocity) needs the developer\'s high-level ' +

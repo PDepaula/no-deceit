@@ -6,13 +6,14 @@ report referenced from `AGENTS.md` (phases, decisions D1–D8, gating matrix).
 
 ## Phase roadmap (from the design report)
 
-- **Phase 1 (this build):** the enforcing gate for Claude Code — plugin
+- **Phase 1:** the enforcing gate for Claude Code — plugin
   manifest, pure `.mjs` policy core, `SessionStart`/`UserPromptSubmit`/
   `PreToolUse` hooks, `nd` CLI, ledger, tamper-proofing, scope guard, and the
-  rewritten teaching skill. Tier 2 unlock is override-only; Tier 3 gates on a
-  deterministic preamble check and expires.
-- **Phase 2:** the blind fresh-process LLM engagement grader for the Tier 2
-  unlock (grades genuineness of engagement, not correctness). Out of scope here.
+  rewritten teaching skill. Tier 2 unlock was override-only in that build;
+  Tier 3 gates on a deterministic preamble check and expires.
+- **Phase 2 (this build):** the blind fresh-process LLM engagement grader for
+  the Tier 2 unlock (grades genuineness of engagement, not correctness), plus
+  `nd audit` (`graded_up = 0`) and checking-question grading.
 - **Phase 3:** policing code in chat — a `Stop`-hook fenced-code check at Tier 1
   plus optional on-screen redaction. Phase 3 will add its own
   `tier1MaxFenceLines` config default; it is not carried in Phase 1.

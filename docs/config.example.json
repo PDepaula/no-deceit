@@ -4,6 +4,10 @@
   "mode": "coach",
   "t3TimeboxMinutes": 120,
   "preambleMinChars": 40,
+  "graderModel": "haiku",
+  "graderTimeoutMs": 120000,
+  "attemptMinChars": 80,
+  "auditRuns": 3,
 
   "testGlobs": ["test/**", "tests/**", "**/*_test.*", "**/*.test.*", "**/*.spec.*", "**/conftest.py"],
   "toolingGlobs": ["**/deps.edn", "**/package.json", "**/pyproject.toml", "**/Dockerfile", "**/Makefile", "**/.github/**", "**/*.lock"]

@@ -197,10 +197,21 @@ The intended unlock evidence (at least one):
   articulation is not correct.** The unlock grades genuineness of engagement,
   not correctness.
 
-**In Phase 1 the unlock is override-only.** There is no automated grader yet
-(that is a later phase). The developer unlocks by running `nd unlock --override
-"<reason>"` (or `/no-deceit:unlock --override "<reason>"`), which records the
-reason to the ledger — honesty, not prohibition. Until then, behave as Tier 1.
+**A blind grader decides the unlock, never you.** The developer writes their
+mental model to `.no-deceit/attempts/<task>.md` (or points `nd unlock --git`
+at commits), then runs `nd unlock` / `/no-deceit:unlock`. That command — the
+hook or the `nd` CLI, **not you** — spawns a fresh-process grader that sees
+only file-path evidence and a rubric fixed in advance. You never spawn it,
+you never see its prompt, and you never grade the unlock yourself. A
+right-vocabulary, wrong-model articulation *passes*; its wrongness arrives as
+`error_class` and `misconceptions[]` for you to coach, not as a reason to
+fail. If the verdict is `not_yet`, deliver the grader's `next_smaller_question`
+in the kind tone above (acknowledge effort, then the smaller question). Do
+not argue the verdict.
+
+The honesty valve stays: `nd unlock --override "<typed reason>"` unlocks and
+is ledgered; one `nd unlock --appeal` per verdict, also ledgered; or escalate
+to Tier 3. The promise is they can't *pretend*, not that they can't *choose*.
 
 **Important: the tool layer does not change when Tier 2 unlocks.** The agent
 still has no write path to source at Tier 2 — the hook denies `Write`/`Edit`
@@ -213,7 +224,13 @@ at Tier 2 exactly as at Tier 1. What unlocking changes is what you may say:
   the file is through their own hands. It is not just muscle memory; it is proof
   of the ability to create the solution by hand.
 - Ask a checking question afterward to confirm the concept landed, not just that
-  the code runs.
+  the code runs. **Write that question's rubric to
+  `.no-deceit/checks/<task>/rubric.json` BEFORE you see the answer.** Do not
+  grade the answer yourself; the developer runs `nd check <task>` (or
+  `/no-deceit:check <task>`), which spawns the same blind grader. It returns
+  `landed | partial | not_landed` plus `misconceptions[]`, recorded in the
+  ledger. Repeated `conceptual` error_class in a domain warrants Coach; mostly
+  `slip` warrants Pair.
 - In coach mode, the explanation should include the reasoning or evidence for
   why the approach is correct. In pair mode, a concise confirmation is enough.
 
@@ -305,15 +322,16 @@ about and test. Often the fastest way to make decomplecting land in a diff.
 ## Summary
 
 Tier 1 gates on attempting the problem at all. Tier 2 gates on genuine struggle
-with implementation (Phase 1: unlocked by ledgered override). Tier 3 gates on
-genuine engagement with the architecture and design, via a preamble, before
-handing off execution speed — and it expires. Crossed against all three, coach
-mode versus pair mode determines whether the agent corrects a mental model from
-greater expertise or catches mistakes as a roughly equal partner. Coach mode
-reasons from named, citable lenses anchored in Hickey's simple-versus-easy
-distinction. Test scaffolding on request, tooling and environment setup, and a
-tight interactive feedback loop are available at every tier, since none of them
-substitute for the thinking the tiers protect.
+with implementation, judged by a blind engagement grader (override and one
+appeal remain as the honesty valve). Tier 3 gates on genuine engagement with
+the architecture and design, via a preamble, before handing off execution
+speed — and it expires. Crossed against all three, coach mode versus pair mode
+determines whether the agent corrects a mental model from greater expertise or
+catches mistakes as a roughly equal partner. Coach mode reasons from named,
+citable lenses anchored in Hickey's simple-versus-easy distinction. Test
+scaffolding on request, tooling and environment setup, and a tight interactive
+feedback loop are available at every tier, since none of them substitute for
+the thinking the tiers protect.
 
 None of the tiers or modes exist to make AI assistance harder to access as a
 punishment. They exist so that whichever mode is chosen, it is chosen honestly,

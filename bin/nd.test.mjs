@@ -48,6 +48,53 @@ test('nd refuses a mutating subcommand inside an agent shell (CLAUDECODE)', () =
   } finally { s.cleanup(); }
 });
 
+test('nd check is refused inside an agent shell (tutor cannot spawn the grader)', () => {
+  const s = scratch();
+  try {
+    run(['init'], s.env, s.dir);
+    const r = run(['check', 'heap'], { ...s.env, CLAUDECODE: '1' }, s.dir, true);
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /refusing to run a state-changing/);
+  } finally { s.cleanup(); }
+});
+
+test('nd audit --oracle reports graded_up 0 and exits 0', () => {
+  const s = scratch();
+  try {
+    const r = run(['audit', '--oracle'], s.env, s.dir);
+    assert.match(r.out, /graded_up: 0/);
+    assert.match(r.out, /gate: pass/);
+  } finally { s.cleanup(); }
+});
+
+test('nd audit --inflate reports graded_up > 0 and the gate blocks', () => {
+  const s = scratch();
+  try {
+    const r = run(['audit', '--inflate'], s.env, s.dir, true);
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /graded_up: [1-9]/);
+    assert.match(r.out, /gate: block/);
+  } finally { s.cleanup(); }
+});
+
+test('nd audit is allowed inside an agent shell (read-only release gate)', () => {
+  const s = scratch();
+  try {
+    const r = run(['audit', '--oracle'], { ...s.env, CLAUDECODE: '1' }, s.dir);
+    assert.match(r.out, /gate: pass/);
+  } finally { s.cleanup(); }
+});
+
+test('nd unlock --override still unlocks from the developer shell', () => {
+  const s = scratch();
+  try {
+    run(['init'], s.env, s.dir);
+    const r = run(['unlock', '--override', 'deadline, I know the approach'], s.env, s.dir);
+    assert.match(r.out, /override/);
+    assert.equal(readProjectState(s.dir, s.env).unlocked, true);
+  } finally { s.cleanup(); }
+});
+
 test('nd status (read-only) is allowed inside an agent shell', () => {
   const s = scratch();
   try {

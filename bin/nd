@@ -1,25 +1,28 @@
 #!/usr/bin/env node
 // No Deceit — `nd` CLI: the developer's own out-of-band control channel.
 //
-// Set/show the tier and mode, unlock by override, and read the ledger. This
-// is one of the two forge-proof channels for state changes (the other is the
-// developer's /no-deceit: prompt commands, handled in the hook). The model
-// cannot use it to change its own tier: the PreToolUse gate denies any tool
-// call that invokes a mutating `nd` subcommand (category G), and — as
-// defense-in-depth if the gate is disabled — mutating subcommands here refuse
-// when they detect they are running inside an agent shell (CLAUDECODE set).
+// Set/show the tier and mode, unlock (blind grader or override), and read the
+// ledger. This is one of the two forge-proof channels for state changes (the
+// other is the developer's /no-deceit: prompt commands, handled in the hook).
+// The model cannot use it to change its own tier: the PreToolUse gate denies
+// any tool call that invokes a mutating `nd` subcommand (category G), and —
+// as defense-in-depth if the gate is disabled — mutating subcommands here
+// refuse when they detect they are running inside an agent shell (CLAUDECODE
+// set). The grader is spawned from this CLI or the hook, never by the tutor.
 
-import { gitToplevel, homePaths, projectPaths, isGoverned, readLedger } from '../core/state.mjs';
-import { setTier, setMode, unlockOverride, renderStatus, renderStatusShort } from '../core/control.mjs';
+import { gitToplevel, homePaths, projectPaths, isGoverned, readLedger, loadConfig } from '../core/state.mjs';
+import { setTier, setMode, renderStatus, renderStatusShort } from '../core/control.mjs';
+import { parseUnlockArgs, parseCheckArgs } from '../core/unlock-args.mjs';
+import { runUnlock, runCheck, runAudit } from '../core/grader.mjs';
+import { ITEMS } from '../gold/unlock-gold.mjs';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
 
 const env = process.env;
 const cwd = process.cwd();
 const repoRoot = gitToplevel(cwd);
 const sessionId = env.ND_SESSION || env.CLAUDE_SESSION_ID || null;
 
-const MUTATING = new Set(['init', 'tier', 'mode', 'unlock']);
+const MUTATING = new Set(['init', 'tier', 'mode', 'unlock', 'check']);
 
 function die(msg, code = 1) { process.stderr.write(msg + '\n'); process.exit(code); }
 function say(msg) { process.stdout.write(msg + '\n'); }
@@ -28,8 +31,8 @@ function guardAgentShell(sub) {
   if (MUTATING.has(sub) && env.CLAUDECODE && !env.ND_ALLOW_AGENT) {
     die(
       'No Deceit: refusing to run a state-changing `nd` subcommand from inside an ' +
-      'agent shell. The agent may never change its own tier. Run this in your own ' +
-      'terminal, or use the /no-deceit: prompt commands.',
+      'agent shell. The agent may never change its own tier, and may never spawn ' +
+      'the grader. Run this in your own terminal, or use the /no-deceit: prompt commands.',
     );
   }
 }
@@ -38,9 +41,11 @@ function cmdInit() {
   const p = projectPaths(repoRoot);
   mkdirSync(p.dir, { recursive: true });
   mkdirSync(p.attemptsDir, { recursive: true });
+  mkdirSync(p.verdictsDir, { recursive: true });
+  mkdirSync(p.checksDir, { recursive: true });
   mkdirSync(p.t3Dir, { recursive: true });
   if (!existsSync(p.stateFile)) writeFileSync(p.stateFile, JSON.stringify({ tier: 1, mode: 'ask', unlocked: false }, null, 2) + '\n');
-  if (!existsSync(p.gitignore)) writeFileSync(p.gitignore, '# Local No Deceit state — not shared.\nstate.json\n');
+  if (!existsSync(p.gitignore)) writeFileSync(p.gitignore, '# Local No Deceit state — not shared.\nstate.json\nverdicts/\n');
   say(`No Deceit initialised in ${p.dir}. This project is now governed (Tier 1, mode ask).`);
 }
 
@@ -57,7 +62,13 @@ switch (sub) {
   nd tier <1|2|3>                 set the tier (3 is a time-boxed grant)
   nd mode <coach|pair|ask>        set the domain mode
   nd status [--short]             show the current tier/mode
-  nd unlock --override "<reason>" unlock Tier 2 by override (ledgered)
+  nd unlock [task]                grade .no-deceit/attempts/<task>.md (default task: default)
+  nd unlock [task] --git [--files a,b] [--since SHA]
+                                  grade commit history for the task's files
+  nd unlock --appeal              re-grade the last verdict once
+  nd unlock --override "<reason>" unlock anyway (typed reason, ledgered)
+  nd check [task]                 grade a checking-question answer (rubric must be written first)
+  nd audit [--runs 3]             run the gold set; release gate is graded_up = 0
   nd ledger [N]                   show the last N ledger entries (default 20)
   nd doctor                       report paths and run the armed self-check`);
     break;
@@ -83,10 +94,53 @@ switch (sub) {
 
   case 'unlock': {
     guardAgentShell('unlock');
-    const i = rest.indexOf('--override');
-    const reason = i >= 0 ? rest.slice(i + 1).join(' ').replace(/^["']|["']$/g, '') : '';
-    try { say(unlockOverride({ repoRoot, env, reason })); }
+    const args = parseUnlockArgs(rest);
+    try { say(await runUnlock({ repoRoot, env, ...args })); }
     catch (e) { die(`No Deceit: ${e.message}`); }
+    break;
+  }
+
+  case 'check': {
+    guardAgentShell('check');
+    const args = parseCheckArgs(rest);
+    try { say(await runCheck({ repoRoot, env, task: args.task })); }
+    catch (e) { die(`No Deceit: ${e.message}`); }
+    break;
+  }
+
+  case 'audit': {
+    const runsFlag = rest.indexOf('--runs');
+    const cfg = loadConfig(env);
+    const runs = runsFlag >= 0 ? Number(rest[runsFlag + 1]) || cfg.auditRuns : cfg.auditRuns;
+    const oracle = rest.includes('--oracle') || env.ND_AUDIT_MOCK === 'oracle';
+    const inflate = rest.includes('--inflate') || env.ND_AUDIT_MOCK === 'inflate';
+    try {
+      const invoke = oracle || inflate
+        ? async ({ item }) => {
+          if (inflate) {
+            if (item.route === 'commit-history') {
+              return { verdict: 'unlocked', criteria: { C1: { met: true, span: 'x' }, C2: { met: true, span: 'y' }, C3: { met: true, span: 'z' } } };
+            }
+            if (item.route === 'check') {
+              const criteria = {};
+              for (const id of Object.keys(item.gold_criteria || { Q1: 1 })) criteria[id] = { met: true, span: 'inflated' };
+              return { verdict: 'landed', criteria };
+            }
+            return {
+              verdict: 'unlocked',
+              criteria: {
+                R1: { met: true, span: 'x' }, R2: { met: true, span: 'y' },
+                R3: { met: true, span: 'z' }, R4: { met: true, span: 'w' },
+              },
+            };
+          }
+          return { verdict: item.gold_verdict, criteria: item.gold_criteria || {}, error_class: item.gold_error_class || 'conceptual', misconceptions: [] };
+        }
+        : undefined;
+      const result = await runAudit({ items: ITEMS, runs, invoke, env });
+      say(result.report);
+      if (!result.pass) die('audit gate blocked: graded_up > 0', 1);
+    } catch (e) { die(`No Deceit: ${e.message}`); }
     break;
   }
 
@@ -107,13 +161,15 @@ switch (sub) {
   case 'doctor': {
     const home = homePaths(env);
     const proj = projectPaths(repoRoot);
+    const cfg = loadConfig(env);
     say('No Deceit doctor');
     say(`  repo root:   ${repoRoot}`);
-    say(`  governed:    ${isGoverned(repoRoot) ? 'yes' : 'no (run `nd init`)'}`);
+    say(`  governed:    ${isGoverned(repoRoot) ? 'yes' : 'no (run \`nd init\`)'}`);
     say(`  project dir: ${proj.dir}`);
     say(`  ledger:      ${home.ledger}`);
     say(`  config:      ${home.configFile}`);
-    // Armed self-check via the pure policy core.
+    say(`  grader model:${cfg.graderModel} (override via config.json graderModel)`);
+    say(`  grader timeout: ${cfg.graderTimeoutMs} ms`);
     try {
       const { decide } = await import('../core/policy.mjs');
       const r = decide({ tier: 1, mode: 'coach', t2Unlocked: false, t3Active: false, t3PreamblePresent: false, notes: [] }, { category: 'E' });
