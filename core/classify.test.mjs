@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { classify } from './classify.mjs';
+import { decide } from './policy.mjs';
 
 // A representative config, mirroring the real defaults the hook builds.
 const cfg = {
@@ -124,6 +125,19 @@ test('Bash mutating nd subcommand (unlock) is category G', () => {
 });
 test('Bash read-only nd status is NOT tamper (category A)', () => {
   assert.equal(classify('Bash', { command: 'nd status' }, cfg), 'A');
+});
+test('Bash relative redirect into state dir is category G', () => {
+  assert.equal(classify('Bash', { command: `echo '{"tier":1}' > .no-deceit/state.json` }, cfg), 'G');
+});
+test('Write to a relative state path is category G', () => {
+  assert.equal(classify('Write', { file_path: '.no-deceit/state.json' }, cfg), 'G');
+});
+test('relative state tamper is denied even at Tier 3 with preamble present', () => {
+  const effective = { tier: 3, t2Unlocked: true, t3PreamblePresent: true };
+  const redirect = classify('Bash', { command: `echo '{"tier":1}' > .no-deceit/state.json` }, cfg);
+  const write = classify('Write', { file_path: 'nested/.no-deceit/state.json' }, cfg);
+  assert.equal(decide(effective, { category: redirect }).decision, 'deny');
+  assert.equal(decide(effective, { category: write }).decision, 'deny');
 });
 
 // --- Category U: unknown Bash ---

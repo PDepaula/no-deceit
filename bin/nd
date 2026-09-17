@@ -19,7 +19,7 @@ const cwd = process.cwd();
 const repoRoot = gitToplevel(cwd);
 const sessionId = env.ND_SESSION || env.CLAUDE_SESSION_ID || null;
 
-const MUTATING = new Set(['init', 'tier', 'mode', 'unlock', 'reset']);
+const MUTATING = new Set(['init', 'tier', 'mode', 'unlock']);
 
 function die(msg, code = 1) { process.stderr.write(msg + '\n'); process.exit(code); }
 function say(msg) { process.stdout.write(msg + '\n'); }

@@ -50,6 +50,9 @@ function matchesAny(absPath, globs) {
   });
 }
 
+// A path that names a No Deceit state segment, absolute or relative.
+const RE_STATE_SEGMENT = /(^|\/)\.no-deceit(\/|$)/;
+
 /** Is `absPath` under one of the No Deceit state-path prefixes? */
 function underStatePath(absPath, prefixes) {
   if (!absPath) return false;
@@ -58,6 +61,13 @@ function underStatePath(absPath, prefixes) {
     const pn = String(p).replace(/\\/g, '/').replace(/\/+$/, '');
     return norm === pn || norm.startsWith(pn + '/');
   });
+}
+
+/** Does `path` name No Deceit state — an absolute prefix or a relative `.no-deceit/` segment? */
+function namesStatePath(path, prefixes) {
+  if (!path) return false;
+  if (underStatePath(path, prefixes)) return true;
+  return RE_STATE_SEGMENT.test(String(path).replace(/\\/g, '/'));
 }
 
 // --- Bash shape detection ------------------------------------------------
@@ -153,7 +163,7 @@ function classifyBash(cmd, cfg) {
   // G: tamper — mutating nd subcommand, or any reference to a state path.
   if (RE_MUTATING_ND.test(c)) return 'G';
   const touchesState = prefixes.some((p) => c.includes(String(p).replace(/\/+$/, '')));
-  if (touchesState) return 'G';
+  if (touchesState || RE_STATE_SEGMENT.test(c.replace(/\\/g, '/'))) return 'G';
 
   // Read-only nd is inspect.
   if (RE_READONLY_ND.test(c)) return 'A';
@@ -162,6 +172,8 @@ function classifyBash(cmd, cfg) {
   const mutates = MUTATION_SHAPES.some((rx) => rx.test(c));
   if (mutates) {
     const targets = writeTargets(c);
+    // A write whose target names state is tamper, absolute or relative.
+    if (targets.some((t) => namesStatePath(t, prefixes))) return 'G';
     // If any target is a test path -> D; tooling path -> C; else E.
     if (targets.some((t) => matchesAny(t, cfg.testGlobs || []))) return 'D';
     if (targets.some((t) => matchesAny(t, cfg.toolingGlobs || []))) return 'C';
@@ -197,7 +209,7 @@ export function classify(toolName, toolInput = {}, cfg = {}) {
 
   if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') {
     const path = toolInput.file_path || toolInput.notebook_path || toolInput.path;
-    if (underStatePath(path, prefixes)) return 'G';
+    if (namesStatePath(path, prefixes)) return 'G';
     if (matchesAny(path, cfg.testGlobs || [])) return 'D';
     if (matchesAny(path, cfg.toolingGlobs || [])) return 'C';
     return 'E';
