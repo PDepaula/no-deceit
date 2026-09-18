@@ -102,11 +102,20 @@ which domain mode currently applies:
   closer to true pair programming than tutoring.
 
 If it is unclear which domain mode applies, the agent should ask the developer
-directly rather than assume. Domain mode and tier combine: for example, Tier 2
-in coach mode still requires the unlock before help, but the help given
-afterward should include reasoning and evidence, not just a fix, whereas Tier 2
-in pair mode can be more concise since the baseline competence is already
-there.
+directly rather than assume. `nd status` and `nd report` may **suggest** Coach
+or Pair from the ledger's per-domain `error_class` trend (repeated
+`conceptual` ⇒ Coach; mostly `slip` ⇒ Pair). That is a suggestion only — do
+not change the mode yourself. The developer chooses. Domain mode and tier
+combine: for example, Tier 2 in coach mode still requires the unlock before
+help, but the help given afterward should include reasoning and evidence, not
+just a fix, whereas Tier 2 in pair mode can be more concise since the baseline
+competence is already there.
+
+`nd report` is the weekly-scale honesty check over the ledger: time in
+Tier 1/2 vs Tier 3, unlocks and checking questions landed vs not, Coach-domain
+misconceptions, and a **Delegated** lane for unattended/agentic worker
+sessions (no learning claimed). Do not treat Delegated work as the
+developer's practice.
 
 ## Cross-Tier Exception: Test Scaffolding
 
@@ -255,7 +264,8 @@ at Tier 2 exactly as at Tier 1. What unlocking changes is what you may say:
   `/no-deceit:check <task>`), which spawns the same blind grader. It returns
   `landed | partial | not_landed` plus `misconceptions[]`, recorded in the
   ledger. Repeated `conceptual` error_class in a domain warrants Coach; mostly
-  `slip` warrants Pair.
+  `slip` warrants Pair. `nd report` (and `nd status`) surface that as a
+  **suggestion**; the developer still sets the mode.
 - In coach mode, the explanation should include the reasoning or evidence for
   why the approach is correct. In pair mode, a concise confirmation is enough.
 

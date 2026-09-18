@@ -13,6 +13,7 @@ import {
   preamblePresent,
   appendLedger,
   readLedger,
+  readAllLedger,
   projectPaths,
   homePaths,
 } from './state.mjs';
@@ -104,5 +105,13 @@ test('ledger appends JSONL lines with a timestamp and reads them back', () => {
     assert.equal(lines[0].event, 'tier_change');
     assert.equal(lines[1].event, 'denial');
     assert.ok(lines[0].ts, 'entry has a timestamp');
+    assert.equal(readAllLedger(s.env).length, 2);
+  } finally { s.cleanup(); }
+});
+
+test('readAllLedger returns [] when the ledger file is missing', () => {
+  const s = scratch();
+  try {
+    assert.deepEqual(readAllLedger(s.env), []);
   } finally { s.cleanup(); }
 });

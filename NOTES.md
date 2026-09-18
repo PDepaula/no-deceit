@@ -19,12 +19,14 @@ report referenced from `AGENTS.md` (phases, decisions D1–D8, gating matrix).
   (Claude Code only, `messageDisplayRedaction` default on, `tier1MaxFenceLines`
   default 6). Tier 3 narration/divergence *format* check; `ask` on Agent/Task;
   bashEditDiff tripwire on PostToolUse(Bash). Test scaffolding stays path-based.
-- **Phase 4 (this build):** OpenCode / Pi / Cursor adapters over the shared
+- **Phase 4:** OpenCode / Pi / Cursor adapters over the shared
   policy core. `MessageDisplay` redaction has no equivalent there; the
   Stop-hook fence check is not a hard block where the harness has no blocking
   turn-end hook; Cursor `ask` is not enforced on `preToolUse`. See
   `docs/verification/`.
-- **Phase 5:** the earned-time `nd report` loop and firstmate `learn:` tagging.
+- **Phase 5 (this build):** `nd report` (earned-time summary from the
+  ledger) and evidence-based Coach/Pair suggestions. firstmate `learn:`
+  backlog-reserve tagging stays out of scope (D8: exemption only).
 
 ## Not yet decided
 
@@ -47,6 +49,8 @@ report referenced from `AGENTS.md` (phases, decisions D1–D8, gating matrix).
 
 ## Not yet done
 
+- firstmate `learn:` backlog-reserve tagging (D8 deferred). Phase 5 reads only
+  No Deceit's own ledger.
 - **Skeleton-vs-logic LLM judge on test-file writes.** Phase 3 considered a
   `prompt`-type hook that would distinguish scaffolding from assertions. It
   does not integrate cleanly with the Phase 2 grader (different question,
@@ -54,4 +58,5 @@ report referenced from `AGENTS.md` (phases, decisions D1–D8, gating matrix).
   remains. Revisit in a later phase with a mockable spawn, never in CI.
 - Actual sustained use of the gate in practice. The exception globs, Bash
   deny-list, fence threshold, and tripwire ignore list will need refinement
-  from real friction. Log every denial and review the ledger weekly.
+  from real friction. Log every denial and review the ledger weekly
+  (`nd report`).

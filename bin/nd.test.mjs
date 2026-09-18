@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { projectPaths, readProjectState } from '../core/state.mjs';
+import { appendLedger, projectPaths, readProjectState } from '../core/state.mjs';
 
 const ND = join(dirname(fileURLToPath(import.meta.url)), 'nd');
 
@@ -159,5 +159,48 @@ test('nd --cursor prints permission allow for a Read', () => {
       env: s.env, cwd: s.dir, encoding: 'utf8', input: payload,
     });
     assert.equal(JSON.parse(out).permission, 'allow');
+  } finally { s.cleanup(); }
+});
+
+test('nd report on an empty ledger is graceful', () => {
+  const s = scratch();
+  try {
+    const r = run(['report'], s.env, s.dir);
+    assert.match(r.out, /empty|nothing to summarise/i);
+    assert.match(r.out, /Delegated/);
+  } finally { s.cleanup(); }
+});
+
+test('nd report summarises a fixture ledger (time, unlocks, Delegated, suggestions)', () => {
+  const s = scratch();
+  try {
+    const now = Date.parse('2026-09-17T20:00:00.000Z');
+    const iso = (ms) => new Date(ms).toISOString();
+    const hour = 3_600_000;
+    appendLedger(s.env, { ts: iso(now - 2 * hour), event: 'tier_change', to: 1 });
+    appendLedger(s.env, { ts: iso(now - hour), event: 'denial', tier: 1 });
+    appendLedger(s.env, { ts: iso(now - hour), event: 'delegated', sessionId: 'crew-a', taskId: 'fm-1', lane: 'delegated' });
+    appendLedger(s.env, {
+      ts: iso(now - 40 * 60_000), event: 'unlock_grade', verdict: 'unlocked', task: 'parser',
+      error_class: 'conceptual', misconceptions: ['dotted pairs skip the cdr'],
+    });
+    appendLedger(s.env, { ts: iso(now - 30 * 60_000), event: 'check_grade', verdict: 'landed', task: 'parser', error_class: 'conceptual' });
+    appendLedger(s.env, { ts: iso(now - 20 * 60_000), event: 'check_grade', verdict: 'not_landed', task: 'parser', error_class: 'conceptual' });
+    const r = run(['report', '--since', '2026-09-10', '--until', '2026-09-17T20:00:00.000Z'], s.env, s.dir);
+    assert.match(r.out, /Tier 1\/2/);
+    assert.match(r.out, /Delegated/);
+    assert.match(r.out, /no learning claimed/i);
+    assert.match(r.out, /Unlocks:/);
+    assert.match(r.out, /landed/);
+    assert.match(r.out, /parser/);
+    assert.match(r.out, /coach/i);
+  } finally { s.cleanup(); }
+});
+
+test('nd report (read-only) is allowed inside an agent shell', () => {
+  const s = scratch();
+  try {
+    const r = run(['report'], { ...s.env, CLAUDECODE: '1' }, s.dir);
+    assert.match(r.out, /No Deceit report/);
   } finally { s.cleanup(); }
 });

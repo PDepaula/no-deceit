@@ -10,7 +10,7 @@
 import { isGoverned, readProjectState, writeProjectState, readSession, writeSession, appendLedger, loadConfig, readLedger } from './state.mjs';
 import { resolveEffective } from './policy.mjs';
 import { preamblePresent } from './state.mjs';
-import { suggestDomainMode } from './rubric.mjs';
+import { suggestModesByDomain } from './report.mjs';
 import { unlockOverride as applyUnlockOverride } from './grader.mjs';
 
 const MODES = ['coach', 'pair', 'ask'];
@@ -94,9 +94,14 @@ export function renderStatus({ repoRoot, env, sessionId, nowMs = Date.now() }) {
   if (project.lastDiagnosis && project.lastDiagnosis.error_class) {
     lines.push(`  Last error_class: ${project.lastDiagnosis.error_class}`);
   }
-  const classes = readLedger(env, 50).map((x) => x.error_class).filter(Boolean);
-  const suggested = suggestDomainMode(classes);
-  if (suggested) lines.push(`  Suggested mode: ${suggested} (from error_class trend; Coach if conceptual repeats, Pair if mostly slip)`);
+  const suggestions = suggestModesByDomain(readLedger(env, 50));
+  if (suggestions.length) {
+    lines.push(
+      '  Suggested mode (evidence; you choose): ' +
+      suggestions.map((s) => `${s.domain} → ${s.mode}`).join('; ') +
+      ' (repeated conceptual ⇒ Coach, mostly slip ⇒ Pair)',
+    );
+  }
   if (e.tier === 3) lines.push(`  Preamble: ${e.t3PreamblePresent ? 'present' : 'MISSING (source writes blocked until filled)'}`);
   for (const n of e.notes) lines.push(`  Note:  ${n}`);
   return lines.join('\n');

@@ -166,14 +166,29 @@ export function appendLedger(env, entry) {
   appendFileSync(ledger, line + '\n');
 }
 
+function parseLedgerLines(lines) {
+  return lines.map((l) => {
+    try { return JSON.parse(l); } catch { return { raw: l }; }
+  });
+}
+
 /** Read the last `limit` ledger entries (chronological order). */
 export function readLedger(env, limit = 50) {
   const { ledger } = homePaths(env);
   try {
     const lines = readFileSync(ledger, 'utf8').split('\n').filter(Boolean);
-    return lines.slice(-limit).map((l) => {
-      try { return JSON.parse(l); } catch { return { raw: l }; }
-    });
+    return parseLedgerLines(lines.slice(-limit));
+  } catch {
+    return [];
+  }
+}
+
+/** Read the whole ledger (Phase 5 report). Missing file → []. */
+export function readAllLedger(env) {
+  const { ledger } = homePaths(env);
+  try {
+    const lines = readFileSync(ledger, 'utf8').split('\n').filter(Boolean);
+    return parseLedgerLines(lines);
   } catch {
     return [];
   }

@@ -1,6 +1,6 @@
 {
   "name": "no-deceit",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Tier-enforcing AI coding-assistance gate — the hook is the law, the skill is the teacher. Claude Code, OpenCode, Pi, Cursor.",
   "type": "module",
   "private": true,
