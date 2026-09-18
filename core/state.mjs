@@ -23,6 +23,14 @@ export const DEFAULTS = {
   graderTimeoutMs: 120_000,
   attemptMinChars: 80,
   auditRuns: 3,
+  tier1MaxFenceLines: 6,
+  messageDisplayRedaction: true,
+  tripwireIgnoreGlobs: [
+    '**/.pytest_cache/**', '**/__pycache__/**', '**/*.pyc',
+    '**/node_modules/**', '**/.git/**', '**/coverage/**', '**/.nyc_output/**',
+    '**/dist/**', '**/build/**', '**/.next/**', '**/*.egg-info/**',
+    '**/.tox/**', '**/.mypy_cache/**', '**/.ruff_cache/**', '**/target/**',
+  ],
   testGlobs: [
     'test/**', 'tests/**', 'spec/**',
     '**/*_test.*', '**/*.test.*', '**/*.spec.*',

@@ -1,7 +1,7 @@
 {
   "name": "no-deceit",
-  "version": "0.3.0",
-  "description": "Enforces a chosen AI coding-assistance tier via a PreToolUse gate, so Tier 1 (no working code) actually holds instead of drifting. The hook is the law; the bundled skill is the teacher.",
+  "version": "0.4.0",
+  "description": "Enforces a chosen AI coding-assistance tier via PreToolUse, Stop, and MessageDisplay hooks, so Tier 1 (no working code, including in chat) actually holds instead of drifting. The hook is the law; the bundled skill is the teacher.",
   "author": {
     "name": "Patrick De Paula"
   },

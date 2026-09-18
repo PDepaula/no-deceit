@@ -1,10 +1,15 @@
-# Verification — Claude Code (Phase 0–2)
+# Verification — Claude Code (Phase 0–3)
 
 What was verified for the Claude Code gate, how, and against which versions.
 Convention borrowed from firstmate's adapter notes: record the evidence, don't
 re-prove settled primitives.
 
 - **Environment:** `claude 2.1.270`, `node v26.2.0`, Linux. Date: 2026-09-17.
+  Phase 3 hook I/O (`Stop` `last_assistant_message`, `MessageDisplay` `delta` /
+  `displayContent`, `PostToolUse` `bashEditDiff.changedFiles`) is taken from
+  the Claude Code hooks reference of that vintage. Live MessageDisplay/Stop
+  rendering is Claude-Code-only and is not exercised in CI; the core functions
+  and the hook shim's JSON I/O are.
 
 ## Already confirmed by the design scout (report §2.6), not re-proven here
 
@@ -44,6 +49,20 @@ which drives the real hook shim and CLI as subprocesses with piped payloads:
   - one appeal per verdict
   - `nd audit --oracle` → `graded_up: 0` / gate pass; `--inflate` → gate block
   - live LLM is not required (oracle/inflate/ND_GRADER_MOCK_JSON)
+- **Phase 3 text channel** (`core/fence.test.mjs`, `core/narration.test.mjs`,
+  `core/text-channel.test.mjs`, `core/tripwire.test.mjs`, `core/gate.test.mjs`,
+  `hooks/nd-hook.test.mjs`):
+  - over-threshold fence at Tier 1 → Stop `decision: "block"`; small snippet →
+    allow; unlocked T2 / T3 fences are not a leak
+  - missing Tier 3 what/why + divergence after an edit → redirect; present →
+    pass; `stop_hook_active` does not block a second time
+  - `Agent` at Tier 1 → PreToolUse `permissionDecision: "ask"`; `FM_TASK_ID`
+    still pass-through
+  - bashEditDiff with a source path → PostToolUse block; REPL/run with no
+    changed files → allow
+  - MessageDisplay returns `displayContent` with the over-threshold body
+    replaced when the redaction flag is on; flag-off and ungoverned are no-ops
+  - worker/headless exemption and opt-in scope still hold on the new events
 
 ## To do a live end-to-end check by hand
 

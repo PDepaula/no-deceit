@@ -8,9 +8,9 @@
 // Fail-closed: on PreToolUse, ANY error becomes an explicit `deny` decision,
 // never a bare non-zero exit that the harness might treat as a pass.
 
-import { evaluate } from '../core/gate.mjs';
+import { evaluate, evaluateStop, evaluateDisplay, evaluatePostToolUse } from '../core/gate.mjs';
 import { decide, REASONS } from '../core/policy.mjs';
-import { appendLedger, gitToplevel, isGoverned, readProjectState, writeProjectState } from '../core/state.mjs';
+import { appendLedger, gitToplevel, isGoverned, readProjectState, writeProjectState, writeSession } from '../core/state.mjs';
 import { parseCommand, setTier, setMode, renderStatus, renderStatusShort } from '../core/control.mjs';
 import { parseUnlockArgs, parseCheckArgs } from '../core/unlock-args.mjs';
 import { runUnlock, runCheck } from '../core/grader.mjs';
@@ -148,6 +148,76 @@ async function main() {
     // Not a command: inject the current tier/mode as context, when governed.
     if (isGoverned(repoRoot)) {
       emit({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: contextFacts(repoRoot, env, input.session_id, { consumeNote: true }) } });
+    }
+    return;
+  }
+
+  if (event === 'Stop') {
+    let result;
+    try {
+      const repoRoot = gitToplevel(input.cwd || process.cwd());
+      result = evaluateStop({
+        text: input.last_assistant_message || '',
+        stopHookActive: Boolean(input.stop_hook_active),
+        cwd: repoRoot,
+        env,
+        sessionId: input.session_id,
+      });
+    } catch (err) {
+      result = { decision: 'block', reason: `No Deceit gate error (fail-closed): ${String((err && err.message) || err)}`, ledgerEntry: { event: 'gate_error', error: String(err) } };
+    }
+    if (result.consumeTurnEdited && input.session_id) {
+      try { writeSession(env, input.session_id, { turnEdited: false }); } catch { /* never fail the gate on session I/O */ }
+    }
+    if (result.ledgerEntry) { try { appendLedger(env, result.ledgerEntry); } catch { /* never fail the gate on a ledger write */ } }
+    if (result.decision === 'block') {
+      emit({ decision: 'block', reason: result.reason });
+    }
+    return;
+  }
+
+  if (event === 'MessageDisplay') {
+    const delta = input.delta || '';
+    if (!delta) return;
+    let result;
+    try {
+      const repoRoot = gitToplevel(input.cwd || process.cwd());
+      result = evaluateDisplay({
+        text: delta,
+        cwd: repoRoot,
+        env,
+        sessionId: input.session_id,
+      });
+    } catch {
+      return; // fail-open: show the original
+    }
+    if (result.redact && result.displayContent != null) {
+      emit({ hookSpecificOutput: { hookEventName: 'MessageDisplay', displayContent: result.displayContent } });
+    }
+    return;
+  }
+
+  if (event === 'PostToolUse') {
+    let result;
+    try {
+      const repoRoot = gitToplevel(input.cwd || process.cwd());
+      result = evaluatePostToolUse({
+        toolName: input.tool_name,
+        toolInput: input.tool_input || {},
+        toolResponse: input.tool_response || {},
+        cwd: repoRoot,
+        env,
+        sessionId: input.session_id,
+      });
+    } catch (err) {
+      result = { decision: 'block', reason: `No Deceit gate error (fail-closed): ${String((err && err.message) || err)}`, ledgerEntry: { event: 'gate_error', error: String(err) } };
+    }
+    if (result.markTurnEdited && input.session_id) {
+      try { writeSession(env, input.session_id, { turnEdited: true }); } catch { /* never fail the gate on session I/O */ }
+    }
+    if (result.ledgerEntry) { try { appendLedger(env, result.ledgerEntry); } catch { /* never fail the gate on a ledger write */ } }
+    if (result.decision === 'block') {
+      emit({ decision: 'block', reason: result.reason });
     }
     return;
   }

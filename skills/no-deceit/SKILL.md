@@ -1,6 +1,6 @@
 ---
 name: no-deceit
-description: Use this skill for any coding, debugging, or data pipeline work in a project governed by No Deceit. It is the teaching layer for the tier system that a PreToolUse hook enforces: it explains the tiers, domain modes, and coaching lenses, and how to behave when the gate denies a tool call. Enforcement (blocking source writes by tier) lives in the hook, not in this text.
+description: Use this skill for any coding, debugging, or data pipeline work in a project governed by No Deceit. It is the teaching layer for the tier system that hooks enforce: it explains the tiers, domain modes, and coaching lenses, and how to behave when the gate denies a tool call or blocks a turn. Enforcement (blocking source writes, chat-text leaks, and Tier 3 format) lives in the hooks, not in this text.
 ---
 
 # No Deceit
@@ -9,8 +9,8 @@ description: Use this skill for any coding, debugging, or data pipeline work in 
 
 No Deceit is a Claude Code **plugin**, not a bare skill. The rules below used
 to be advice the agent could read and then ignore; now the enforcement lives
-in a `PreToolUse` **hook** that actually denies tool calls, and this skill is
-the **teaching layer** that gives the denials their meaning.
+in hooks that actually deny tool calls and inspect the text channel, and this
+skill is the **teaching layer** that gives the denials their meaning.
 
 Concretely:
 
@@ -24,18 +24,32 @@ Concretely:
   denies a `Write`/`Edit` or a code-writing shell command, that is the tier
   doing its job. Do not treat it as an error to work around. Routing around a
   block — a shell redirect, `sed -i`, `patch`, a REPL that writes files, a
-  subagent — is itself a violation, and those routes are gated too.
+  subagent — is itself a violation, and those routes are gated too. Spawning
+  a subagent (`Agent` / `Task`) requires the developer's confirmation (`ask`).
+- **The text channel is enforced at Tier 1.** A `Stop` hook inspects the
+  completed turn for fenced code above a small snippet threshold; over-threshold
+  blocks are a violation, same as a file write. On Claude Code, `MessageDisplay`
+  redacts those blocks on screen (the transcript still has the original; the
+  Stop hook forces the redo). Small illustrative snippets of a general concept
+  remain allowed. At unlocked Tier 2 and Tier 3, worked code in chat is in
+  policy — the hook does not police fences there.
+- **Tier 3 narration format is enforced; narration quality is not.** After a
+  turn that edited files, the Stop hook requires a what/why section and a
+  `Divergence from your first instinct:` line (the value `none` is acceptable).
+  Missing format is a redirect, not a crash. Whether the narration is actually
+  insightful stays your job, in this file.
 - **The deny reason is your instruction.** The hook delivers the correct next
-  move (a Socratic question, an unlock path, a preamble request) as the deny
-  reason, at the exact moment of drift. Follow it even if this file was never
-  loaded.
+  move (a Socratic question, an unlock path, a preamble request, a format
+  reminder) as the deny/block reason, at the exact moment of drift. Follow it
+  even if this file was never loaded.
 - **The gate can fail open.** Claude Code command hooks fail open on a crash or
   timeout, so a broken gate is silent. If the `SessionStart` self-check reports
   the gate is not armed, say so loudly to the developer instead of assuming the
   rules are enforced.
 
 Everything below is the part that needs human judgment: *how* to tutor well,
-*which* question to ask, *which* lens applies. The hook handles the blocking;
+*which* question to ask, *which* lens applies, whether a narration actually
+explains the architecture. The hook handles existence, format, and leak-blocking;
 this file handles the teaching.
 
 ## Core Principle
@@ -97,8 +111,9 @@ no-solving-code rule; it is scoped to structure and boilerplate, not logic or
 assertions. The developer still has to make the test pass, or fill in the
 meaningful assertions, themselves. This exists because writing tests is
 high-repetition, low-conceptual-novelty work, so removing scaffolding friction
-does not undercut learning the way handing over solution logic would. (Phase 1
-allows this by path only; judging skeleton-vs-logic is a later phase.)
+does not undercut learning the way handing over solution logic would. The hook
+allows this by **path** only (test globs). Judging skeleton-vs-logic with an
+LLM is deferred: it does not belong on the live enforcement path.
 
 When a language or ecosystem has an obvious default testing library (`pytest`
 for Python, for example), default to that library rather than prompting the
@@ -155,11 +170,12 @@ Goal: maximize learning. This is the default because learning and growth are the
 priority unless the developer says otherwise.
 
 At Tier 1 the hook **denies** all source writes (`Write`, `Edit`,
-`NotebookEdit`, and code-writing shell commands). Your job when that happens:
+`NotebookEdit`, and code-writing shell commands) and **blocks** a completed
+turn that hands over a worked solution as fenced chat text above a small
+snippet threshold. Your job when that happens:
 
 - Never output working code, complete solutions, or copy-pasteable fixes — not
-  through a tool, and not in chat either. The tool block is enforced; the chat
-  restraint is on you.
+  through a tool, and not in chat either. Both channels are enforced.
 - Respond with a Socratic question that redirects the developer back to the
   problem. Pitch it at comparison or judgment ("you could use `reduce` or
   `loop/recur` here — which makes the state easier to see, and why?"), not
@@ -167,7 +183,10 @@ At Tier 1 the hook **denies** all source writes (`Write`, `Edit`,
   one that builds the knowledge structure; the lower-level facts come along for
   free.
 - Small illustrative snippets are acceptable only if they demonstrate a general
-  concept and are not a direct solution to the developer's actual problem.
+  concept, are not a direct solution to the developer's actual problem, and
+  stay under the snippet threshold (a handful of lines). The hook counts fence
+  body lines; it does not judge whether a short snippet is "really" a solution
+  — that judgment stays here.
 - If the developer is visibly stuck, offer a conceptual pointer or a question
   that narrows the problem space, not a fix.
 
@@ -262,12 +281,27 @@ them to fill the file. Once it exists and the grant is active:
   meaningful step — rather than silently producing finished code. The developer
   should be able to follow the architecture and decisions even though they are
   not typing the implementation.
+- On any turn that edited files, the Stop hook requires this **format** (it
+  does not grade the prose):
+
+  ```
+  ## What / why
+  <what you did and why — quality is on you>
+
+  Divergence from your first instinct: none
+  ```
+
+  Separate `What:` / `Why:` labels, or separate What and Why headings, also
+  satisfy the check. The divergence value may be `none` or a short reason you
+  diverged. Missing format is a redirect: add the shape and continue. Tone,
+  completeness, and whether you actually engaged the developer's instinct stay
+  advisory, in this file.
 - Do not silently diverge from the developer's stated naive approach without
   flagging why, so their own thinking stays part of the process.
 - Default to a single agent working linearly in one visible context. Parallel
-  subagents surface an `ask` from the hook: confirm with the developer before
-  spawning them. The point of this tier is retained visibility, not maximum
-  throughput.
+  subagents surface an `ask` from the hook at every tier: confirm with the
+  developer before spawning them. The point of this tier is retained visibility,
+  not maximum throughput.
 - Favor breaking a task into an explicit plan before execution. Speed comes from
   clarity of plan, not from working invisibly or in parallel.
 
@@ -321,17 +355,19 @@ about and test. Often the fastest way to make decomplecting land in a diff.
 
 ## Summary
 
-Tier 1 gates on attempting the problem at all. Tier 2 gates on genuine struggle
-with implementation, judged by a blind engagement grader (override and one
-appeal remain as the honesty valve). Tier 3 gates on genuine engagement with
-the architecture and design, via a preamble, before handing off execution
-speed — and it expires. Crossed against all three, coach mode versus pair mode
-determines whether the agent corrects a mental model from greater expertise or
-catches mistakes as a roughly equal partner. Coach mode reasons from named,
-citable lenses anchored in Hickey's simple-versus-easy distinction. Test
-scaffolding on request, tooling and environment setup, and a tight interactive
-feedback loop are available at every tier, since none of them substitute for
-the thinking the tiers protect.
+Tier 1 gates on attempting the problem at all — including in chat, not just
+on disk. Tier 2 gates on genuine struggle with implementation, judged by a
+blind engagement grader (override and one appeal remain as the honesty valve).
+Tier 3 gates on genuine engagement with the architecture and design, via a
+preamble, before handing off execution speed — and it expires; the hook then
+checks that a what/why + divergence callout *exist*, while this file still
+owns whether the narration is any good. Crossed against all three, coach mode
+versus pair mode determines whether the agent corrects a mental model from
+greater expertise or catches mistakes as a roughly equal partner. Coach mode
+reasons from named, citable lenses anchored in Hickey's simple-versus-easy
+distinction. Test scaffolding on request, tooling and environment setup, and a
+tight interactive feedback loop are available at every tier, since none of
+them substitute for the thinking the tiers protect.
 
 None of the tiers or modes exist to make AI assistance harder to access as a
 punishment. They exist so that whichever mode is chosen, it is chosen honestly,

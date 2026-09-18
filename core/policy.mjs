@@ -7,15 +7,21 @@
 // policy table testable and lets future per-harness adapters import it
 // unchanged.
 //
-// THE IMPORTANT CLARIFICATION (report §5.2, and SKILL.md:147-149).
+// THE IMPORTANT CLARIFICATION (report §5.2, and SKILL.md).
 // At the *tool* layer, Tier 1 and Tier 2 are identical: the agent never has
 // a write path to source. Source mutation (category E) is DENIED at Tier 1,
 // Tier 2-locked, Tier 2-unlocked, and Tier 3-without-preamble; it is allowed
 // only at Tier 3 once a preamble exists. What the Tier 2 unlock changes is
-// the *text channel* — whether the agent may show a worked solution in chat
-// — which surfaces here only as a different deny reason. "The developer types
-// it" is therefore enforced for free: with no write path, the only way code
-// reaches the file is the developer's own hands.
+// the *text channel* — whether the agent may show a worked solution in chat.
+// Phase 3 enforces that channel at Tier 1 / locked Tier 2 via decideTextChannel
+// (Stop) and decideDisplay (MessageDisplay). "The developer types it" is
+// therefore enforced for free at the file layer: with no write path, the only
+// way code reaches the file is the developer's own hands.
+
+import { DEFAULT_MAX_FENCE_LINES, overThresholdFences, redactOverThresholdFences } from './fence.mjs';
+import { checkNarrationFormat } from './narration.mjs';
+
+export { DEFAULT_MAX_FENCE_LINES };
 
 export const REASONS = {
   T1:
@@ -60,6 +66,35 @@ export const REASONS = {
     'context, since the point of this tier is retained understanding, not ' +
     'maximum throughput. Confirm with the developer before spawning parallel ' +
     'subagents or delegating.',
+
+  DELEGATION:
+    'No Deceit: spawning a subagent is a route around this gate — a subagent ' +
+    'does not inherit the tutoring conversation and can write files the parent ' +
+    'cannot. Confirm with the developer before delegating. Default to one ' +
+    'linear agent in a single visible context.',
+
+  T1_CHAT_FENCE:
+    'No Deceit Tier 1 (Tutor). That turn handed over a worked solution as ' +
+    'chat text — a fenced code block above the small-snippet threshold. The ' +
+    'text channel is gated the same way as a file write. Retract the code. ' +
+    'Ask one question that makes the developer compare two approaches or ' +
+    'judge where their current attempt diverges from what they expect. Small ' +
+    'illustrative snippets (a few lines of a general concept, not the ' +
+    'solution) are still allowed.',
+
+  T3_NARRATION:
+    'No Deceit Tier 3 (Narrated Velocity) requires a what/why section and a ' +
+    '`Divergence from your first instinct:` line (the value `none` is ' +
+    'acceptable) on any turn that edited files. This is a format check, not ' +
+    'a quality judgment. Add both in the required shape and continue — do ' +
+    'not silently produce more code.',
+
+  BASH_EDIT_DIFF:
+    'No Deceit: that Bash command slipped past the mutation deny-list but ' +
+    'wrote source (bashEditDiff tripwire). Revert the file change. Do not ' +
+    'route around the source-write gate; at this tier the developer types ' +
+    'implementation. REPL eval and test/build runs that do not write source ' +
+    'remain allowed.',
 
   TAMPER:
     'No Deceit: that call would change the tier or write to No Deceit\'s own ' +
@@ -145,12 +180,13 @@ export function decide(effective, event) {
     return { decision: 'allow', reason: null };
   }
 
-  // Delegation.
+  // Delegation. A subagent is a gate-bypass route, so attended sessions
+  // always surface an `ask` rather than a silent allow. Tier 3 without a
+  // preamble still denies, matching the source-write gate.
   if (category === 'F') {
-    if (tier === 1 || tier === 2) return { decision: 'allow', reason: null };
-    // tier 3
-    if (!t3PreamblePresent) return { decision: 'deny', reason: REASONS.T3_NO_PREAMBLE };
-    return { decision: 'ask', reason: REASONS.T3_SUBAGENT };
+    if (tier === 3 && !t3PreamblePresent) return { decision: 'deny', reason: REASONS.T3_NO_PREAMBLE };
+    if (tier === 3) return { decision: 'ask', reason: REASONS.T3_SUBAGENT };
+    return { decision: 'ask', reason: REASONS.DELEGATION };
   }
 
   // Unknown Bash shape.
@@ -161,4 +197,67 @@ export function decide(effective, event) {
 
   // Unrecognised category: fail closed.
   return { decision: 'deny', reason: REASONS.TAMPER };
+}
+
+/** Chat-text is gated at Tier 1 and at locked Tier 2 (same as the skill). */
+export function chatTextGated(effective) {
+  if (!effective) return false;
+  if (effective.tier === 1) return true;
+  if (effective.tier === 2 && !effective.t2Unlocked) return true;
+  return false;
+}
+
+/**
+ * Stop-hook decision over the assistant's completed turn. Pure.
+ *   event = { text, stopHookActive?, turnEdited?, maxFenceLines? }
+ * returns { decision: 'allow'|'block', reason, kind }
+ */
+export function decideTextChannel(effective, event = {}) {
+  const text = event.text || '';
+  const maxLines = event.maxFenceLines ?? DEFAULT_MAX_FENCE_LINES;
+
+  if (chatTextGated(effective)) {
+    if (overThresholdFences(text, maxLines).length > 0) {
+      return { decision: 'block', reason: REASONS.T1_CHAT_FENCE, kind: 'chat_fence' };
+    }
+    return { decision: 'allow', reason: null, kind: null };
+  }
+
+  // Tier 3: existence/format of narration + divergence, only on turns that
+  // actually edited. Block once (respect stop_hook_active).
+  if (effective.tier === 3 && effective.t3PreamblePresent && event.turnEdited) {
+    if (event.stopHookActive) return { decision: 'allow', reason: null, kind: null };
+    const fmt = checkNarrationFormat(text);
+    if (!fmt.ok) {
+      return { decision: 'block', reason: REASONS.T3_NARRATION, kind: 'narration_format' };
+    }
+  }
+  return { decision: 'allow', reason: null, kind: null };
+}
+
+/**
+ * MessageDisplay decision. Display-only; never changes the transcript.
+ *   event = { text, redactionEnabled?, maxFenceLines? }
+ * returns { redact, displayContent }
+ */
+export function decideDisplay(effective, event = {}) {
+  if (!event.redactionEnabled) return { redact: false, displayContent: null };
+  if (!chatTextGated(effective)) return { redact: false, displayContent: null };
+  const maxLines = event.maxFenceLines ?? DEFAULT_MAX_FENCE_LINES;
+  const r = redactOverThresholdFences(event.text || '', maxLines);
+  if (!r.redacted) return { redact: false, displayContent: null };
+  return { redact: true, displayContent: r.text };
+}
+
+/**
+ * bashEditDiff tripwire. Pure: caller supplies already-classified leaked paths.
+ * Source writes are in policy at granted Tier 3, so the tripwire is silent there.
+ */
+export function decideBashEditDiff(effective, event = {}) {
+  const leaked = event.leaked || [];
+  if (leaked.length === 0) return { decision: 'allow', reason: null, kind: null };
+  if (effective.tier === 3 && effective.t3PreamblePresent) {
+    return { decision: 'allow', reason: null, kind: null };
+  }
+  return { decision: 'block', reason: REASONS.BASH_EDIT_DIFF, kind: 'bash_edit_diff' };
 }
