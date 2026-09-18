@@ -33,7 +33,6 @@ test('empty ledger yields zeros and an empty-window flag', () => {
   assert.equal(s.learningMs[1], 0);
   assert.equal(s.learningMs[2], 0);
   assert.equal(s.learningMs[3], 0);
-  assert.equal(s.delegatedMs, 0);
   assert.equal(s.delegatedSessions, 0);
   assert.equal(s.unlocks.count, 0);
   assert.equal(s.checks.landed, 0);
@@ -48,7 +47,6 @@ test('a single in-window event does not invent time-in-tier', () => {
   assert.equal(s.empty, false);
   assert.equal(s.learningMs[1], 0);
   assert.equal(s.learningMs[3], 0);
-  assert.equal(s.delegatedMs, 0);
 });
 
 test('time-in-tier splits attended Tier 1/2 from Tier 3', () => {
@@ -64,23 +62,38 @@ test('time-in-tier splits attended Tier 1/2 from Tier 3', () => {
   assert.equal(s.learningMs[2], HOUR);
   assert.equal(s.learningMs[3], HOUR);
   assert.equal(s.learning12Ms, 2 * HOUR);
-  assert.equal(s.delegatedMs, 0);
 });
 
-test('Delegated lane time is isolated from attended tier hours', () => {
+test('Delegated markers count sessions and never steal attended tier hours', () => {
   const s = summarize([
-    { ts: iso(NOW - 3 * HOUR), event: 'tier_change', to: 1 },
-    { ts: iso(NOW - 2 * HOUR), event: 'denial', tier: 1 },
+    { ts: iso(NOW - 3 * HOUR), event: 'tier_change', to: 1, sessionId: 'att-1' },
+    { ts: iso(NOW - 2 * HOUR), event: 'denial', tier: 1, sessionId: 'att-1' },
     { ts: iso(NOW - 2 * HOUR), event: 'delegated', sessionId: 'crew-a', taskId: 'task-a' },
     { ts: iso(NOW - HOUR), event: 'delegated', sessionId: 'crew-b', taskId: 'task-b' },
-    { ts: iso(NOW - HOUR), event: 'denial', tier: 1 },
-    { ts: iso(NOW - 30 * MIN), event: 'denial', tier: 1 },
+    { ts: iso(NOW - HOUR), event: 'denial', tier: 1, sessionId: 'att-1' },
+    { ts: iso(NOW - 30 * MIN), event: 'denial', tier: 1, sessionId: 'att-1' },
   ]);
-  assert.equal(s.learningMs[1], HOUR + 30 * MIN);
+  assert.equal(s.learningMs[1], 2 * HOUR + 30 * MIN);
   assert.equal(s.learningMs[3], 0);
-  assert.equal(s.delegatedMs, HOUR);
   assert.equal(s.delegatedSessions, 2);
-  assert.equal(s.learning12Ms + s.learningMs[3] + s.delegatedMs, 2 * HOUR + 30 * MIN);
+  assert.deepEqual(s.delegatedTaskIds, ['task-a', 'task-b']);
+  assert.equal(s.delegatedMs, undefined);
+});
+
+test('interleaved attended sessions attribute time-in-tier per session', () => {
+  const base = NOW - 3 * HOUR;
+  const t = (m) => iso(base + m * MIN);
+  const s = summarize([
+    { ts: t(0), event: 'tier_change', to: 1, sessionId: 'att-a' },
+    { ts: t(5), event: 'tier_change', to: 3, grant: true, sessionId: 'att-b' },
+    { ts: t(10), event: 'denial', tier: 1, sessionId: 'att-a' },
+    { ts: t(15), event: 'denial', tier: 3, sessionId: 'att-b' },
+    { ts: t(20), event: 'denial', tier: 1, sessionId: 'att-a' },
+    { ts: t(25), event: 'denial', tier: 3, sessionId: 'att-b' },
+  ]);
+  assert.equal(s.learningMs[1], 20 * MIN);
+  assert.equal(s.learningMs[3], 20 * MIN);
+  assert.equal(s.learning12Ms, 20 * MIN);
 });
 
 test('events outside the window do not count toward unlocks or time', () => {
