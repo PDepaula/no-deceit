@@ -12,7 +12,8 @@ const ND = join(dirname(fileURLToPath(import.meta.url)), 'nd');
 function scratch() {
   const dir = mkdtempSync(join(tmpdir(), 'nd-cli-'));
   const env = { ...process.env, XDG_STATE_HOME: join(dir, 'state'), XDG_CONFIG_HOME: join(dir, 'config'), HOME: dir };
-  delete env.CLAUDECODE; delete env.FM_TASK_ID; delete env.ND_ALLOW_AGENT;
+  delete env.CLAUDECODE; delete env.CURSOR_AGENT; delete env.PI_CODING_AGENT;
+  delete env.FM_TASK_ID; delete env.ND_ALLOW_AGENT;
   return { dir, env, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 // Each subcommand runs with cwd=dir; dir is not a git repo, so gitToplevel falls back to cwd.
@@ -102,5 +103,61 @@ test('nd status (read-only) is allowed inside an agent shell', () => {
     const env = { ...s.env, CLAUDECODE: '1' };
     const r = run(['status'], env, s.dir);
     assert.match(r.out, /governed/);
+  } finally { s.cleanup(); }
+});
+
+test('nd refuses a mutating subcommand inside a Cursor agent shell', () => {
+  const s = scratch();
+  try {
+    run(['init'], s.env, s.dir);
+    const r = run(['tier', '3'], { ...s.env, CURSOR_AGENT: '1' }, s.dir, true);
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /refusing to run a state-changing/);
+  } finally { s.cleanup(); }
+});
+
+test('nd refuses a mutating subcommand inside a Pi agent shell', () => {
+  const s = scratch();
+  try {
+    run(['init'], s.env, s.dir);
+    const r = run(['tier', '3'], { ...s.env, PI_CODING_AGENT: 'true' }, s.dir, true);
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /refusing to run a state-changing/);
+  } finally { s.cleanup(); }
+});
+
+test('nd --cursor prints a deny object and exits 0 for a Tier 1 Write', () => {
+  const s = scratch();
+  try {
+    run(['init'], s.env, s.dir);
+    const payload = JSON.stringify({
+      tool_name: 'Write',
+      tool_input: { path: join(s.dir, 'src/x.mjs'), contents: 'x' },
+      cwd: s.dir,
+      session_id: 's',
+    });
+    const out = execFileSync('node', [ND, '--cursor'], {
+      env: s.env, cwd: s.dir, encoding: 'utf8', input: payload,
+    });
+    const obj = JSON.parse(out);
+    assert.equal(obj.permission, 'deny');
+    assert.match(obj.agent_message, /Tier 1/);
+  } finally { s.cleanup(); }
+});
+
+test('nd --cursor prints permission allow for a Read', () => {
+  const s = scratch();
+  try {
+    run(['init'], s.env, s.dir);
+    const payload = JSON.stringify({
+      tool_name: 'Read',
+      tool_input: { path: join(s.dir, 'src/x.mjs') },
+      cwd: s.dir,
+      session_id: 's',
+    });
+    const out = execFileSync('node', [ND, '--cursor'], {
+      env: s.env, cwd: s.dir, encoding: 'utf8', input: payload,
+    });
+    assert.equal(JSON.parse(out).permission, 'allow');
   } finally { s.cleanup(); }
 });

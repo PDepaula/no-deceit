@@ -7,8 +7,9 @@
 // The model cannot use it to change its own tier: the PreToolUse gate denies
 // any tool call that invokes a mutating `nd` subcommand (category G), and —
 // as defense-in-depth if the gate is disabled — mutating subcommands here
-// refuse when they detect they are running inside an agent shell (CLAUDECODE
-// set). The grader is spawned from this CLI or the hook, never by the tutor.
+// refuse when they detect they are running inside an agent shell (CLAUDECODE,
+// CURSOR_AGENT, or PI_CODING_AGENT set). The grader is spawned from this CLI
+// or the hook, never by the tutor.
 
 import { gitToplevel, homePaths, projectPaths, isGoverned, readLedger, loadConfig } from '../core/state.mjs';
 import { setTier, setMode, renderStatus, renderStatusShort } from '../core/control.mjs';
@@ -23,18 +24,29 @@ const repoRoot = gitToplevel(cwd);
 const sessionId = env.ND_SESSION || env.CLAUDE_SESSION_ID || null;
 
 const MUTATING = new Set(['init', 'tier', 'mode', 'unlock', 'check']);
+const AGENT_SHELL_MARKERS = ['CLAUDECODE', 'CURSOR_AGENT', 'PI_CODING_AGENT'];
 
 function die(msg, code = 1) { process.stderr.write(msg + '\n'); process.exit(code); }
 function say(msg) { process.stdout.write(msg + '\n'); }
 
+function inAgentShell() {
+  return AGENT_SHELL_MARKERS.some((k) => env[k] && !env.ND_ALLOW_AGENT);
+}
+
 function guardAgentShell(sub) {
-  if (MUTATING.has(sub) && env.CLAUDECODE && !env.ND_ALLOW_AGENT) {
+  if (MUTATING.has(sub) && inAgentShell()) {
     die(
       'No Deceit: refusing to run a state-changing `nd` subcommand from inside an ' +
       'agent shell. The agent may never change its own tier, and may never spawn ' +
       'the grader. Run this in your own terminal, or use the /no-deceit: prompt commands.',
     );
   }
+}
+
+if (process.argv.slice(2).includes('--cursor')) {
+  const { runCursorHook } = await import('../adapters/cursor/run.mjs');
+  await runCursorHook({ stdin: process.stdin, stdout: process.stdout, env, cwd: repoRoot });
+  process.exit(0);
 }
 
 function cmdInit() {
@@ -70,7 +82,8 @@ switch (sub) {
   nd check [task]                 grade a checking-question answer (rubric must be written first)
   nd audit [--runs 3]             run the gold set; release gate is graded_up = 0
   nd ledger [N]                   show the last N ledger entries (default 20)
-  nd doctor                       report paths and run the armed self-check`);
+  nd doctor                       report paths and run the armed self-check
+  nd --cursor                     Cursor preToolUse transport (stdin JSON → stdout decision)`);
     break;
 
   case 'init':

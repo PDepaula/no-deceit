@@ -1,9 +1,10 @@
 # No Deceit
 
-A Claude Code **plugin** that governs how much AI coding assistance you get,
-based on a manually chosen tier — forcing a conscious, honest choice between
-optimizing for **learning** and optimizing for **velocity**, instead of
-silently defaulting into either one.
+A **plugin** that governs how much AI coding assistance you get, based on a
+manually chosen tier — forcing a conscious, honest choice between optimizing
+for **learning** and optimizing for **velocity**, instead of silently
+defaulting into either one. Claude Code is the reference harness; OpenCode,
+Pi, and Cursor get the same policy through thin adapters.
 
 The difference from a plain skill: a skill can only *advise*, and the agent can
 read the advice and keep going. No Deceit ships as one plugin where **hooks
@@ -11,7 +12,9 @@ are the enforcement** (`PreToolUse` can hard-deny a tool call, even under
 `--dangerously-skip-permissions`; `Stop` blocks a turn that leaks a solution
 as chat text; `MessageDisplay` redacts it on screen in Claude Code) and a
 bundled **skill is the teacher**. The hook blocks; the skill explains why and
-what to do instead.
+what to do instead. Other harnesses call the same core: OpenCode throws from
+`tool.execute.before`, Pi returns `{block:true}` from `tool_call`, Cursor
+runs `nd --cursor` and reads the stdout decision object.
 
 ## Why this exists
 
@@ -85,7 +88,9 @@ claude plugin install no-deceit
 ```
 
 Requires Node (for the `.mjs` policy core and hooks; zero external
-dependencies). Then, in a project you want governed:
+dependencies). Put `bin/` on `PATH` if the Claude plugin did not already
+(needed for `nd` and for Cursor's `nd --cursor` hook). Then, in a project
+you want governed:
 
 ```bash
 nd init        # opt this project in (creates .no-deceit/)
@@ -120,26 +125,38 @@ state-minimization heuristics from the Clojure community). See
 
 ## Other harnesses
 
-The advisory half is already portable: OpenCode and Cursor both read `SKILL.md`
-natively (Cursor also reads from `~/.claude/skills/`), so the teaching layer
-works there today. The *enforcing* half — a real pre-tool deny — exists in
-OpenCode (`tool.execute.before`), Cursor (`.cursor/hooks.json`), and Pi
-(`tool_call`), but each has a different shape and failure direction, so thin
-per-harness adapters over the shared policy core are a later phase (not the
-earlier README's "you'll want a rules-file wrapper" — a rules file is advisory
-and would reproduce the exact gap this plugin closes). The policy core
-(`core/*.mjs`) is pure and dependency-free precisely so those adapters can
-import it unchanged.
+The teaching `SKILL.md` is already portable (OpenCode, Cursor, and Pi all
+read Agent Skills; several of them from `~/.claude/skills/`). The *enforcing*
+half is the same pure core (`core/*.mjs`) behind a thin adapter per harness —
+not a rules-file wrapper, which would be advisory and reproduce the gap this
+plugin closes. No firstmate install is required.
+
+**OpenCode** — point OpenCode at `adapters/opencode/no-deceit.ts` inside this
+clone (symlink into `~/.config/opencode/plugins/`, or list the path in
+`opencode.json` `plugin`). `tool.execute.before` imports the core and throws
+on deny. See `docs/verification/opencode.md`.
+
+**Pi** — symlink `adapters/pi/no-deceit.ts` to `~/.pi/agent/extensions/` (or
+`.pi/extensions/` in a trusted project). `tool_call` imports the core and
+returns `{block:true, reason}` on deny. See `docs/verification/pi.md`.
+
+**Cursor** — copy `adapters/cursor/hooks.json` to `~/.cursor/hooks.json` (or
+the project `.cursor/hooks.json`) and keep `nd` on `PATH`. `preToolUse` runs
+`nd --cursor`, which prints Cursor's decision object on stdout (exit 0).
+`failClosed` is on. See `docs/verification/cursor.md`.
+
+Parity gaps, stated plainly: there is no blocking turn-end hook on OpenCode
+or Cursor, so the Tier 3 narration / Tier 1 chat-fence check is not a hard
+block there (it would only be a follow-up). `MessageDisplay` redaction exists
+only in Claude Code. Cursor's `ask` is not enforced on `preToolUse`.
 
 ## Status
 
-Phase 3: the enforcing gate for Claude Code, the blind Tier 2 engagement
-grader, and the text-channel / Tier 3 polish (Stop-hook fence check,
-MessageDisplay redaction, narration format, `ask` on Agent, bashEditDiff
-tripwire). Later phases add the other harness adapters and an earned-time
-reporting loop. See `NOTES.md` for open threads and `CHANGELOG.md` for what's
-changed. The full design rationale lives in the scout report referenced from
-`AGENTS.md`.
+Phase 4: the enforcing gate for Claude Code, the blind Tier 2 engagement
+grader, the text-channel / Tier 3 polish, and OpenCode / Pi / Cursor adapters
+over the shared core. Later: the earned-time `nd report` loop. See `NOTES.md`
+for open threads and `CHANGELOG.md` for what's changed. The full design
+rationale lives in the scout report referenced from `AGENTS.md`.
 
 ## License
 

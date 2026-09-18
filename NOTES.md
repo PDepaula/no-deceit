@@ -14,14 +14,16 @@ report referenced from `AGENTS.md` (phases, decisions D1–D8, gating matrix).
 - **Phase 2:** the blind fresh-process LLM engagement grader for
   the Tier 2 unlock (grades genuineness of engagement, not correctness), plus
   `nd audit` (`graded_up = 0`) and checking-question grading.
-- **Phase 3 (this build):** policing code in chat — a `Stop`-hook fenced-code
-  check at Tier 1 (and locked Tier 2) plus on-screen `MessageDisplay` redaction
+- **Phase 3:** policing code in chat — a `Stop`-hook fenced-code check at
+  Tier 1 (and locked Tier 2) plus on-screen `MessageDisplay` redaction
   (Claude Code only, `messageDisplayRedaction` default on, `tier1MaxFenceLines`
   default 6). Tier 3 narration/divergence *format* check; `ask` on Agent/Task;
   bashEditDiff tripwire on PostToolUse(Bash). Test scaffolding stays path-based.
-- **Phase 4:** OpenCode / Pi / Cursor adapters over the shared policy core.
-  `MessageDisplay` redaction has no equivalent there; the Stop-hook fence check
-  degrades where the harness has no blocking turn-end hook.
+- **Phase 4 (this build):** OpenCode / Pi / Cursor adapters over the shared
+  policy core. `MessageDisplay` redaction has no equivalent there; the
+  Stop-hook fence check is not a hard block where the harness has no blocking
+  turn-end hook; Cursor `ask` is not enforced on `preToolUse`. See
+  `docs/verification/`.
 - **Phase 5:** the earned-time `nd report` loop and firstmate `learn:` tagging.
 
 ## Not yet decided

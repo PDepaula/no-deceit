@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": "nd --cursor",
+        "failClosed": true,
+        "timeout": 20
+      }
+    ]
+  }
+}

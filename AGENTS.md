@@ -1,8 +1,9 @@
 # Project agent memory
 
-No Deceit is a Claude Code **plugin** (not a bare skill) that enforces a chosen
-AI coding-assistance tier: a `PreToolUse` hook is the law, the bundled skill is
-the teacher.
+No Deceit is a **plugin** (not a bare skill) that enforces a chosen
+AI coding-assistance tier: a pre-tool hook is the law, the bundled skill is
+the teacher. Claude Code is the reference harness; OpenCode, Pi, and Cursor
+are thin adapters over the same core.
 
 ## Design authority
 
@@ -22,7 +23,7 @@ Read it before changing enforcement semantics.
   `tripwire.mjs` (Phase 3 text-channel + bashEditDiff), `prefilter.mjs` /
   `rubric.mjs` / `grader-parse.mjs` / `grader-job.mjs` / `audit.mjs` (Phase 2
   engagement grader: pre-filter, mechanical verdict, blindness, gold scoring).
-  Keep these pure so Phase 4 per-harness adapters import them unchanged.
+  Keep these pure so per-harness adapters import them unchanged.
 - `core/state.mjs`, `core/control.mjs`, `core/gate.mjs`, `core/grader.mjs`,
   `core/git-evidence.mjs` — the imperative shell: XDG state I/O, ledger,
   tier/mode/unlock ops, fail-closed orchestrator (`evaluate` /
@@ -31,8 +32,13 @@ Read it before changing enforcement semantics.
 - `hooks/nd-hook.mjs` + `hooks/hooks.json` — the Claude Code hook shim
   (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`,
   `MessageDisplay`); thin, all policy in core. `MessageDisplay` is Claude-Code-only.
+- `adapters/` — Phase 4 shells over the same `evaluate()`: OpenCode
+  (`tool.execute.before` throws), Pi (`tool_call` `{block:true}`), Cursor
+  (`nd --cursor` stdout object). Mapping lives in `adapters/map-tool.mjs`;
+  do not fork policy. Verification records: `docs/verification/<harness>.md`.
 - `bin/nd` — the developer's shell CLI (`init|tier|mode|status|unlock|check|
-  audit|ledger|doctor`), auto-added to PATH by the plugin.
+  audit|ledger|doctor`) plus Cursor's `nd --cursor` transport; auto-added to
+  PATH by the Claude plugin.
 - `agents/nd-grader.md` — the blind grader agent; spawned only by the hook or
   `nd`, never by the tutor. Model is `graderModel` (default `haiku`).
 - `gold/unlock-gold.mjs` — adversarial gold set; `nd audit` release gate is
@@ -56,11 +62,13 @@ Read it before changing enforcement semantics.
 
 ## Test
 
-`node --test 'core/*.test.mjs' 'hooks/*.test.mjs' 'bin/*.test.mjs'` — pure Node
+`node --test 'core/*.test.mjs' 'hooks/*.test.mjs' 'bin/*.test.mjs' 'adapters/*.test.mjs'` — pure Node
 test runner, no deps. The tier × category matrix, tamper / scope / fail-closed
-paths, the grader pre-filter / gold set / `nd audit` gate, and the Phase 3
-fence / narration-format / Agent-ask / bashEditDiff paths are covered; keep
-them green. CI must not call a live model (`nd audit --oracle` / `--inflate`).
+paths, the grader pre-filter / gold set / `nd audit` gate, the Phase 3
+fence / narration-format / Agent-ask / bashEditDiff paths, and the Phase 4
+adapter deny shapes (throw / `{block:true}` / stdout object) are covered;
+keep them green. CI must not call a live model (`nd audit --oracle` /
+`--inflate`) and must not require OpenCode/Pi/Cursor installed.
 
 ## Maintaining this file
 

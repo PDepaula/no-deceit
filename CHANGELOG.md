@@ -3,6 +3,29 @@
 All notable changes to this plugin are recorded here. Format is loosely
 based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.0] — Phase 4: OpenCode, Pi, and Cursor adapters
+
+Ports the existing gate to the other harnesses. Policy stays in the Phase 1
+`.mjs` core; each adapter is a thin shell. Claude Code behavior is unchanged.
+
+- **OpenCode** (`adapters/opencode/no-deceit.ts`): `tool.execute.before`
+  imports the core in-process and throws the deny reason. OpenCode already
+  reads `~/.claude/skills`.
+- **Pi** (`adapters/pi/no-deceit.ts`): `tool_call` imports the core
+  in-process and returns `{block:true, reason}` on deny.
+- **Cursor** (`adapters/cursor/hooks.json` + `nd --cursor`): `preToolUse`
+  shells out; `nd --cursor` prints Cursor's decision object on stdout and
+  exits 0 (`failClosed: true`). Cursor does not import the core.
+- **One state, one ledger:** opt-in `.no-deceit/`, XDG state, and
+  worker/headless exemption (`FM_TASK_ID`) are identical across harnesses.
+- **Parity gaps documented** in `docs/verification/{opencode,pi,cursor}.md`
+  rather than hidden: no blocking turn-end on OpenCode/Cursor (Tier 3
+  narration / T1 fence is not a hard block); `MessageDisplay` is
+  Claude-Code-only; Cursor `ask` is not enforced on `preToolUse`.
+- **Tests** mock harness I/O (`node --test`); CI does not need OpenCode, Pi,
+  or Cursor installed. The same fixture yields the same core decision through
+  every adapter.
+
 ## [0.4.0] — Phase 3: text channel and Tier 3 polish
 
 Closes G5: code can no longer reach the developer only as chat text, and
