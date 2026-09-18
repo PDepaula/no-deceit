@@ -22,8 +22,10 @@ Read it before changing enforcement semantics.
   (Step 0 opt-in + worker exemption), `fence.mjs` / `narration.mjs` /
   `tripwire.mjs` (Phase 3 text-channel + bashEditDiff), `prefilter.mjs` /
   `rubric.mjs` / `grader-parse.mjs` / `grader-job.mjs` / `audit.mjs` (Phase 2
-  engagement grader: pre-filter, mechanical verdict, blindness, gold scoring).
-  Keep these pure so per-harness adapters import them unchanged.
+  engagement grader: pre-filter, mechanical verdict, blindness, gold scoring),
+  `report.mjs` (Phase 5 earned-time summary + per-domain Coach/Pair
+  suggestions over ledger entries). Keep these pure so per-harness adapters
+  import them unchanged.
 - `core/state.mjs`, `core/control.mjs`, `core/gate.mjs`, `core/grader.mjs`,
   `core/git-evidence.mjs` — the imperative shell: XDG state I/O, ledger,
   tier/mode/unlock ops, fail-closed orchestrator (`evaluate` /
@@ -37,8 +39,8 @@ Read it before changing enforcement semantics.
   (`nd --cursor` stdout object). Mapping lives in `adapters/map-tool.mjs`;
   do not fork policy. Verification records: `docs/verification/<harness>.md`.
 - `bin/nd` — the developer's shell CLI (`init|tier|mode|status|unlock|check|
-  audit|ledger|doctor`) plus Cursor's `nd --cursor` transport; auto-added to
-  PATH by the Claude plugin.
+  audit|ledger|report|doctor`) plus Cursor's `nd --cursor` transport;
+  auto-added to PATH by the Claude plugin. `nd report` is read-only.
 - `agents/nd-grader.md` — the blind grader agent; spawned only by the hook or
   `nd`, never by the tutor. Model is `graderModel` (default `haiku`).
 - `gold/unlock-gold.mjs` — adversarial gold set; `nd audit` release gate is
@@ -51,7 +53,8 @@ Read it before changing enforcement semantics.
   the in-hook `/no-deceit:` prompt commands or the developer's `nd` shell.
   Category G (tamper) is denied at every tier.
 - The gate must NOT wedge worker/headless sessions (`FM_TASK_ID` etc.) — those
-  are pass-through no-ops (`core/scope.mjs`).
+  are pass-through no-ops (`core/scope.mjs`). A governed worker session is
+  ledgered once as `delegated` for `nd report`; that must never fail-close.
 - Fail-closed: any internal hook error is an explicit deny, never a silent
   allow (`core/gate.mjs`).
 - The tutor must NEVER spawn or grade a Tier 2 unlock. The grader is a
@@ -65,8 +68,9 @@ Read it before changing enforcement semantics.
 `node --test 'core/*.test.mjs' 'hooks/*.test.mjs' 'bin/*.test.mjs' 'adapters/*.test.mjs'` — pure Node
 test runner, no deps. The tier × category matrix, tamper / scope / fail-closed
 paths, the grader pre-filter / gold set / `nd audit` gate, the Phase 3
-fence / narration-format / Agent-ask / bashEditDiff paths, and the Phase 4
-adapter deny shapes (throw / `{block:true}` / stdout object) are covered;
+fence / narration-format / Agent-ask / bashEditDiff paths, the Phase 4
+adapter deny shapes (throw / `{block:true}` / stdout object), and the Phase 5
+`nd report` aggregation / Coach-Pair suggestion table tests are covered;
 keep them green. CI must not call a live model (`nd audit --oracle` /
 `--inflate`) and must not require OpenCode/Pi/Cursor installed.
 

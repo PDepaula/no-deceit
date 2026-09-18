@@ -178,6 +178,9 @@ test('Bash read-only nd status is NOT tamper (category A)', () => {
 test('Bash read-only nd audit is NOT tamper (category A)', () => {
   assert.equal(classify('Bash', { command: 'nd audit' }, cfg), 'A');
 });
+test('Bash read-only nd report is NOT tamper (category A)', () => {
+  assert.equal(classify('Bash', { command: 'nd report --since 7d' }, cfg), 'A');
+});
 test('Bash relative redirect into state dir is category G', () => {
   assert.equal(classify('Bash', { command: `echo '{"tier":1}' > .no-deceit/state.json` }, cfg), 'G');
 });

@@ -228,7 +228,7 @@ function tutorNoteFor(result) {
   );
 }
 
-function persistUnlock({ repoRoot, env, task, route, files = [], since = null, result, appealed = false }) {
+function persistUnlock({ repoRoot, env, task, route, files = [], since = null, result, appealed = false, sessionId = null }) {
   const before = readProjectState(repoRoot, env);
   const lastUnlock = {
     id: randomUUID(),
@@ -267,11 +267,12 @@ function persistUnlock({ repoRoot, env, task, route, files = [], since = null, r
     rubric_gap: result.rubric_gap,
     prefilter_reason: result.prefilter_reason,
     id: lastUnlock.id,
+    sessionId: sessionId || null,
   });
   return lastUnlock;
 }
 
-export function unlockOverride({ repoRoot, env, reason }) {
+export function unlockOverride({ repoRoot, env, reason, sessionId = null }) {
   if (!reason || !String(reason).trim()) {
     throw new Error('unlock override requires a typed reason (this is written to the ledger; honesty, not prohibition)');
   }
@@ -290,7 +291,7 @@ export function unlockOverride({ repoRoot, env, reason }) {
     lastUnlock,
     pendingTutorNote: null,
   });
-  appendLedger(env, { event: 'unlock_override', tier: before.tier, reason: String(reason).trim(), id: lastUnlock.id });
+  appendLedger(env, { event: 'unlock_override', tier: before.tier, reason: String(reason).trim(), id: lastUnlock.id, sessionId: sessionId || null });
   return `Tier 2 unlocked by override. Recorded to the ledger: "${String(reason).trim()}".`;
 }
 
@@ -348,9 +349,10 @@ export async function runUnlock({
   timeoutMs,
   model,
   spawnImpl,
+  sessionId = null,
 } = {}) {
   if (override != null) {
-    return unlockOverride({ repoRoot, env, reason: override });
+    return unlockOverride({ repoRoot, env, reason: override, sessionId });
   }
 
   const resolved = invokeFromEnv(env, invoke) || makeLiveInvoke(env, { spawnImpl });
@@ -372,7 +374,7 @@ export async function runUnlock({
       repoRoot, env, task: appealTask, git: appealGit, files: appealFiles, since: appealSince,
       invoke: resolved, timeoutMs, model,
     });
-    persistUnlock({ repoRoot, env, task: appealTask, route: result.route || before.lastUnlock.route, files: appealFiles, since: appealSince, result, appealed: true });
+    persistUnlock({ repoRoot, env, task: appealTask, route: result.route || before.lastUnlock.route, files: appealFiles, since: appealSince, result, appealed: true, sessionId });
     if (result.verdict === 'unlocked') {
       return `Appeal accepted. Tier 2 unlocked. Diagnosis: ${result.error_class}.`;
     }
@@ -385,7 +387,7 @@ export async function runUnlock({
   const result = await gradeFromDisk({
     repoRoot, env, task, git, files, since, invoke: resolved, timeoutMs, model,
   });
-  persistUnlock({ repoRoot, env, task, route: git ? 'commit-history' : 'mental-model', files, since, result, appealed: false });
+  persistUnlock({ repoRoot, env, task, route: git ? 'commit-history' : 'mental-model', files, since, result, appealed: false, sessionId });
   if (result.verdict === 'unlocked') {
     return `Tier 2 unlocked by the blind grader (${result.source}). error_class=${result.error_class}.`;
   }
@@ -404,6 +406,7 @@ export async function runCheck({
   timeoutMs,
   model,
   spawnImpl,
+  sessionId = null,
 } = {}) {
   const paths = projectPaths(repoRoot);
   const dir = join(paths.checksDir, task);
@@ -437,6 +440,7 @@ export async function runCheck({
     error_class: result.error_class,
     misconceptions: result.misconceptions,
     source: result.source,
+    sessionId: sessionId || null,
   });
   const before = readProjectState(repoRoot, env);
   writeProjectState(repoRoot, {

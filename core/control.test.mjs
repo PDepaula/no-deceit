@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseCommand, setTier, setMode, unlockOverride, renderStatus, renderStatusShort } from './control.mjs';
-import { readProjectState, readSession, readLedger, projectPaths } from './state.mjs';
+import { appendLedger, readProjectState, readSession, readLedger, projectPaths } from './state.mjs';
 
 function scratch({ governed = true } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nd-ctrl-'));
@@ -111,5 +111,19 @@ test('renderStatus reports ungoverned when there is no .no-deceit', () => {
   const s = scratch({ governed: false });
   try {
     assert.match(renderStatus({ repoRoot: s.repo, env: s.env, sessionId: 's', nowMs: NOW }), /not governed|ungoverned/i);
+  } finally { s.cleanup(); }
+});
+
+test('renderStatus suggests Coach for a conceptual-heavy domain (suggestion only)', () => {
+  const s = scratch();
+  try {
+    setMode({ repoRoot: s.repo, env: s.env, mode: 'ask', nowMs: NOW });
+    for (let i = 0; i < 3; i++) {
+      appendLedger(s.env, { event: 'check_grade', task: 'parser', error_class: 'conceptual', verdict: 'not_landed' });
+    }
+    const text = renderStatus({ repoRoot: s.repo, env: s.env, sessionId: 's', nowMs: NOW });
+    assert.match(text, /Suggested mode/);
+    assert.match(text, /parser/);
+    assert.match(text, /coach/i);
   } finally { s.cleanup(); }
 });

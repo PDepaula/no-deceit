@@ -17,7 +17,7 @@ import {
 import { scopeDecision as realScope } from './scope.mjs';
 import { leakedSourceWrites, parseChangedFiles } from './tripwire.mjs';
 import {
-  loadConfig, isGoverned, readProjectState, readSession, preamblePresent, buildClassifyCfg,
+  loadConfig, isGoverned, readProjectState, readSession, writeSession, preamblePresent, buildClassifyCfg,
 } from './state.mjs';
 
 export const FAIL_CLOSED_REASON =
@@ -48,7 +48,28 @@ export function evaluate(input, deps = {}) {
     const governed = isGoverned(repoRoot);
     const scope = scopeDecision({ hasNoDeceitDir: governed, env });
     if (!scope.inScope) {
-      return { decision: 'allow', reason: null, category: null, governed: false, scopeReason: scope.reason, effective: null, ledgerEntry: null };
+      // Still a pass-through allow (no enforcement). Opted-in worker/headless
+      // sessions get one Delegated ledger marker so Phase 5 can name that lane
+      // honestly; ungoverned repos stay silent. Logging must never fail-close
+      // an exempt session.
+      let ledgerEntry = null;
+      try {
+        if (governed && String(scope.reason).startsWith('exempt')) {
+          const delegatedKey = sessionId || env.FM_TASK_ID || env.ND_WORKER || env.ND_EXEMPT || env.ND_HEADLESS || 'worker';
+          const sess = readSession(env, delegatedKey);
+          if (!sess.delegatedLogged) {
+            writeSession(env, delegatedKey, { delegatedLogged: true });
+            ledgerEntry = {
+              event: 'delegated',
+              lane: 'delegated',
+              sessionId: sessionId || null,
+              taskId: env.FM_TASK_ID || null,
+              reason: scope.reason,
+            };
+          }
+        }
+      } catch { /* never wedge a worker on a ledger marker */ }
+      return { decision: 'allow', reason: null, category: null, governed: false, scopeReason: scope.reason, effective: null, ledgerEntry };
     }
 
     const config = loadConfig(env);

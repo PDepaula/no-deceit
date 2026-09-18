@@ -23,6 +23,17 @@ test('ungoverned project is a pass-through allow', () => {
     const r = evaluate({ toolName: 'Write', toolInput: { file_path: join(s.repo, 'src/x.mjs') }, cwd: s.repo, env: s.env, sessionId: 's', nowMs: NOW });
     assert.equal(r.decision, 'allow');
     assert.equal(r.governed, false);
+    assert.equal(r.ledgerEntry, null);
+  } finally { s.cleanup(); }
+});
+
+test('a worker session in an ungoverned repo does not ledger Delegated', () => {
+  const s = scratch({ governed: false });
+  try {
+    const env = { ...s.env, FM_TASK_ID: 'crew-ungoverned' };
+    const r = evaluate({ toolName: 'Write', toolInput: { file_path: join(s.repo, 'src/x.mjs') }, cwd: s.repo, env, sessionId: 's', nowMs: NOW });
+    assert.equal(r.decision, 'allow');
+    assert.equal(r.ledgerEntry, null);
   } finally { s.cleanup(); }
 });
 
@@ -33,6 +44,12 @@ test('firstmate crewmate (FM_TASK_ID) is a pass-through even when opted in', () 
     const r = evaluate({ toolName: 'Write', toolInput: { file_path: join(s.repo, 'src/x.mjs') }, cwd: s.repo, env, sessionId: 's', nowMs: NOW });
     assert.equal(r.decision, 'allow');
     assert.equal(r.governed, false);
+    assert.equal(r.ledgerEntry && r.ledgerEntry.event, 'delegated');
+    assert.equal(r.ledgerEntry.lane, 'delegated');
+    assert.equal(r.ledgerEntry.taskId, 'some-task');
+    const r2 = evaluate({ toolName: 'Write', toolInput: { file_path: join(s.repo, 'src/x.mjs') }, cwd: s.repo, env, sessionId: 's', nowMs: NOW });
+    assert.equal(r2.decision, 'allow');
+    assert.equal(r2.ledgerEntry, null, 'one delegated marker per session, not one per tool call');
   } finally { s.cleanup(); }
 });
 

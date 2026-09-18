@@ -56,7 +56,9 @@ Two independent axes.
 **Domain mode** (crosses all tiers): **Coach** for domains you don't have solid
 footing in (the agent corrects your mental model with reasoning, from named
 lenses), **Pair** for domains you're competent in (fast, concise, catching
-slips).
+slips). The mode is still yours to set (`nd mode`); `nd report` and `nd status`
+may *suggest* Coach or Pair from the ledger's per-domain `error_class` trend
+(repeated conceptual ⇒ Coach; mostly slip ⇒ Pair) without switching it.
 
 **Always allowed at every tier**, because gating them adds cost without adding
 learning:
@@ -94,7 +96,8 @@ you want governed:
 
 ```bash
 nd init        # opt this project in (creates .no-deceit/)
-nd status      # show the current tier and mode
+nd status      # show the current tier and mode (and any Coach/Pair suggestion)
+nd report      # weekly-style ledger summary (default last 7 days)
 nd tier 1      # or 2 / 3
 nd mode coach  # or pair / ask
 nd unlock      # grade .no-deceit/attempts/default.md
@@ -103,7 +106,15 @@ nd audit       # gold-set release gate (graded_up = 0)
 
 Only projects with a `.no-deceit/` directory are governed — every other repo is
 untouched. Worker/headless sessions (e.g. a firstmate crewmate, marked by
-`FM_TASK_ID`) are exempt so the gate never wedges an automated fleet.
+`FM_TASK_ID`) are exempt so the gate never wedges an automated fleet. Those
+exempt sessions are ledgered once as **Delegated** (a lane, not a tier; no
+learning claimed) so `nd report` can name them honestly.
+
+`nd report` is the earned-time loop: a weekly-style summary from the ledger
+(time in Tier 1/2 vs Tier 3, unlocks and checking questions landed vs not,
+Coach-domain misconceptions, Delegated sessions). Default window is 7 days;
+pass `--since` / `--until` as an ISO date or a relative duration (`7d`, `24h`,
+`30m`, `1w`). Empty ledgers print a short "nothing to summarise" note.
 
 Control it from the chat prompt, too — these are handled inside the hook, so the
 agent never sees them as something it can forge:
@@ -152,11 +163,12 @@ only in Claude Code. Cursor's `ask` is not enforced on `preToolUse`.
 
 ## Status
 
-Phase 4: the enforcing gate for Claude Code, the blind Tier 2 engagement
-grader, the text-channel / Tier 3 polish, and OpenCode / Pi / Cursor adapters
-over the shared core. Later: the earned-time `nd report` loop. See `NOTES.md`
-for open threads and `CHANGELOG.md` for what's changed. The full design
-rationale lives in the scout report referenced from `AGENTS.md`.
+Phase 5: the earned-time loop. `nd report` reads the ledger the earlier phases
+write; Coach/Pair suggestions are evidence-based and still the developer's
+choice. firstmate `learn:` backlog-reserve tagging is out of scope (D8:
+exemption only). See `NOTES.md` for open threads and `CHANGELOG.md` for what's
+changed. The full design rationale lives in the scout report referenced from
+`AGENTS.md`.
 
 ## License
 

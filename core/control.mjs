@@ -10,7 +10,7 @@
 import { isGoverned, readProjectState, writeProjectState, readSession, writeSession, appendLedger, loadConfig, readLedger } from './state.mjs';
 import { resolveEffective } from './policy.mjs';
 import { preamblePresent } from './state.mjs';
-import { suggestDomainMode } from './rubric.mjs';
+import { suggestModesByDomain } from './report.mjs';
 import { unlockOverride as applyUnlockOverride } from './grader.mjs';
 
 const MODES = ['coach', 'pair', 'ask'];
@@ -54,16 +54,16 @@ export function setTier({ repoRoot, env, sessionId, tier, nowMs = Date.now() }) 
   return `Tier set to ${n}.`;
 }
 
-export function setMode({ repoRoot, env, mode, nowMs = Date.now() }) {
+export function setMode({ repoRoot, env, mode, sessionId, nowMs = Date.now() }) {
   if (!MODES.includes(mode)) throw new Error(`invalid mode: ${mode} (use coach|pair|ask)`);
   const before = readProjectState(repoRoot, env);
   writeProjectState(repoRoot, { ...before, mode });
-  appendLedger(env, { event: 'mode_change', from: before.mode, to: mode });
+  appendLedger(env, { event: 'mode_change', from: before.mode, to: mode, sessionId: sessionId || null });
   return `Mode set to ${mode}.`;
 }
 
-export function unlockOverride({ repoRoot, env, reason, nowMs = Date.now() }) {
-  return applyUnlockOverride({ repoRoot, env, reason, nowMs });
+export function unlockOverride({ repoRoot, env, reason, sessionId, nowMs = Date.now() }) {
+  return applyUnlockOverride({ repoRoot, env, reason, sessionId, nowMs });
 }
 
 function effectiveNow({ repoRoot, env, sessionId, nowMs }) {
@@ -94,9 +94,14 @@ export function renderStatus({ repoRoot, env, sessionId, nowMs = Date.now() }) {
   if (project.lastDiagnosis && project.lastDiagnosis.error_class) {
     lines.push(`  Last error_class: ${project.lastDiagnosis.error_class}`);
   }
-  const classes = readLedger(env, 50).map((x) => x.error_class).filter(Boolean);
-  const suggested = suggestDomainMode(classes);
-  if (suggested) lines.push(`  Suggested mode: ${suggested} (from error_class trend; Coach if conceptual repeats, Pair if mostly slip)`);
+  const suggestions = suggestModesByDomain(readLedger(env, 50));
+  if (suggestions.length) {
+    lines.push(
+      '  Suggested mode (evidence; you choose): ' +
+      suggestions.map((s) => `${s.domain} → ${s.mode}`).join('; ') +
+      ' (repeated conceptual ⇒ Coach, mostly slip ⇒ Pair)',
+    );
+  }
   if (e.tier === 3) lines.push(`  Preamble: ${e.t3PreamblePresent ? 'present' : 'MISSING (source writes blocked until filled)'}`);
   for (const n of e.notes) lines.push(`  Note:  ${n}`);
   return lines.join('\n');

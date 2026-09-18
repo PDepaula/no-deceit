@@ -116,6 +116,12 @@ test('suggestDomainMode: repeated conceptual ⇒ coach; mostly slip ⇒ pair', (
   assert.equal(suggestDomainMode([]), null);
 });
 
+test('suggestDomainMode: insufficient data ⇒ no suggestion', () => {
+  assert.equal(suggestDomainMode(['conceptual']), null);
+  assert.equal(suggestDomainMode(['slip']), null);
+  assert.equal(suggestDomainMode(['conceptual', 'slip']), null);
+});
+
 test('rubric ids are the published binary criteria', () => {
   assert.deepEqual(MENTAL_IDS, ['R1', 'R2', 'R3', 'R4']);
   assert.deepEqual(COMMIT_IDS, ['C1', 'C2', 'C3']);

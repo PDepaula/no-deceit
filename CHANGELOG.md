@@ -3,6 +3,36 @@
 All notable changes to this plugin are recorded here. Format is loosely
 based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.6.0] — Phase 5: earned-time loop
+
+The paradox made measurable: the hours an agentic framework buys should be
+spent on intentional upskilling, and the ledger can now say so at the scale
+of a week. No new enforcement. No firstmate `learn:` integration (D8 stays
+exemption-only).
+
+- **`nd report`:** weekly-style summary over the ledger (default last 7 days;
+  `--since` / `--until` as ISO dates or relative `7d`/`24h`/`30m`/`1w`).
+  Prints attended time in Tier 1/2 vs Tier 3, unlock counts (`unlocked` /
+  `not_yet`) plus checking-question `landed` / `not_landed` / `partial`,
+  Coach-domain misconceptions rolled up by task, and evidence-based Coach/Pair
+  suggestions. Empty or short ledgers are a graceful "nothing to summarise".
+  Computation is pure (`core/report.mjs`); `bin/nd` only reads and renders.
+- **Delegated lane:** worker/headless sessions in an opted-in project still
+  pass through (no enforcement change). The gate now writes **one**
+  `event: "delegated"` marker per session (`lane`, `taskId` when `FM_TASK_ID`
+  is set) so the report can name unattended/agentic work honestly, with no
+  learning claimed. Ungoverned repos stay silent. A logging error never
+  fail-closes an exempt session.
+- **Coach/Pair suggestion:** per-domain `error_class` trend (task is the
+  domain key already on unlock/check rows). Repeated `conceptual` ⇒ Coach;
+  mostly `slip` ⇒ Pair; insufficient data ⇒ no suggestion. Surfaced in
+  `nd report` and `nd status`. Suggestion only — the mode is not auto-switched.
+- **Time-in-tier:** inter-event gaps overlapping the window, capped at 30
+  minutes so overnight holes are not counted as practice. Delegated gaps are
+  isolated from attended tier hours.
+- **Docs:** `SKILL.md` and `README.md` document `nd report` and the
+  suggestion. `nd report` is a read-only `nd` subcommand (category A).
+
 ## [0.5.0] — Phase 4: OpenCode, Pi, and Cursor adapters
 
 Ports the existing gate to the other harnesses. Policy stays in the Phase 1

@@ -11,8 +11,9 @@
 // CURSOR_AGENT, or PI_CODING_AGENT set). The grader is spawned from this CLI
 // or the hook, never by the tutor.
 
-import { gitToplevel, homePaths, projectPaths, isGoverned, readLedger, loadConfig } from '../core/state.mjs';
+import { gitToplevel, homePaths, projectPaths, isGoverned, readLedger, readAllLedger, loadConfig } from '../core/state.mjs';
 import { setTier, setMode, renderStatus, renderStatusShort } from '../core/control.mjs';
+import { parseReportArgs, summarizeLedger, formatReport } from '../core/report.mjs';
 import { parseUnlockArgs, parseCheckArgs } from '../core/unlock-args.mjs';
 import { runUnlock, runCheck, runAudit } from '../core/grader.mjs';
 import { ITEMS } from '../gold/unlock-gold.mjs';
@@ -82,6 +83,9 @@ switch (sub) {
   nd check [task]                 grade a checking-question answer (rubric must be written first)
   nd audit [--runs 3]             run the gold set; release gate is graded_up = 0
   nd ledger [N]                   show the last N ledger entries (default 20)
+  nd report [--since <when>] [--until <when>]
+                                  weekly-style ledger summary (default window: 7 days;
+                                  --since/--until: ISO date or relative 7d/24h/30m/1w)
   nd doctor                       report paths and run the armed self-check
   nd --cursor                     Cursor preToolUse transport (stdin JSON → stdout decision)`);
     break;
@@ -100,7 +104,7 @@ switch (sub) {
 
   case 'mode': {
     guardAgentShell('mode');
-    try { say(setMode({ repoRoot, env, mode: rest[0] })); }
+    try { say(setMode({ repoRoot, env, sessionId, mode: rest[0] })); }
     catch (e) { die(`No Deceit: ${e.message}`); }
     break;
   }
@@ -108,7 +112,7 @@ switch (sub) {
   case 'unlock': {
     guardAgentShell('unlock');
     const args = parseUnlockArgs(rest);
-    try { say(await runUnlock({ repoRoot, env, ...args })); }
+    try { say(await runUnlock({ repoRoot, env, sessionId, ...args })); }
     catch (e) { die(`No Deceit: ${e.message}`); }
     break;
   }
@@ -116,7 +120,7 @@ switch (sub) {
   case 'check': {
     guardAgentShell('check');
     const args = parseCheckArgs(rest);
-    try { say(await runCheck({ repoRoot, env, task: args.task })); }
+    try { say(await runCheck({ repoRoot, env, sessionId, task: args.task })); }
     catch (e) { die(`No Deceit: ${e.message}`); }
     break;
   }
@@ -162,6 +166,16 @@ switch (sub) {
       ? renderStatusShort({ repoRoot, env, sessionId })
       : renderStatus({ repoRoot, env, sessionId }));
     break;
+
+  case 'report': {
+    try {
+      const nowMs = Date.now();
+      const window = parseReportArgs(rest, nowMs);
+      const summary = summarizeLedger(readAllLedger(env), { ...window, nowMs });
+      say(formatReport(summary, { nowMs }));
+    } catch (e) { die(`No Deceit: ${e.message}`); }
+    break;
+  }
 
   case 'ledger': {
     const n = Number(rest[0]) || 20;
