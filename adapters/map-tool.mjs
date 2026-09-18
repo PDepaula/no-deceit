@@ -2,6 +2,12 @@
 // classifier already understands. PURE: no I/O. Adapters only; do not fork
 // policy here.
 
+// Intentional defensive/forward tool-name coverage. Over-inclusive mapping is
+// the safe direction for an enforcement gate: classify() defaults an unknown
+// tool name to category A (inspect/allow), so an unmapped mutation/delegation
+// alias would slip through, while an extra alias only routes to a category the
+// core already understands. multiedit/notebookedit/agent are real ecosystem
+// tool names mapped now as forward coverage, not accidental scope.
 const NAME = {
   bash: 'Bash',
   shell: 'Bash',
