@@ -94,12 +94,24 @@ test('E allowed at Tier 3 with preamble present', () => {
   assert.equal(r.decision, 'allow');
 });
 
-// Category F: delegation.
-test('F allowed at Tier 1', () => {
-  assert.equal(decide(eff({ tier: 1 }), { category: 'F' }).decision, 'allow');
+// Category F: delegation. Spawning a subagent is a gate-bypass route, so
+// every attended tier requires confirmation (`ask`) once the preamble (T3)
+// or the session itself (T1/T2) is in play. T3 without a preamble still
+// denies, matching the source-write gate.
+test('F asks at Tier 1 (subagent is a gate-bypass route)', () => {
+  const r = decide(eff({ tier: 1 }), { category: 'F' });
+  assert.equal(r.decision, 'ask');
+  assert.equal(r.reason, REASONS.DELEGATION);
 });
-test('F allowed at Tier 2', () => {
-  assert.equal(decide(eff({ tier: 2 }), { category: 'F' }).decision, 'allow');
+test('F asks at Tier 2 locked', () => {
+  const r = decide(eff({ tier: 2, t2Unlocked: false }), { category: 'F' });
+  assert.equal(r.decision, 'ask');
+  assert.equal(r.reason, REASONS.DELEGATION);
+});
+test('F asks at Tier 2 unlocked', () => {
+  const r = decide(eff({ tier: 2, t2Unlocked: true }), { category: 'F' });
+  assert.equal(r.decision, 'ask');
+  assert.equal(r.reason, REASONS.DELEGATION);
 });
 test('F denied at Tier 3 without preamble', () => {
   assert.equal(decide(eff({ tier: 3, t3Active: true, t3PreamblePresent: false }), { category: 'F' }).decision, 'deny');

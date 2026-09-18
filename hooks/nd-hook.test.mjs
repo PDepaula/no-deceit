@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { projectPaths, readProjectState } from '../core/state.mjs';
+import { projectPaths, readProjectState, writeSession } from '../core/state.mjs';
 
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), 'nd-hook.mjs');
 
@@ -107,4 +107,102 @@ test('SessionStart in an ungoverned repo stays silent', () => {
     const out = runHook('SessionStart', { session_id: 's', cwd: s.repo, source: 'startup' }, s.env);
     assert.equal(out, null);
   } finally { s.cleanup(); }
+});
+
+const BIG_FENCE = '```js\n' + ['a', 'b', 'c', 'd', 'e', 'f', 'g'].join('\n') + '\n```';
+
+test('PreToolUse asks on Agent at Tier 1', () => {
+  const s = scratch();
+  try {
+    const out = runHook('PreToolUse', { session_id: 's', cwd: s.repo, tool_name: 'Agent', tool_input: { prompt: 'fix it' } }, s.env);
+    assert.equal(out.hookSpecificOutput.permissionDecision, 'ask');
+    assert.match(out.hookSpecificOutput.permissionDecisionReason, /subagent|delegat/i);
+  } finally { s.cleanup(); }
+});
+
+test('Stop blocks an over-threshold fence at Tier 1 and ledgers it', () => {
+  const s = scratch();
+  try {
+    const out = runHook('Stop', { session_id: 's', cwd: s.repo, last_assistant_message: BIG_FENCE, stop_hook_active: false }, s.env);
+    assert.equal(out.decision, 'block');
+    assert.match(out.reason, /Tier 1|chat text|fenced/i);
+  } finally { s.cleanup(); }
+});
+
+test('Stop allows a small snippet at Tier 1', () => {
+  const s = scratch();
+  try {
+    const out = runHook('Stop', { session_id: 's', cwd: s.repo, last_assistant_message: '```\nconst x = 1;\n```', stop_hook_active: false }, s.env);
+    assert.equal(out, null);
+  } finally { s.cleanup(); }
+});
+
+test('Stop in a worker session is a pass-through', () => {
+  const s = scratch();
+  try {
+    const out = runHook('Stop', { session_id: 's', cwd: s.repo, last_assistant_message: BIG_FENCE, stop_hook_active: false }, { ...s.env, FM_TASK_ID: 'crew-1' });
+    assert.equal(out, null);
+  } finally { s.cleanup(); }
+});
+
+test('MessageDisplay redacts over-threshold Tier 1 code on screen', () => {
+  const s = scratch();
+  try {
+    const out = runHook('MessageDisplay', { session_id: 's', cwd: s.repo, delta: BIG_FENCE, index: 0, final: true }, s.env);
+    assert.equal(out.hookSpecificOutput.hookEventName, 'MessageDisplay');
+    assert.match(out.hookSpecificOutput.displayContent, /redacted/i);
+  } finally { s.cleanup(); }
+});
+
+test('PostToolUse bashEditDiff tripwire blocks a source-mutating Bash', () => {
+  const s = scratch();
+  try {
+    const out = runHook('PostToolUse', {
+      session_id: 's',
+      cwd: s.repo,
+      tool_name: 'Bash',
+      tool_input: { command: 'python -c "open(\'x.py\',\'w\').write(\'x\')"' },
+      tool_response: { bashEditDiff: { changedFiles: [join(s.repo, 'src/x.py')] } },
+    }, s.env);
+    assert.equal(out.decision, 'block');
+    assert.match(out.reason, /bashEditDiff|slipped|Revert/i);
+  } finally { s.cleanup(); }
+});
+
+test('PostToolUse does not trip a REPL/run command with no changed files', () => {
+  const s = scratch();
+  try {
+    const out = runHook('PostToolUse', {
+      session_id: 's',
+      cwd: s.repo,
+      tool_name: 'Bash',
+      tool_input: { command: 'python -c "print(1+1)"' },
+      tool_response: { stdout: '2', stderr: '', interrupted: false, isImage: false },
+    }, s.env);
+    assert.equal(out, null);
+  } finally { s.cleanup(); }
+});
+
+test('Stop redirects a Tier 3 edited turn that is missing the narration format', () => {
+  const s = scratch();
+  try {
+    const { preambleFile } = projectPaths(s.repo);
+    mkdirSync(join(preambleFile, '..'), { recursive: true });
+    writeFileSync(preambleFile, 'Overview: ship the gate.\nFirst instinct: intercept the tool call then narrate.');
+    writeSession(s.env, 's', { t3ExpiresAtMs: Date.now() + 60_000, turnEdited: true });
+    const out = runHook('Stop', { session_id: 's', cwd: s.repo, last_assistant_message: 'I wrote the code silently.', stop_hook_active: false }, s.env);
+    assert.equal(out.decision, 'block');
+    assert.match(out.reason, /What \/ why|Divergence from your first instinct/i);
+  } finally { s.cleanup(); }
+});
+
+test('the plugin hook contract registers Stop, MessageDisplay, and PostToolUse', () => {
+  const spec = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'hooks.json'), 'utf8'));
+  assert.ok(Array.isArray(spec.hooks.Stop) && spec.hooks.Stop.length > 0);
+  assert.ok(Array.isArray(spec.hooks.MessageDisplay) && spec.hooks.MessageDisplay.length > 0);
+  assert.ok(Array.isArray(spec.hooks.PostToolUse) && spec.hooks.PostToolUse.length > 0);
+  const postMatcher = spec.hooks.PostToolUse[0].matcher;
+  assert.match(postMatcher, /Bash/);
+  const preMatcher = spec.hooks.PreToolUse[0].matcher;
+  assert.match(preMatcher, /Agent/);
 });

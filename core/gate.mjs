@@ -7,8 +7,15 @@
 // bare non-zero exit that the harness might treat as a pass.
 
 import { classify as realClassify } from './classify.mjs';
-import { resolveEffective as realResolve, decide as realDecide } from './policy.mjs';
+import {
+  resolveEffective as realResolve,
+  decide as realDecide,
+  decideTextChannel,
+  decideDisplay,
+  decideBashEditDiff,
+} from './policy.mjs';
 import { scopeDecision as realScope } from './scope.mjs';
+import { leakedSourceWrites, parseChangedFiles } from './tripwire.mjs';
 import {
   loadConfig, isGoverned, readProjectState, readSession, preamblePresent, buildClassifyCfg,
 } from './state.mjs';
@@ -77,6 +84,180 @@ export function evaluate(input, deps = {}) {
       scopeReason: 'error',
       effective: null,
       ledgerEntry: { event: 'gate_error', error: String(err && err.message || err), tool: input.toolName || null },
+    };
+  }
+}
+
+const EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
+
+function passThrough(scopeReason) {
+  return {
+    decision: 'allow',
+    reason: null,
+    kind: null,
+    governed: false,
+    scopeReason,
+    effective: null,
+    ledgerEntry: null,
+    redact: false,
+    displayContent: null,
+    markTurnEdited: false,
+    consumeTurnEdited: false,
+  };
+}
+
+function loadContext(input, scopeDecision) {
+  const env = input.env || process.env;
+  const repoRoot = input.repoRoot || input.cwd;
+  const governed = isGoverned(repoRoot);
+  const scope = scopeDecision({ hasNoDeceitDir: governed, env });
+  if (!scope.inScope) return { inScope: false, scope, repoRoot, env };
+  const nowMs = input.nowMs ?? Date.now();
+  const config = loadConfig(env);
+  const project = readProjectState(repoRoot, env);
+  const session = readSession(env, input.sessionId);
+  const effective = realResolve({
+    project,
+    session,
+    preamblePresent: preamblePresent(repoRoot, env),
+    nowMs,
+  });
+  return { inScope: true, scope, repoRoot, env, config, project, session, effective };
+}
+
+/**
+ * Stop-hook evaluation: fence check (T1 / locked T2) and Tier 3 narration format.
+ */
+export function evaluateStop(input, deps = {}) {
+  const { scopeDecision = realScope } = deps;
+  try {
+    const ctx = loadContext(input, scopeDecision);
+    if (!ctx.inScope) return passThrough(ctx.scope.reason);
+    const { effective, config, session } = ctx;
+    const r = decideTextChannel(effective, {
+      text: input.text || '',
+      stopHookActive: Boolean(input.stopHookActive),
+      turnEdited: Boolean(session.turnEdited),
+      maxFenceLines: config.tier1MaxFenceLines,
+    });
+    let ledgerEntry = null;
+    if (r.decision === 'block') {
+      ledgerEntry = {
+        event: 'violation',
+        kind: r.kind,
+        tier: effective.tier,
+        mode: effective.mode,
+        sessionId: input.sessionId || null,
+      };
+    }
+    return {
+      ...r,
+      governed: true,
+      scopeReason: ctx.scope.reason,
+      effective,
+      ledgerEntry,
+      consumeTurnEdited: Boolean(session.turnEdited),
+    };
+  } catch (err) {
+    return {
+      decision: 'block',
+      reason: FAIL_CLOSED_REASON,
+      kind: null,
+      governed: true,
+      scopeReason: 'error',
+      effective: null,
+      ledgerEntry: { event: 'gate_error', error: String((err && err.message) || err) },
+      consumeTurnEdited: false,
+    };
+  }
+}
+
+/**
+ * MessageDisplay evaluation. Fail-open: a broken redaction must not hide the
+ * original (and cannot block anyway).
+ */
+export function evaluateDisplay(input, deps = {}) {
+  const { scopeDecision = realScope } = deps;
+  try {
+    const ctx = loadContext(input, scopeDecision);
+    if (!ctx.inScope) return passThrough(ctx.scope.reason);
+    const r = decideDisplay(ctx.effective, {
+      text: input.text || '',
+      redactionEnabled: ctx.config.messageDisplayRedaction !== false,
+      maxFenceLines: ctx.config.tier1MaxFenceLines,
+    });
+    return { ...r, governed: true, scopeReason: ctx.scope.reason, effective: ctx.effective, ledgerEntry: r.redact ? { event: 'redaction', kind: 'chat_fence', tier: ctx.effective.tier, sessionId: input.sessionId || null } : null };
+  } catch {
+    return { redact: false, displayContent: null, governed: true, scopeReason: 'error', ledgerEntry: null };
+  }
+}
+
+/**
+ * PostToolUse evaluation: mark the turn as edited, and trip the bashEditDiff
+ * detective when a Bash command wrote category-E source.
+ */
+export function evaluatePostToolUse(input, deps = {}) {
+  const { scopeDecision = realScope } = deps;
+  try {
+    const ctx = loadContext(input, scopeDecision);
+    if (!ctx.inScope) return passThrough(ctx.scope.reason);
+    const toolName = input.toolName;
+    let markTurnEdited = EDIT_TOOLS.has(toolName);
+
+    if (toolName !== 'Bash') {
+      return {
+        decision: 'allow',
+        reason: null,
+        kind: null,
+        governed: true,
+        scopeReason: ctx.scope.reason,
+        effective: ctx.effective,
+        ledgerEntry: null,
+        markTurnEdited,
+        leaked: [],
+      };
+    }
+
+    const classifyCfg = {
+      ...buildClassifyCfg(ctx.config, ctx.repoRoot, ctx.env),
+      tripwireIgnoreGlobs: ctx.config.tripwireIgnoreGlobs || [],
+    };
+    const leaked = leakedSourceWrites(parseChangedFiles(input.toolResponse), classifyCfg);
+    const r = decideBashEditDiff(ctx.effective, { leaked });
+    let ledgerEntry = null;
+    if (r.decision === 'block') {
+      markTurnEdited = true;
+      ledgerEntry = {
+        event: 'violation',
+        kind: 'bash_edit_diff',
+        tier: ctx.effective.tier,
+        mode: ctx.effective.mode,
+        tool: 'Bash',
+        target: (input.toolInput && input.toolInput.command) || null,
+        files: leaked.map((x) => x.file),
+        sessionId: input.sessionId || null,
+      };
+    }
+    return {
+      ...r,
+      governed: true,
+      scopeReason: ctx.scope.reason,
+      effective: ctx.effective,
+      ledgerEntry,
+      markTurnEdited,
+      leaked,
+    };
+  } catch (err) {
+    return {
+      decision: 'block',
+      reason: FAIL_CLOSED_REASON,
+      kind: null,
+      governed: true,
+      scopeReason: 'error',
+      effective: null,
+      ledgerEntry: { event: 'gate_error', error: String((err && err.message) || err), tool: input.toolName || null },
+      markTurnEdited: false,
+      leaked: [],
     };
   }
 }

@@ -9,6 +9,9 @@
   "attemptMinChars": 80,
   "auditRuns": 3,
 
+  "tier1MaxFenceLines": 6,
+  "messageDisplayRedaction": true,
+
   "testGlobs": ["test/**", "tests/**", "**/*_test.*", "**/*.test.*", "**/*.spec.*", "**/conftest.py"],
   "toolingGlobs": ["**/deps.edn", "**/package.json", "**/pyproject.toml", "**/Dockerfile", "**/Makefile", "**/.github/**", "**/*.lock"]
 }

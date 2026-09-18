@@ -32,6 +32,9 @@ test('loadConfig returns built-in defaults when no config file exists', () => {
     assert.equal(cfg.tier, DEFAULTS.tier);
     assert.equal(cfg.mode, DEFAULTS.mode);
     assert.ok(Array.isArray(cfg.testGlobs) && cfg.testGlobs.length > 0);
+    assert.equal(cfg.tier1MaxFenceLines, 6);
+    assert.equal(cfg.messageDisplayRedaction, true);
+    assert.ok(Array.isArray(cfg.tripwireIgnoreGlobs) && cfg.tripwireIgnoreGlobs.length > 0);
   } finally { s.cleanup(); }
 });
 

@@ -16,16 +16,21 @@ Read it before changing enforcement semantics.
 
 - `core/*.mjs` — PURE, zero-dependency policy owner; no fs/clock/env reads.
   `classify.mjs` (tool call → category A–G/U), `policy.mjs` (`resolveEffective`
-  tier resolution incl. Tier 3 expiry + `decide` the tier × category table),
-  `scope.mjs` (Step 0 opt-in + worker exemption), `prefilter.mjs` /
+  tier resolution incl. Tier 3 expiry + `decide` the tier × category table +
+  `decideTextChannel` / `decideDisplay` / `decideBashEditDiff`), `scope.mjs`
+  (Step 0 opt-in + worker exemption), `fence.mjs` / `narration.mjs` /
+  `tripwire.mjs` (Phase 3 text-channel + bashEditDiff), `prefilter.mjs` /
   `rubric.mjs` / `grader-parse.mjs` / `grader-job.mjs` / `audit.mjs` (Phase 2
   engagement grader: pre-filter, mechanical verdict, blindness, gold scoring).
   Keep these pure so Phase 4 per-harness adapters import them unchanged.
 - `core/state.mjs`, `core/control.mjs`, `core/gate.mjs`, `core/grader.mjs`,
   `core/git-evidence.mjs` — the imperative shell: XDG state I/O, ledger,
-  tier/mode/unlock ops, fail-closed orchestrator, and the mockable grader spawn.
+  tier/mode/unlock ops, fail-closed orchestrator (`evaluate` /
+  `evaluateStop` / `evaluateDisplay` / `evaluatePostToolUse`), and the
+  mockable grader spawn.
 - `hooks/nd-hook.mjs` + `hooks/hooks.json` — the Claude Code hook shim
-  (`SessionStart`, `UserPromptSubmit`, `PreToolUse`); thin, all policy in core.
+  (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`,
+  `MessageDisplay`); thin, all policy in core. `MessageDisplay` is Claude-Code-only.
 - `bin/nd` — the developer's shell CLI (`init|tier|mode|status|unlock|check|
   audit|ledger|doctor`), auto-added to PATH by the plugin.
 - `agents/nd-grader.md` — the blind grader agent; spawned only by the hook or
@@ -53,8 +58,9 @@ Read it before changing enforcement semantics.
 
 `node --test 'core/*.test.mjs' 'hooks/*.test.mjs' 'bin/*.test.mjs'` — pure Node
 test runner, no deps. The tier × category matrix, tamper / scope / fail-closed
-paths, and the grader pre-filter / gold set / `nd audit` gate are covered;
-keep them green. CI must not call a live model (`nd audit --oracle` / `--inflate`).
+paths, the grader pre-filter / gold set / `nd audit` gate, and the Phase 3
+fence / narration-format / Agent-ask / bashEditDiff paths are covered; keep
+them green. CI must not call a live model (`nd audit --oracle` / `--inflate`).
 
 ## Maintaining this file
 

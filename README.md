@@ -6,10 +6,12 @@ optimizing for **learning** and optimizing for **velocity**, instead of
 silently defaulting into either one.
 
 The difference from a plain skill: a skill can only *advise*, and the agent can
-read the advice and keep going. No Deceit ships as one plugin where a
-`PreToolUse` **hook is the enforcement** (it can hard-deny a tool call, even
-under `--dangerously-skip-permissions`) and a bundled **skill is the teacher**.
-The hook blocks; the skill explains why and what to do instead.
+read the advice and keep going. No Deceit ships as one plugin where **hooks
+are the enforcement** (`PreToolUse` can hard-deny a tool call, even under
+`--dangerously-skip-permissions`; `Stop` blocks a turn that leaks a solution
+as chat text; `MessageDisplay` redacts it on screen in Claude Code) and a
+bundled **skill is the teacher**. The hook blocks; the skill explains why and
+what to do instead.
 
 ## Why this exists
 
@@ -28,8 +30,10 @@ Two independent axes.
 **Tier** (you select it; default in a governed project is Tier 1):
 
 - **Tier 1 — Tutor.** No working code, ever. The hook denies `Write`/`Edit`/
-  `NotebookEdit` and code-writing shell commands; the agent responds with
-  Socratic questions that redirect you back to the problem.
+  `NotebookEdit` and code-writing shell commands, and a `Stop` hook blocks a
+  turn that dumps a worked solution as fenced chat text above a small snippet
+  threshold. On Claude Code, `MessageDisplay` redacts that code on screen. The
+  agent responds with Socratic questions that redirect you back to the problem.
 - **Tier 2 — Guided.** Unlocks once you show real engagement. Write your mental
   model to `.no-deceit/attempts/<task>.md` (or keep a commit history of
   meaningfully different attempts) and run `nd unlock`. A **blind grader** in a
@@ -42,8 +46,9 @@ Two independent axes.
   pressure, and it **expires** (a time box) then falls back. Requires a
   non-trivial `.no-deceit/t3/preamble.md` — a high-level view and your own naive
   first instinct — before any source is written. Then the agent moves fast with
-  full tooling but must narrate its reasoning and flag divergence from your
-  approach.
+  full tooling but must narrate (a what/why section plus
+  `Divergence from your first instinct:`, format-checked) and flag divergence
+  from your approach. Subagents require confirmation.
 
 **Domain mode** (crosses all tiers): **Coach** for domains you don't have solid
 footing in (the agent corrects your mental model with reasoning, from named
@@ -128,11 +133,13 @@ import it unchanged.
 
 ## Status
 
-Phase 2: the enforcing gate for Claude Code plus the blind Tier 2 engagement
-grader. Later phases add chat-text policing, the other harness adapters, and
-an earned-time reporting loop. See `NOTES.md` for open threads and
-`CHANGELOG.md` for what's changed. The full design rationale lives in the
-scout report referenced from `AGENTS.md`.
+Phase 3: the enforcing gate for Claude Code, the blind Tier 2 engagement
+grader, and the text-channel / Tier 3 polish (Stop-hook fence check,
+MessageDisplay redaction, narration format, `ask` on Agent, bashEditDiff
+tripwire). Later phases add the other harness adapters and an earned-time
+reporting loop. See `NOTES.md` for open threads and `CHANGELOG.md` for what's
+changed. The full design rationale lives in the scout report referenced from
+`AGENTS.md`.
 
 ## License
 

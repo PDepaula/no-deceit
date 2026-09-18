@@ -3,6 +3,34 @@
 All notable changes to this plugin are recorded here. Format is loosely
 based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.0] — Phase 3: text channel and Tier 3 polish
+
+Closes G5: code can no longer reach the developer only as chat text, and
+Tier 3's narration/divergence *format* is checked. Quality, tone, and
+skeleton-vs-logic judgment stay in the skill.
+
+- **Stop-hook fence check:** at Tier 1 (and locked Tier 2) a fenced block
+  above `tier1MaxFenceLines` (default 6) is a violation. Small snippets pass.
+  Unlocked Tier 2 and Tier 3 are unaffected. Table-tested in the pure core;
+  the Stop hook is a thin shell. Violations are ledgered.
+- **MessageDisplay redaction (Claude Code):** over-threshold Tier 1 code is
+  obscured on screen when `messageDisplayRedaction` is true (D5 default on).
+  Display-only; the transcript keeps the original. Ports are Phase 4.
+- **Tier 3 narration/divergence format:** after a turn that edited files, the
+  Stop hook requires a what/why section and a `Divergence from your first
+  instinct:` line (`none` is acceptable). Existence/format only; a miss is a
+  redirect, not a crash. Blocks once (`stop_hook_active`).
+- **`ask` on Agent/Task:** spawning a subagent is a gate-bypass route, so
+  category F is `ask` at T1/T2 and at granted T3 (still `deny` at T3 without
+  a preamble). Worker/headless exemption and opt-in scope are unchanged.
+- **bashEditDiff tripwire:** PostToolUse on Bash flags category-E paths in
+  `tool_response.bashEditDiff.changedFiles` at T1/T2, ledgers, and tells the
+  model to revert. REPL/run commands with no changed files do not trip;
+  cache/artifact globs are ignored so the feedback loop stays open.
+- **Test scaffolding:** still path-based. A skeleton-vs-logic LLM judge was
+  considered and deferred so the core enforcement path stays live-model-free.
+- **SKILL.md** states the text channel is enforced and what remains advisory.
+
 ## [0.3.0] — Phase 2: blind Tier 2 unlock grader
 
 The differentiator: Tier 2 is *earned* (genuineness of engagement, never
