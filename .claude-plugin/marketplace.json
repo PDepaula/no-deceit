@@ -10,7 +10,7 @@
     {
       "name": "no-deceit",
       "source": "./",
-      "description": "Tier-enforcing AI coding-assistance gate for Claude Code."
+      "description": "Tier-enforcing AI coding-assistance gate (Claude Code, OpenCode, Pi, Cursor)."
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "name": "no-deceit",
-  "version": "0.4.0",
-  "description": "Tier-enforcing AI coding-assistance gate for Claude Code — the hook is the law, the skill is the teacher.",
+  "version": "0.5.0",
+  "description": "Tier-enforcing AI coding-assistance gate — the hook is the law, the skill is the teacher. Claude Code, OpenCode, Pi, Cursor.",
   "type": "module",
   "private": true,
   "license": "MIT",
@@ -9,7 +9,7 @@
     "nd": "bin/nd"
   },
   "scripts": {
-    "test": "node --test 'core/*.test.mjs' 'hooks/*.test.mjs' 'bin/*.test.mjs'"
+    "test": "node --test 'core/*.test.mjs' 'hooks/*.test.mjs' 'bin/*.test.mjs' 'adapters/*.test.mjs'"
   },
   "engines": {
     "node": ">=18"

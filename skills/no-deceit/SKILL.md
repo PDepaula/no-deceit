@@ -7,10 +7,12 @@ description: Use this skill for any coding, debugging, or data pipeline work in 
 
 ## What enforces this, and what this file is
 
-No Deceit is a Claude Code **plugin**, not a bare skill. The rules below used
-to be advice the agent could read and then ignore; now the enforcement lives
-in hooks that actually deny tool calls and inspect the text channel, and this
-skill is the **teaching layer** that gives the denials their meaning.
+No Deceit is a **plugin** (Claude Code reference, with OpenCode / Pi / Cursor
+adapters over the same core), not a bare skill. The rules below used to be
+advice the agent could read and then ignore; now the enforcement lives in
+hooks that actually deny tool calls and — on Claude Code — inspect the text
+channel, and this skill is the **teaching layer** that gives the denials
+their meaning.
 
 Concretely:
 
@@ -26,18 +28,22 @@ Concretely:
   block — a shell redirect, `sed -i`, `patch`, a REPL that writes files, a
   subagent — is itself a violation, and those routes are gated too. Spawning
   a subagent (`Agent` / `Task`) requires the developer's confirmation (`ask`).
-- **The text channel is enforced at Tier 1.** A `Stop` hook inspects the
-  completed turn for fenced code above a small snippet threshold; over-threshold
-  blocks are a violation, same as a file write. On Claude Code, `MessageDisplay`
-  redacts those blocks on screen (the transcript still has the original; the
-  Stop hook forces the redo). Small illustrative snippets of a general concept
-  remain allowed. At unlocked Tier 2 and Tier 3, worked code in chat is in
-  policy — the hook does not police fences there.
-- **Tier 3 narration format is enforced; narration quality is not.** After a
-  turn that edited files, the Stop hook requires a what/why section and a
-  `Divergence from your first instinct:` line (the value `none` is acceptable).
-  Missing format is a redirect, not a crash. Whether the narration is actually
-  insightful stays your job, in this file.
+- **The text channel is enforced at Tier 1 on Claude Code.** A `Stop` hook
+  inspects the completed turn for fenced code above a small snippet threshold;
+  over-threshold blocks are a violation, same as a file write. On Claude Code,
+  `MessageDisplay` redacts those blocks on screen (the transcript still has
+  the original; the Stop hook forces the redo). Small illustrative snippets of
+  a general concept remain allowed. At unlocked Tier 2 and Tier 3, worked code
+  in chat is in policy — the hook does not police fences there. OpenCode and
+  Cursor have no blocking turn-end hook, so this check is not a hard block
+  there. `MessageDisplay` redaction is Claude-Code-only.
+- **Tier 3 narration format is enforced on Claude Code; narration quality is
+  not.** After a turn that edited files, the Stop hook requires a what/why
+  section and a `Divergence from your first instinct:` line (the value `none`
+  is acceptable). Missing format is a redirect, not a crash. Whether the
+  narration is actually insightful stays your job, in this file. On OpenCode
+  and Cursor that format check is not a hard block. Cursor's `ask` is not
+  enforced on `preToolUse`.
 - **The deny reason is your instruction.** The hook delivers the correct next
   move (a Socratic question, an unlock path, a preamble request, a format
   reminder) as the deny/block reason, at the exact moment of drift. Follow it
