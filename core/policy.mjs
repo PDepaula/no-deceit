@@ -4,7 +4,7 @@
 // classified tool call, it returns allow / deny(reason) / ask. It never
 // reads the filesystem, the clock, or the environment; the caller (the hook
 // shim or the `nd` CLI) resolves those and passes them in. This keeps the
-// policy table testable and lets future per-harness adapters import it
+// policy table testable and lets per-harness adapters import it
 // unchanged.
 //
 // THE IMPORTANT CLARIFICATION (report §5.2, and SKILL.md).

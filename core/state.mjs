@@ -3,7 +3,7 @@
 // Owns every path, every disk read/write, and the append-only ledger. State
 // lives on disk, outside the conversation, so it survives compaction,
 // --resume, restarts, and harness switches. XDG paths are used (not the
-// Claude-only plugin data dir) so future OpenCode/Cursor/Pi adapters share
+// Claude-only plugin data dir) so the OpenCode/Cursor/Pi adapters share
 // one state and one ledger.
 //
 // Zero external dependencies: Node core config format is JSON (a TOML parser
