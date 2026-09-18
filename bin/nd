@@ -104,7 +104,7 @@ switch (sub) {
 
   case 'mode': {
     guardAgentShell('mode');
-    try { say(setMode({ repoRoot, env, mode: rest[0] })); }
+    try { say(setMode({ repoRoot, env, sessionId, mode: rest[0] })); }
     catch (e) { die(`No Deceit: ${e.message}`); }
     break;
   }
@@ -112,7 +112,7 @@ switch (sub) {
   case 'unlock': {
     guardAgentShell('unlock');
     const args = parseUnlockArgs(rest);
-    try { say(await runUnlock({ repoRoot, env, ...args })); }
+    try { say(await runUnlock({ repoRoot, env, sessionId, ...args })); }
     catch (e) { die(`No Deceit: ${e.message}`); }
     break;
   }
@@ -120,7 +120,7 @@ switch (sub) {
   case 'check': {
     guardAgentShell('check');
     const args = parseCheckArgs(rest);
-    try { say(await runCheck({ repoRoot, env, task: args.task })); }
+    try { say(await runCheck({ repoRoot, env, sessionId, task: args.task })); }
     catch (e) { die(`No Deceit: ${e.message}`); }
     break;
   }

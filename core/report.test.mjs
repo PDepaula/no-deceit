@@ -51,12 +51,12 @@ test('a single in-window event does not invent time-in-tier', () => {
 
 test('time-in-tier splits attended Tier 1/2 from Tier 3', () => {
   const s = summarize([
-    { ts: iso(NOW - 4 * HOUR), event: 'tier_change', from: 1, to: 1 },
-    { ts: iso(NOW - 3 * HOUR), event: 'denial', tier: 1 },
-    { ts: iso(NOW - 3 * HOUR), event: 'tier_change', from: 1, to: 2 },
-    { ts: iso(NOW - 2 * HOUR), event: 'denial', tier: 2 },
-    { ts: iso(NOW - 2 * HOUR), event: 'tier_change', from: 2, to: 3, grant: true },
-    { ts: iso(NOW - HOUR), event: 'denial', tier: 3 },
+    { ts: iso(NOW - 4 * HOUR), event: 'tier_change', from: 1, to: 1, sessionId: 'att-1' },
+    { ts: iso(NOW - 3 * HOUR), event: 'denial', tier: 1, sessionId: 'att-1' },
+    { ts: iso(NOW - 3 * HOUR), event: 'tier_change', from: 1, to: 2, sessionId: 'att-1' },
+    { ts: iso(NOW - 2 * HOUR), event: 'denial', tier: 2, sessionId: 'att-1' },
+    { ts: iso(NOW - 2 * HOUR), event: 'tier_change', from: 2, to: 3, grant: true, sessionId: 'att-1' },
+    { ts: iso(NOW - HOUR), event: 'denial', tier: 3, sessionId: 'att-1' },
   ]);
   assert.equal(s.learningMs[1], HOUR);
   assert.equal(s.learningMs[2], HOUR);
@@ -94,6 +94,17 @@ test('interleaved attended sessions attribute time-in-tier per session', () => {
   assert.equal(s.learningMs[1], 20 * MIN);
   assert.equal(s.learningMs[3], 20 * MIN);
   assert.equal(s.learning12Ms, 20 * MIN);
+});
+
+test('sessionless events never bridge into a fabricated tier span', () => {
+  const s = summarize([
+    { ts: iso(NOW - 3 * HOUR), event: 'check_grade', verdict: 'landed', task: 'parser' },
+    { ts: iso(NOW - 3 * HOUR + 8 * MIN), event: 'check_grade', verdict: 'landed', task: 'heap' },
+  ]);
+  assert.equal(s.learningMs[1], 0);
+  assert.equal(s.learningMs[2], 0);
+  assert.equal(s.learningMs[3], 0);
+  assert.equal(s.learning12Ms, 0);
 });
 
 test('events outside the window do not count toward unlocks or time', () => {
@@ -147,8 +158,8 @@ test('Coach-domain misconceptions roll up by task', () => {
 
 test('gaps longer than the idle cap are not counted as time-in-tier', () => {
   const s = summarizeLedger([
-    { ts: iso(NOW - 3 * HOUR), event: 'denial', tier: 1 },
-    { ts: iso(NOW - HOUR), event: 'denial', tier: 1 },
+    { ts: iso(NOW - 3 * HOUR), event: 'denial', tier: 1, sessionId: 'att-1' },
+    { ts: iso(NOW - HOUR), event: 'denial', tier: 1, sessionId: 'att-1' },
   ], { nowMs: NOW, sinceMs: NOW - DEFAULT_WINDOW_MS, untilMs: NOW, idleCapMs: 30 * MIN });
   assert.equal(s.learningMs[1], 30 * MIN);
 });

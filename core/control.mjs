@@ -54,16 +54,16 @@ export function setTier({ repoRoot, env, sessionId, tier, nowMs = Date.now() }) 
   return `Tier set to ${n}.`;
 }
 
-export function setMode({ repoRoot, env, mode, nowMs = Date.now() }) {
+export function setMode({ repoRoot, env, mode, sessionId, nowMs = Date.now() }) {
   if (!MODES.includes(mode)) throw new Error(`invalid mode: ${mode} (use coach|pair|ask)`);
   const before = readProjectState(repoRoot, env);
   writeProjectState(repoRoot, { ...before, mode });
-  appendLedger(env, { event: 'mode_change', from: before.mode, to: mode });
+  appendLedger(env, { event: 'mode_change', from: before.mode, to: mode, sessionId: sessionId || null });
   return `Mode set to ${mode}.`;
 }
 
-export function unlockOverride({ repoRoot, env, reason, nowMs = Date.now() }) {
-  return applyUnlockOverride({ repoRoot, env, reason, nowMs });
+export function unlockOverride({ repoRoot, env, reason, sessionId, nowMs = Date.now() }) {
+  return applyUnlockOverride({ repoRoot, env, reason, sessionId, nowMs });
 }
 
 function effectiveNow({ repoRoot, env, sessionId, nowMs }) {

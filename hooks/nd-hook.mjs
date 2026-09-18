@@ -125,13 +125,13 @@ async function main() {
         if (cmd.name === 'tier') {
           message = setTier({ repoRoot, env, sessionId: input.session_id, tier: cmd.arg });
         } else if (cmd.name === 'mode') {
-          message = setMode({ repoRoot, env, mode: cmd.arg });
+          message = setMode({ repoRoot, env, sessionId: input.session_id, mode: cmd.arg });
         } else if (cmd.name === 'unlock') {
           const args = parseUnlockArgs(cmd.arg);
-          message = await runUnlock({ repoRoot, env, ...args });
+          message = await runUnlock({ repoRoot, env, sessionId: input.session_id, ...args });
         } else if (cmd.name === 'check') {
           const args = parseCheckArgs(cmd.arg);
-          message = await runCheck({ repoRoot, env, task: args.task });
+          message = await runCheck({ repoRoot, env, sessionId: input.session_id, task: args.task });
         } else if (cmd.name === 'status') {
           message = renderStatus({ repoRoot, env, sessionId: input.session_id });
         } else {
