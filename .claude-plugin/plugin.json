@@ -1,6 +1,6 @@
 {
   "name": "no-deceit",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Enforces a chosen AI coding-assistance tier via PreToolUse, Stop, and MessageDisplay hooks (Claude Code), with thin OpenCode/Pi/Cursor adapters over the same core, so Tier 1 (no working code, including in chat on Claude Code) actually holds instead of drifting. The hook is the law; the bundled skill is the teacher.",
   "author": {
     "name": "Patrick De Paula"

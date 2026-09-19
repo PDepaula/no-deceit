@@ -3,6 +3,24 @@
 All notable changes to this plugin are recorded here. Format is loosely
 based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.1] — Fix strict-YAML frontmatter parse failure on Pi
+
+Frontmatter-quoting fix only — no skill prose, enforcement logic, or adapter
+changes.
+
+- **Fixed:** `skills/no-deceit/SKILL.md`'s `description:` was an unquoted
+  YAML scalar containing a colon-space (`...tier system that hooks enforce:
+  it explains...`). Strict YAML parsers (Pi's, and standard PyYAML) read
+  `enforce:` as a nested mapping and rejected the whole frontmatter block —
+  `pi install npm:no-deceit` failed with `[Skill conflicts] ... Nested
+  mappings are not allowed in compact mappings`. Claude Code's lenient
+  frontmatter parser accepted it, which is why it shipped in 0.7.0. The
+  scalar is now double-quoted; text is unchanged.
+- **Added:** `adapters/skill-frontmatter.test.mjs` strict-YAML-parses the
+  frontmatter of every shipped skill/agent `*.md` (using the `yaml` package,
+  a new devDependency) so this class of failure fails CI instead of shipping.
+  Re-scanned the whole repo for the same issue; no other files were affected.
+
 ## [0.7.0] — Phase 6: native distribution
 
 Packaging and manifests only — no enforcement or adapter decision-logic

@@ -1,6 +1,6 @@
 ---
 name: no-deceit
-description: Use this skill for any coding, debugging, or data pipeline work in a project governed by No Deceit. It is the teaching layer for the tier system that hooks enforce: it explains the tiers, domain modes, and coaching lenses, and how to behave when the gate denies a tool call or blocks a turn. Enforcement (blocking source writes, chat-text leaks, and Tier 3 format) lives in the hooks, not in this text.
+description: "Use this skill for any coding, debugging, or data pipeline work in a project governed by No Deceit. It is the teaching layer for the tier system that hooks enforce: it explains the tiers, domain modes, and coaching lenses, and how to behave when the gate denies a tool call or blocks a turn. Enforcement (blocking source writes, chat-text leaks, and Tier 3 format) lives in the hooks, not in this text."
 ---
 
 # No Deceit

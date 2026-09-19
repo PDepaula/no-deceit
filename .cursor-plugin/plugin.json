@@ -1,7 +1,7 @@
 {
   "name": "no-deceit",
   "description": "Enforces a chosen AI coding-assistance tier via a preToolUse hook (nd --cursor), so Tier 1 (no working code) actually holds in Cursor. The hook is the law; the bundled skill is the teacher.",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "author": {
     "name": "Patrick De Paula"
   },
