@@ -46,6 +46,19 @@ Read it before changing enforcement semantics.
 - `gold/unlock-gold.mjs` — adversarial gold set; `nd audit` release gate is
   `graded_up = 0` before accepting a grader-prompt change.
 - `skills/no-deceit/SKILL.md` — the teaching layer.
+- Distribution manifests (Phase 6, packaging only — no policy lives here):
+  `.claude-plugin/` is Claude Code's manifest and doubles as this repo's own
+  marketplace; `.cursor-plugin/plugin.json` gives Cursor its own `hooks`
+  pointer at `adapters/cursor/hooks.json` (Cursor's convention-based hook
+  discovery would otherwise silently pick up Claude Code's differently-
+  shaped `hooks/hooks.json` and index-but-not-enforce — do not delete
+  `.cursor-plugin/` to "deduplicate" with `.claude-plugin/`); `package.json`'s
+  `pi` key + `pi-package` keyword are Pi's package manifest, `main` is
+  OpenCode's `opencode plugin <module>` entrypoint, and `files` is the npm
+  publish allowlist (excludes `*.test.mjs`). What was actually verified for
+  each (including two known adapter gaps found during this pass) is in
+  `docs/verification/<harness>.md`; `adapters/packaging.test.mjs` guards the
+  manifests against drift.
 
 ## Non-negotiable invariants (do not regress)
 

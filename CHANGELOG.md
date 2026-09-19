@@ -3,6 +3,45 @@
 All notable changes to this plugin are recorded here. Format is loosely
 based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.0] — Phase 6: native distribution
+
+Packaging and manifests only — no enforcement or adapter decision-logic
+changes. Each harness now installs No Deceit through its own native channel
+instead of the manual clone-and-symlink routes.
+
+- **Claude Code:** fixed stale `no-deceipt` references in `README.md` (the
+  repo was renamed to `PDepaula/no-deceit` on 2026-09-17); confirmed
+  `claude plugin marketplace add PDepaula/no-deceit` /
+  `claude plugin install no-deceit` against the current `.claude-plugin/`
+  manifests.
+- **Pi:** `package.json` gains a `pi` manifest (`extensions`, `skills`) and
+  the `pi-package` keyword for gallery discoverability
+  ([pi.dev/packages](https://pi.dev/packages)). Live-verified: a real Pi
+  session with the extension loaded actually denies a Tier 1 `write` —
+  recorded in `docs/verification/pi.md` (previously mock-only).
+- **OpenCode:** `package.json` gains `main` (OpenCode's `opencode plugin
+  <module>` needs a detectable server-target entrypoint) and drops
+  `private: true` so `npm publish` is possible. `npm pack` / extract /
+  `opencode plugin <dir>` verified end to end without publishing. Found and
+  documented (not fixed — out of scope) a `worktree`-vs-`directory` cwd
+  fallback bug in `adapters/opencode/plugin.mjs` that misresolves for a
+  governed, non-git project. See `docs/verification/opencode.md`.
+- **Cursor:** new `.cursor-plugin/plugin.json` gives Cursor its own
+  correctly-shaped `hooks` pointer (`adapters/cursor/hooks.json`), since
+  Cursor's convention-based hook discovery would otherwise silently pick up
+  Claude Code's differently-shaped `hooks/hooks.json` and index but not
+  enforce. `cursor-agent plugin marketplace add` / `marketplace list`
+  verified live; the resulting hook wiring live-verified to deny a Tier 1
+  write. See `docs/verification/cursor.md`.
+- **npm:** package is now publishable (`no-deceit` was unclaimed as of
+  2026-09-18); `npm publish` itself is a captain-run step, not part of CI —
+  see the README's "Publish step".
+- **Tests:** `adapters/packaging.test.mjs` guards the manifests (package.json
+  fields, `.claude-plugin/` and `.cursor-plugin/` paths) against drift.
+- **Docs:** README gets one per-harness install matrix; each verification
+  doc records what was actually run and its result, including the two
+  known gaps above.
+
 ## [0.6.0] — Phase 5: earned-time loop
 
 The paradox made measurable: the hours an agentic framework buys should be

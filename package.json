@@ -1,12 +1,47 @@
 {
   "name": "no-deceit",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Tier-enforcing AI coding-assistance gate — the hook is the law, the skill is the teacher. Claude Code, OpenCode, Pi, Cursor.",
   "type": "module",
-  "private": true,
   "license": "MIT",
+  "author": "Patrick De Paula",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PDepaula/no-deceit.git"
+  },
+  "homepage": "https://github.com/PDepaula/no-deceit#readme",
+  "bugs": "https://github.com/PDepaula/no-deceit/issues",
+  "keywords": [
+    "ai",
+    "coding-assistant",
+    "learning",
+    "tutor",
+    "socratic",
+    "gate",
+    "pi-package"
+  ],
   "bin": {
     "nd": "bin/nd"
+  },
+  "main": "adapters/opencode/no-deceit.ts",
+  "files": [
+    "core",
+    "adapters",
+    "bin",
+    "skills",
+    "agents",
+    "gold",
+    "hooks",
+    "docs/config.example.json",
+    "!**/*.test.mjs"
+  ],
+  "pi": {
+    "extensions": [
+      "./adapters/pi/no-deceit.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
   },
   "scripts": {
     "test": "node --test 'core/*.test.mjs' 'hooks/*.test.mjs' 'bin/*.test.mjs' 'adapters/*.test.mjs'"
