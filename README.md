@@ -77,22 +77,45 @@ denial is written to an append-only ledger.
 
 ## Install
 
-This repo is a Claude Code plugin and doubles as its own single-plugin
-marketplace.
+Each harness gets No Deceit through its own native install channel — one
+plugin, four adapters, same policy core. All of them require Node (for the
+`.mjs` policy core; zero external dependencies).
+
+| Harness | Native install | Notes |
+| --- | --- | --- |
+| **Claude Code** | `claude plugin marketplace add PDepaula/no-deceit`<br>`claude plugin install no-deceit` | This repo is its own single-plugin marketplace (`.claude-plugin/`). Reference harness — full enforcement (hooks + `MessageDisplay` redaction). |
+| **Pi** | `pi install git:github.com/PDepaula/no-deceit@<tag>` | Package manifest (`package.json`'s `pi` key) registers the extension + skill; discoverable at [pi.dev/packages](https://pi.dev/packages) via the `pi-package` keyword once submitted (a captain step). See `docs/verification/pi.md`. |
+| **OpenCode** | `opencode plugin no-deceit` | Requires the package to be published to npm first (below) — a captain step. See `docs/verification/opencode.md`. |
+| **Cursor** | `cursor-agent plugin marketplace add github.com/PDepaula/no-deceit`, then `/plugins` → install `no-deceit` | Same repo-as-marketplace as Claude Code, via a Cursor-specific `.cursor-plugin/` manifest so the hook wiring (not just the metadata) actually enforces. See `docs/verification/cursor.md`. |
+
+Fallback for any harness (no marketplace/registry involved, works today):
 
 ```bash
-# As a skills-dir plugin (drop-in, hooks included, no marketplace):
-git clone https://github.com/PDepaula/no-deceipt ~/.claude/skills/no-deceit
-
-# Or via the marketplace:
-claude plugin marketplace add PDepaula/no-deceipt
-claude plugin install no-deceit
+git clone https://github.com/PDepaula/no-deceit ~/.claude/skills/no-deceit
 ```
 
-Requires Node (for the `.mjs` policy core and hooks; zero external
-dependencies). Put `bin/` on `PATH` if the Claude plugin did not already
-(needed for `nd` and for Cursor's `nd --cursor` hook). Then, in a project
-you want governed:
+then point the harness at the files inside that clone — see the per-harness
+section under "Other harnesses" below.
+
+### Publish step (captain-run; not part of this repo's CI)
+
+OpenCode's native install needs an npm-published package first. The name
+`no-deceit` was free on npm as of 2026-09-18 (`npm view no-deceit` → 404).
+From a clean checkout, logged in as the account that will own the package:
+
+```bash
+npm login                 # once, interactively
+npm publish               # from the repo root; publishes what `npm pack` would produce
+```
+
+If the name is taken by the time you publish, use the scoped name
+`@pdepaula/no-deceit` instead (`npm publish --access public`) and update the
+OpenCode row above accordingly. Verify what will ship first with
+`npm pack --dry-run` (should list `core/`, `adapters/`, `bin/`, `skills/`,
+`agents/`, `gold/`, `hooks/`, `docs/config.example.json`, no `*.test.mjs`).
+
+Put `bin/` on `PATH` if your install path did not already (needed for `nd`
+and for Cursor's `nd --cursor` hook). Then, in a project you want governed:
 
 ```bash
 nd init        # opt this project in (creates .no-deceit/)
@@ -142,33 +165,47 @@ half is the same pure core (`core/*.mjs`) behind a thin adapter per harness —
 not a rules-file wrapper, which would be advisory and reproduce the gap this
 plugin closes. No firstmate install is required.
 
-**OpenCode** — point OpenCode at `adapters/opencode/no-deceit.ts` inside this
-clone (symlink into `~/.config/opencode/plugins/`, or list the path in
-`opencode.json` `plugin`). `tool.execute.before` imports the core and throws
-on deny. See `docs/verification/opencode.md`.
+**OpenCode** — native: `opencode plugin no-deceit` once published to npm (see
+"Publish step" above). Manual fallback: point OpenCode at
+`adapters/opencode/no-deceit.ts` inside a clone (symlink into
+`~/.config/opencode/plugins/`, or list the path in `opencode.json`
+`plugin`). `tool.execute.before` imports the core and throws on deny. See
+`docs/verification/opencode.md`.
 
-**Pi** — symlink `adapters/pi/no-deceit.ts` to `~/.pi/agent/extensions/` (or
-`.pi/extensions/` in a trusted project). `tool_call` imports the core and
-returns `{block:true, reason}` on deny. See `docs/verification/pi.md`.
+**Pi** — native: `pi install git:github.com/PDepaula/no-deceit@<tag>` (the
+`pi` manifest in `package.json` registers the extension and skill). Manual
+fallback: symlink `adapters/pi/no-deceit.ts` to `~/.pi/agent/extensions/`
+(or `.pi/extensions/` in a trusted project). `tool_call` imports the core
+and returns `{block:true, reason}` on deny. See `docs/verification/pi.md`.
 
-**Cursor** — copy `adapters/cursor/hooks.json` to `~/.cursor/hooks.json` (or
-the project `.cursor/hooks.json`) and keep `nd` on `PATH`. `preToolUse` runs
-`nd --cursor`, which prints Cursor's decision object on stdout (exit 0).
-`failClosed` is on. See `docs/verification/cursor.md`.
+**Cursor** — native: `cursor-agent plugin marketplace add
+github.com/PDepaula/no-deceit`, then install `no-deceit` from `/plugins`
+(this repo's `.cursor-plugin/plugin.json` points Cursor at the
+Cursor-shaped `adapters/cursor/hooks.json`, since Cursor's convention-based
+hook discovery would otherwise pick up Claude Code's differently-shaped
+`hooks/hooks.json`). Manual fallback: copy `adapters/cursor/hooks.json` to
+`~/.cursor/hooks.json` (or the project `.cursor/hooks.json`) and keep `nd`
+on `PATH`. `preToolUse` runs `nd --cursor`, which prints Cursor's decision
+object on stdout (exit 0). `failClosed` is on. See
+`docs/verification/cursor.md`.
 
 Parity gaps, stated plainly: there is no blocking turn-end hook on OpenCode
 or Cursor, so the Tier 3 narration / Tier 1 chat-fence check is not a hard
 block there (it would only be a follow-up). `MessageDisplay` redaction exists
-only in Claude Code. Cursor's `ask` is not enforced on `preToolUse`.
+only in Claude Code. Cursor's `ask` is not enforced on `preToolUse`. The
+OpenCode adapter also has a known cwd-resolution gap for a governed project
+that is not itself a git repository — see `docs/verification/opencode.md`.
 
 ## Status
 
-Phase 5: the earned-time loop. `nd report` reads the ledger the earlier phases
-write; Coach/Pair suggestions are evidence-based and still the developer's
-choice. firstmate `learn:` backlog-reserve tagging is out of scope (D8:
-exemption only). See `NOTES.md` for open threads and `CHANGELOG.md` for what's
-changed. The full design rationale lives in the scout report referenced from
-`AGENTS.md`.
+Phase 6: native distribution on all four harnesses (this README's install
+matrix, the `pi`/`.cursor-plugin` manifests, and the npm packaging — publish
+itself is a captain step, see above). Phase 5 (the earned-time loop) is done:
+`nd report` reads the ledger the earlier phases write; Coach/Pair suggestions
+are evidence-based and still the developer's choice. firstmate `learn:`
+backlog-reserve tagging is out of scope (D8: exemption only). See `NOTES.md`
+for open threads and `CHANGELOG.md` for what's changed. The full design
+rationale lives in the scout report referenced from `AGENTS.md`.
 
 ## License
 

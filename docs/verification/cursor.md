@@ -4,14 +4,69 @@ What was verified for the Cursor adapter, how, and against which versions.
 Convention borrowed from firstmate's adapter notes: record the evidence, don't
 re-prove settled primitives.
 
-- **Environment:** `cursor-agent 2026.09.10-fd3934a`, `node v24.5.0`, Linux.
-  Date: 2026-09-17. Cursor shells out; it does not import the core.
+- **Environment:** `cursor-agent 2026.09.10-fd3934a`, `node v26.2.0`, Linux.
+  Date: 2026-09-18. Cursor shells out; it does not import the core.
   `preToolUse` consumes a stdout decision object
   (`{"permission":"deny"|"allow"|"ask", ...}`) with **exit 0**. firstmate's
   wrapper records that Cursor reads the returned object rather than the exit
   status, and only that rendering is verified to block (cursor-agent
-  `2026.08.11`). This build did not re-prove the live block in a Cursor TUI;
-  CI drives `nd --cursor` as a subprocess with piped JSON.
+  `2026.08.11`). CI drives `nd --cursor` as a subprocess with piped JSON;
+  this build additionally re-proved the live block end to end (below).
+
+## Live-verified (2026-09-18) and marketplace manifest (Phase 6)
+
+Reverse-engineered `cursor-agent`'s plugin-marketplace schema from its
+bundled CLI (it is not documented publicly at this date): the manifest
+search order is `.cursor-plugin/plugin.json` → `.claude-plugin/plugin.json`
+→ `plugin.json`, and marketplaces are `.cursor-plugin/marketplace.json` →
+`.claude-plugin/marketplace.json`. Cursor's plugin schema is a superset
+compatible with Claude Code's (same `agent-plugins.org` shape: `commands`,
+`agents`, `skills`, `rules`, `hooks`, `mcpServers`), and `hooks` accepts
+either an inline object or, as used here, a path string.
+
+- `cursor-agent plugin marketplace add github.com/PDepaula/no-deceit` (no
+  repo changes needed) indexed the plugin from the existing
+  `.claude-plugin/marketplace.json` + `plugin.json` and
+  `cursor-agent plugin marketplace list` showed it — the "already Cursor-
+  discoverable via the Claude-shaped manifest" half of this task's premise
+  held before any change here.
+- But **the plugin's actual hook wiring did not** hold as-is: pointed at
+  the unmodified repo (`--plugin-dir`, a local dev-load path; see caveat
+  below), a live Tier 1 write went through uncaught. Convention-based hook
+  discovery falls back to `hooks/hooks.json` when `plugin.json` has no
+  explicit `hooks` field, and this repo's `hooks/hooks.json` is the
+  Claude-Code-shaped file (PascalCase `PreToolUse`/`Stop`/`MessageDisplay`
+  event names, `{matcher, hooks:[{type,command}]}` items) — not the flat
+  lowerCamelCase `{version, hooks:{preToolUse:[{command,failClosed,timeout}]}}`
+  shape Cursor's own hook runner expects (`adapters/cursor/hooks.json`).
+  Reusing the Claude manifest wholesale would silently ship a marketplace
+  entry that indexes but does not enforce.
+- Fix: `.cursor-plugin/plugin.json` (new) sets `"hooks":
+  "./adapters/cursor/hooks.json"` explicitly, so Cursor's manifest-priority
+  resolution picks the Cursor-shaped file over the Claude one, without
+  touching `.claude-plugin/plugin.json` (Claude Code keeps its own
+  `hooks/hooks.json` via the same convention, unaffected — `.cursor-plugin/`
+  is not a directory Claude Code looks at).
+- With that override in place, the same forced-write test via `--plugin-dir`
+  (real `nd --cursor`, project turned into the actual workspace via the
+  *non*-`--plugin-dir` path below) denied the write: `nd --cursor` returned
+  `{"permission":"deny","user_message":"No Deceit Tier 1 (Tutor). ..."}` and
+  no file was created. Confirmed independently with a fake `nd` shim under
+  `--plugin-dir` (to isolate manifest-parsing from the cwd caveat below):
+  the fake binary's forced deny was honored end to end.
+- **`--plugin-dir` caveat, not a product bug:** `cursor-agent --plugin-dir
+  <path>` (a local dev-load flag, not the installed-plugin path) runs the
+  `preToolUse` hook subprocess with the *plugin's own directory* as `cwd`,
+  not the project workspace being edited — even though `workspace_roots` is
+  present in the hook's stdin payload. `bin/nd --cursor` resolves its
+  project root from `process.cwd()` (`bin/nd:23`), so under `--plugin-dir`
+  it looks for `.no-deceit` next to the plugin instead of in the real
+  project and allows. The **documented production install**
+  (`.cursor/hooks.json`, no `--plugin-dir`) does not have this problem —
+  verified separately: same forced write, `cwd` correctly resolved to the
+  real project, denied as expected. This is purely a quirk of the
+  `--plugin-dir` dev-loader, not a gap in the shipped adapter; not changed,
+  not filed as a bug.
 
 ## Verified in this build
 
@@ -54,7 +109,23 @@ Claude-settings hook and this Cursor hook were registered, both would fire;
 
 ## Install (attended session; no firstmate required)
 
-`nd` must be on `PATH` (Claude plugin install puts it there; otherwise
+Via the plugin marketplace (this repo is the marketplace; `.cursor-plugin/`
+gives Cursor its own correctly-shaped hook wiring, see above):
+
+```bash
+cursor-agent plugin marketplace add github.com/PDepaula/no-deceit
+# then, interactively: /plugins → install no-deceit
+cd <a project> && nd init
+```
+
+`nd` must still be on `PATH` for the hook command to resolve (a marketplace
+install does not put a `bin/` on `PATH` by itself): put
+`~/.claude/skills/no-deceit/bin` (or wherever `nd` was installed from, e.g.
+the Claude plugin) on `PATH`, or install `no-deceit` from npm and use its
+`bin`.
+
+Fallback (manual, no marketplace involved) — `nd` must be on `PATH` (Claude
+plugin install puts it there; otherwise
 `export PATH="$HOME/.claude/skills/no-deceit/bin:$PATH"`):
 
 ```bash

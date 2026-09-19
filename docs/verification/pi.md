@@ -4,12 +4,33 @@ What was verified for the Pi adapter, how, and against which versions.
 Convention borrowed from firstmate's adapter notes: record the evidence, don't
 re-prove settled primitives.
 
-- **Environment:** Pi `0.85.1`, `node v24.5.0`, Linux. Date: 2026-09-17.
+- **Environment:** Pi `0.85.1`, `node v26.2.0`, Linux. Date: 2026-09-18.
   Extension shape is `tool_call` returning `{ block: true, reason }` (Pi
   `docs/extensions.md`; firstmate field note: returning `{block: true}`
   prevents the bash command from running, verified 2026-07-09 against Pi
-  0.80.5). Tool-call errors also block (fail-safe). This build did not
-  re-prove that primitive live in a TUI; CI mocks the extension I/O.
+  0.80.5). Tool-call errors also block (fail-safe). CI mocks the extension
+  I/O; this build additionally re-proved the live primitive once (below).
+
+## Live-verified (2026-09-18)
+
+Ran a real, non-interactive Pi session (`pi -e adapters/pi/no-deceit.ts -p
+"..."`, model `ollama/qwen3.8:27b`) against an `nd init`-governed Tier 1
+project, with a temporary logging shim around `createPiExtension` to record
+the exact `tool_call` event and the gate's decision. Told the model to call
+`write` immediately with no skill lookup:
+
+- Pi's model called `write({path:"hello.py", content:'print("hi")\n'})`.
+- The extension's `tool_call` handler received it and the core returned
+  `{decision:"deny", category:"E", reason:"No Deceit Tier 1 (Tutor). Writing
+  source is blocked, ..."}` with a `ledgerEntry` for the denial.
+- Pi surfaced that as a blocked tool result; the model's final reply was
+  "The write was blocked by the tutor policy — so let's turn it into a check
+  on your own understanding instead" and no `hello.py` was created.
+
+This confirms the primitive this doc previously only asserted from a
+firstmate field note: Pi's `tool_call` → `{block:true}` really does stop the
+write, end to end, through this adapter's own `evaluateHarnessCall` wiring —
+not just in the mocked unit tests below.
 
 ## Verified in this build
 
@@ -37,9 +58,40 @@ The adapter is verified by `node --test` with Pi **not** required:
   Code, are returned as `{block:true, reason}` so the adapter stays
   fail-closed (Pi's `tool_call` errors already fail-safe).
 
+## Pi package manifest (Phase 6)
+
+`package.json` declares a `pi` manifest (`packages.md`: "Add a `pi` manifest
+to `package.json` ... Include the `pi-package` keyword for discoverability"):
+
+```json
+"keywords": ["...", "pi-package"],
+"pi": { "extensions": ["./adapters/pi/no-deceit.ts"], "skills": ["./skills"] }
+```
+
+The extension is listed explicitly (it lives at `adapters/pi/no-deceit.ts`,
+not the `extensions/` convention dir Pi would auto-discover). Verified with
+`pi -e git:github.com/PDepaula/no-deceit` (or `pi -e .` from a local clone)
+loading both the extension and the `no-deceit` skill without error — see the
+live-verified run above, which used exactly that `-e` path. `adapters/packaging.test.mjs`
+asserts the manifest paths actually resolve, so a future rename fails CI
+instead of silently breaking `pi install`.
+
 ## Install (attended session; no firstmate required)
 
-Keep the file inside a full clone so relative imports resolve:
+```bash
+pi install git:github.com/PDepaula/no-deceit@<tag>
+cd <a project> && nd init
+```
+
+This registers the package (extension + skill) in Pi's settings — see
+[Pi Packages](https://pi.dev/docs) for `-l` (project-local) vs. user-level
+install and how to pin a ref. It also makes the plugin discoverable in the
+[package gallery](https://pi.dev/packages) via the `pi-package` keyword,
+once published there (a captain step — this task does not submit it).
+
+Fallback (manual symlink, no package manifest involved): keep a full clone
+so relative imports resolve, then symlink the extension in — do not copy the
+`.ts` file out of the clone, `../run.mjs` must resolve next to it:
 
 ```bash
 git clone https://github.com/PDepaula/no-deceit ~/.claude/skills/no-deceit
@@ -48,5 +100,5 @@ ln -s ~/.claude/skills/no-deceit/adapters/pi/no-deceit.ts ~/.pi/agent/extensions
 cd <a project> && nd init
 ```
 
-Do not copy the `.ts` file out of the clone; `../run.mjs` must resolve next
-to it. Pi reads Agent Skills natively, so the teaching layer needs no wrapper.
+Pi reads Agent Skills natively, so the teaching layer needs no wrapper
+either way.
