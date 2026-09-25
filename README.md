@@ -208,7 +208,7 @@ cd projects/app                                   # start your harness here, boo
 ```
 
 `nd project add` clones a remote into `projects/<name>` (a local directory is
-governed where it is; a subdirectory of a git repo is refused, run it on the repo's top level), adds it to the project manifest the grader checks P2
+governed where it is; a directory inside another git repo is refused until you `git init` it as its own project), adds it to the project manifest the grader checks P2
 against (the existing `projects.edn` or `projects.json` in the data home, which
 honors `ND_DATA_DIR`; else a new `data/projects.edn`), and opts it in (`nd init`, Tier 2). Projects keep
 their own remotes; No Deceit does not touch delivery.
