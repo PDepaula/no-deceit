@@ -102,10 +102,11 @@ function markdownCarriesDiagram(path, content) {
 // whatever feeds it, the learner's own file included: they render in their own
 // terminal. Judged on the raw command by one linear scan, no shell-quote
 // parsing and no backtracking regex. The command splits into segments at | ; &
-// newline ( ) ` { } and either quote (so quoted text leans toward blocking), and
-// at find's -exec/-execdir. In each segment, VAR=val assignments and a chain of
-// launchers (LAUNCHERS) with their flags are skipped; the first remaining word,
-// compared by basename, is the command. Only a launcher's listed value flags
+// newline ( ) ` { }, at a quote opening quoted text (so it leans toward
+// blocking), and at find's -exec/-execdir. A quoted single word (`"mmdc"`) stays
+// a word of its segment with the quotes stripped. In each segment, VAR=val
+// assignments and a chain of launchers (LAUNCHERS) with their flags are skipped;
+// the first remaining word, compared by basename, is the command. Only a launcher's listed value flags
 // consume the next word; any other flag is boolean. `dot` counts only with a
 // `-T` flag in the segment. A renderer or launcher name merely mentioned as an
 // argument (`grep -rn mmdc`, `rg -t sh mmdc`, `ls dotfiles`) is not an
@@ -143,35 +144,32 @@ const RENDERERS = new Set(['mmdc', 'plantuml', 'excalidraw-cli', 'd2', '@mermaid
 const SEGMENT_BREAKS = new Set(['|', ';', '&', '\n', '(', ')', '`', "'", '"', '{', '}']);
 const BLANKS = new Set([' ', '\t', '\r']);
 const EXEC_ACTIONS = new Set(['-exec', '-execdir']);
-// A renderer name only runs when it ends at a blank, an operator or the end;
-// `rg 'd1|d2'` ends `d2` at a quote.
-const COMMAND_WORD_ENDS = new Set([' ', '\t', '\r', '\n', ';', '|', '&', ')', '']);
+const QUOTES = new Set(["'", '"']);
 const RE_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
 const basename = (w) => w.slice(w.lastIndexOf('/') + 1);
 
 function matchLauncher(words, i) {
   return LAUNCHERS.find((l) =>
-    l.words.every((w, k) => i + k < words.length && (k === 0 ? basename(words[i].text) : words[i + k].text) === w));
+    l.words.every((w, k) => i + k < words.length && (k === 0 ? basename(words[i]) : words[i + k]) === w));
 }
 
 function isRendererCall(word, rest) {
-  if (!COMMAND_WORD_ENDS.has(word.term)) return false;
-  const at = word.text.indexOf('@', 1);
-  const name = at < 0 ? word.text : word.text.slice(0, at);
+  const at = word.indexOf('@', 1);
+  const name = at < 0 ? word : word.slice(0, at);
   if (RENDERERS.has(name) || RENDERERS.has(basename(name))) return true;
-  return basename(name) === 'dot' && rest.some((w) => w.text.startsWith('-T'));
+  return basename(name) === 'dot' && rest.some((w) => w.startsWith('-T'));
 }
 
 function segmentRunsRenderer(words) {
   let i = 0;
   for (;;) {
-    while (i < words.length && RE_ASSIGNMENT.test(words[i].text)) i++;
+    while (i < words.length && RE_ASSIGNMENT.test(words[i])) i++;
     const launcher = matchLauncher(words, i);
     if (!launcher) break;
     i += launcher.words.length;
-    while (i < words.length && (words[i].text.startsWith('-') || RE_ASSIGNMENT.test(words[i].text))) {
-      const flag = words[i].text;
+    while (i < words.length && (words[i].startsWith('-') || RE_ASSIGNMENT.test(words[i]))) {
+      const flag = words[i];
       if (launcher.lookupFlags?.includes(flag)) return false;
       i += launcher.valueFlags?.includes(flag) ? 2 : 1;
     }
@@ -179,27 +177,44 @@ function segmentRunsRenderer(words) {
   return i < words.length && isRendererCall(words[i], words.slice(i + 1));
 }
 
+// Index of the quote closing a quoted single word (`"mmdc"`, `'./bin/d2'`), or -1
+// when a blank or break comes first and the quote opens a new segment instead.
+function quotedWordEnd(s, open) {
+  for (let j = open + 1; j < s.length; j++) {
+    if (s[j] === s[open]) return j;
+    if (BLANKS.has(s[j]) || SEGMENT_BREAKS.has(s[j])) return -1;
+  }
+  return -1;
+}
+
 /** Does the raw Bash command invoke a diagram renderer in command position? */
 function invokesRenderer(cmd) {
   const s = String(cmd || '');
   let seg = [];
-  let start = -1;
+  let word = null;
   for (let i = 0; i <= s.length; i++) {
     const ch = i < s.length ? s[i] : '';
+    if (QUOTES.has(ch)) {
+      const close = quotedWordEnd(s, i);
+      if (close > 0) {
+        word = (word ?? '') + s.slice(i + 1, close);
+        i = close;
+        continue;
+      }
+    }
     const breaks = ch === '' || SEGMENT_BREAKS.has(ch);
     if (!breaks && !BLANKS.has(ch)) {
-      if (start < 0) start = i;
+      word = (word ?? '') + ch;
       continue;
     }
-    if (start >= 0) {
-      const text = s.slice(start, i);
-      start = -1;
-      if (EXEC_ACTIONS.has(text)) {
+    if (word !== null) {
+      if (EXEC_ACTIONS.has(word)) {
         if (segmentRunsRenderer(seg)) return true;
         seg = [];
       } else {
-        seg.push({ text, term: ch });
+        seg.push(word);
       }
+      word = null;
     }
     if (breaks) {
       if (segmentRunsRenderer(seg)) return true;

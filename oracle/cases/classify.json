@@ -41,6 +41,11 @@
     {"name": "command without a lookup flag runs the renderer", "args": ["Bash", {"command": "command mmdc -i a.mmd -o a.svg"}], "expect": "H"},
     {"name": "command -v is a lookup, not a render", "args": ["Bash", {"command": "command -v mmdc"}], "expect": "U"},
     {"name": "echo time mmdc is not a render", "args": ["Bash", {"command": "echo time mmdc"}], "expect": "A"},
+    {"name": "double-quoted renderer command word is diagram", "args": ["Bash", {"command": "\"mmdc\" -i a.mmd -o a.svg"}], "expect": "H"},
+    {"name": "single-quoted renderer command word is diagram", "args": ["Bash", {"command": "'mmdc' -i a.mmd -o a.svg"}], "expect": "H"},
+    {"name": "quoted renderer path is diagram", "args": ["Bash", {"command": "\"./node_modules/.bin/mmdc\" -i a.mmd -o a.svg"}], "expect": "H"},
+    {"name": "quoted dot with -T is diagram", "args": ["Bash", {"command": "'dot' -Tpng a.dot -o a.png"}], "expect": "H"},
+    {"name": "quoted renderer argument is inspect", "args": ["Bash", {"command": "grep \"mmdc\" file"}], "expect": "A"},
     {"name": "grepping a renderer name is inspect", "args": ["Bash", {"command": "grep -rn mmdc core/"}], "expect": "A"},
     {"name": "reading renderer notes is inspect", "args": ["Bash", {"command": "cat docs/plantuml-notes.md"}], "expect": "A"},
     {"name": "grep dot is inspect", "args": ["Bash", {"command": "grep dot notes.txt"}], "expect": "A"}

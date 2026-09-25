@@ -181,11 +181,27 @@ test('shell keywords put the next word in command position', () => {
   assert.notEqual(classify('Bash', { command: '! grep -q plantuml notes.txt' }, cfg), 'H');
 });
 
+test('a quoted renderer command word still runs the renderer; a quoted argument does not', () => {
+  for (const command of [
+    '"mmdc" -i a.mmd -o a.svg',
+    "'mmdc' -i a.mmd -o a.svg",
+    '"./node_modules/.bin/mmdc" -i a.mmd -o a.svg',
+    "'dot' -Tpng a.dot -o a.png",
+    'echo x | "d2" - a.svg',
+    '"$(npm bin)/mmdc" -i a.mmd -o a.svg',
+    "rg 'd1|d2' src",
+  ]) {
+    assert.equal(classify('Bash', { command }, cfg), 'H', command);
+  }
+  for (const command of ['grep "mmdc" file', "grep -rn 'plantuml' docs", 'command -v "mmdc"', 'git commit -m "deny mmdc"']) {
+    assert.notEqual(classify('Bash', { command }, cfg), 'H', command);
+  }
+});
+
 test('dot and d2 as plain words are not renderer invocations', () => {
   assert.equal(classify('Bash', { command: 'ls ~/dotfiles' }, cfg), 'A');
   assert.equal(classify('Bash', { command: 'grep dot src/app.js' }, cfg), 'A');
   assert.equal(classify('Bash', { command: 'grep -nE "slash|dot" src/app.js' }, cfg), 'A');
-  assert.equal(classify('Bash', { command: "rg 'd1|d2' src" }, cfg), 'A');
 });
 
 test('G still wins over H (a diagram in the state dir is tamper)', () => {
