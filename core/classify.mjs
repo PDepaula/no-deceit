@@ -225,38 +225,45 @@ function writeTargets(cmd) {
   return targets;
 }
 
-// The command with quoted string contents removed, so shell syntax inside an
-// argument (a grep alternation, a commit message) is not read as a pipe.
-function blankQuoted(cmd) {
-  let out = '';
+// Shell quoting per character: 0 plain, 1 quoted or backslash-escaped, 2 a
+// quote mark or escaping backslash. Nothing escapes inside single quotes.
+function quoting(cmd) {
+  const kind = new Array(cmd.length).fill(0);
   let quote = null;
-  for (const ch of cmd) {
-    if (quote) {
-      if (ch === quote) { quote = null; out += ch; }
-      continue;
-    }
-    if (ch === "'" || ch === '"') quote = ch;
-    out += ch;
+  for (let i = 0; i < cmd.length; i++) {
+    const ch = cmd[i];
+    if (quote === "'") { kind[i] = ch === "'" ? 2 : 1; if (ch === "'") quote = null; continue; }
+    if (ch === '\\') { kind[i] = 2; if (i + 1 < cmd.length) kind[++i] = 1; continue; }
+    if (quote === '"') { kind[i] = ch === '"' ? 2 : 1; if (ch === '"') quote = null; continue; }
+    if (ch === "'" || ch === '"') { kind[i] = 2; quote = ch; }
+  }
+  return kind;
+}
+
+// The command as the shell would parse it: quote marks and escapes dropped,
+// and operators inside quoted or escaped text blanked, so shell syntax inside
+// an argument (a grep alternation, a commit message) is not read as a pipe.
+function blankQuoted(cmd) {
+  const kind = quoting(cmd);
+  let out = '';
+  for (let i = 0; i < cmd.length; i++) {
+    if (kind[i] === 2) continue;
+    out += kind[i] === 1 && /[|;&<>()]/.test(cmd[i]) ? ' ' : cmd[i];
   }
   return out;
 }
 
 // Split a command into segments on the shell operators && || ; | and newlines,
-// leaving operators that appear inside single/double quotes untouched.
+// leaving operators that are quoted or backslash-escaped untouched.
 function splitSegments(cmd) {
   const segs = [];
+  const kind = quoting(cmd);
   let cur = '';
-  let quote = null;
   for (let i = 0; i < cmd.length; i++) {
     const ch = cmd[i];
-    if (quote) {
-      cur += ch;
-      if (ch === quote) quote = null;
-      continue;
-    }
-    if (ch === "'" || ch === '"') { quote = ch; cur += ch; continue; }
+    if (kind[i]) { cur += ch; continue; }
     if (ch === '\n' || ch === ';') { segs.push(cur); cur = ''; continue; }
-    if ((ch === '&' || ch === '|') && cmd[i + 1] === ch) { segs.push(cur); cur = ''; i++; continue; }
+    if ((ch === '&' || ch === '|') && cmd[i + 1] === ch && !kind[i + 1]) { segs.push(cur); cur = ''; i++; continue; }
     if (ch === '|') { segs.push(cur); cur = ''; continue; }
     cur += ch;
   }

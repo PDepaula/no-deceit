@@ -52,6 +52,13 @@ test('a pipe or renderer word inside a quoted argument is not an inline-fed rend
   assert.equal(classify('Bash', { command: 'grep -nE "slash|dot" src/app.js' }, cfg), 'A');
   assert.equal(classify('Bash', { command: "rg 'd1|d2' src" }, cfg), 'A');
   assert.notEqual(classify('Bash', { command: 'git commit -m "fix: use d2 | dot renderer"' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'grep -nE slash\\|dot src/app.js' }, cfg), 'A');
+});
+
+test('an escaped quote does not hide a real pipe into a renderer', () => {
+  assert.equal(classify('Bash', { command: "echo graph\\'TD | mmdc -i - -o docs/a.svg" }, cfg), 'H');
+  assert.equal(classify('Bash', { command: "echo 'graph TD; A[User'\\''s app]---B' | mmdc -i - -o docs/a.svg" }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'echo "graph \\"TD\\"" | mmdc -i - -o docs/a.svg' }, cfg), 'H');
 });
 
 test('renderers on a file keep their ordinary handling; a redirected diagram source is H', () => {
