@@ -167,6 +167,20 @@ test('renderer detection is linear on long adversarial launcher chains', () => {
   assert.equal(classify('Bash', { command: 'xargs -n '.repeat(5000) + ' 1 mmdc' }, cfg), 'H');
 });
 
+test('shell keywords put the next word in command position', () => {
+  for (const command of [
+    'if mmdc -i a.mmd -o a.svg; then echo ok; fi',
+    '! mmdc -i a.mmd',
+    'elif mmdc -i a',
+    'until mmdc -i a; do :; done',
+    'while mmdc -i a; do :; done',
+  ]) {
+    assert.equal(classify('Bash', { command }, cfg), 'H', command);
+  }
+  assert.notEqual(classify('Bash', { command: 'if grep -q mmdc notes.txt; then echo ok; fi' }, cfg), 'H');
+  assert.notEqual(classify('Bash', { command: '! grep -q plantuml notes.txt' }, cfg), 'H');
+});
+
 test('dot and d2 as plain words are not renderer invocations', () => {
   assert.equal(classify('Bash', { command: 'ls ~/dotfiles' }, cfg), 'A');
   assert.equal(classify('Bash', { command: 'grep dot src/app.js' }, cfg), 'A');

@@ -133,6 +133,11 @@ const LAUNCHERS = [
   { words: ['then'] },
   { words: ['do'] },
   { words: ['else'] },
+  { words: ['if'] },
+  { words: ['elif'] },
+  { words: ['while'] },
+  { words: ['until'] },
+  { words: ['!'] },
 ];
 const RENDERERS = new Set(['mmdc', 'plantuml', 'excalidraw-cli', 'd2', '@mermaid-js/mermaid-cli']);
 const SEGMENT_BREAKS = new Set(['|', ';', '&', '\n', '(', ')', '`', "'", '"', '{', '}']);
