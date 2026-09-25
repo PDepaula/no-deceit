@@ -1,6 +1,6 @@
 // JS side of the port oracle: proves every oracle/cases/*.json expectation
 // against the Node module. The JS suite is the source of truth; the Babashka
-// twin (test/no-deceit/oracle_test.clj) must agree with these same cases.
+// twin (test/no_deceit/oracle_test.clj) must agree with these same cases.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -15,7 +15,8 @@ for (const f of readdirSync(casesDir).filter((n) => n.endsWith('.json')).sort())
   test(`oracle cases: ${spec.module}`, async () => {
     const mod = await import(pathToFileURL(join(root, spec.js.file)).href);
     for (const c of spec.cases) {
-      assert.deepEqual(mod[spec.js.fn](...c.args), c.expect, c.name);
+      const got = JSON.parse(JSON.stringify(mod[spec.js.fn](...c.args)));
+      assert.deepEqual(got, c.expect, c.name);
     }
   });
 }

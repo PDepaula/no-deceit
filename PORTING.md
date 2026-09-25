@@ -42,16 +42,21 @@ Tests go in `test/no_deceit/`.
 - bb side: `bb test` requires `no-deceit.<module>` only when
   `src/no_deceit/<module>.clj` exists, applies `fn` to `args` (JSON parsed
   with keyword keys), and compares to `expect`. Both sides are compared after a
-  JSON round-trip, so keywords equal strings and vectors equal lists.
+  JSON round-trip, so keywords equal strings, vectors equal lists, and a whole
+  double (`2.0`) equals an integer (`2`) as it does in JS. A ported `.clj` that
+  fails to load or lacks `fn` fails its module; other modules still run.
 - One namespace: create its `.clj`, then `bb test` (its cases run; the rest skip).
   To add a module: copy a case file, point `js`/`bb` at it, add cases.
 - Cases needing clock/env/fs must pass those as args (the pure core reads none).
 
 ## Purity rule
 
-Core namespaces in `src/` may not require `babashka.fs`, `babashka.process`,
-`clojure.java.io`, or read `System/getenv`. `bb lint` greps for this. Time,
-env and I/O are passed in as arguments, exactly like `core/*.mjs`.
+Core namespaces in `src/` may only require `clojure.string`, `clojure.set`,
+`clojure.walk`, `clojure.edn` and other `no-deceit.*` namespaces, may not
+`:import`, and may not call `slurp`/`spit`/`System/*`/Java classes. `bb lint`
+reads the forms (comments and docstrings don't count) and fails on any of
+these. Time, env and I/O are passed in as arguments, exactly like
+`core/*.mjs`.
 
 ## Cutting over
 
