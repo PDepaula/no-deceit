@@ -21,7 +21,7 @@ based on [Keep a Changelog](https://keepachangelog.com/).
 
 - **Added:** multi-line `/no-deceit:teach <topic> --project <p>`. `parseCommand`
   now returns `body` (everything after line 1); the hook writes
-  `<data>/evidence/<topic>/<ts>-teach.md` (frontmatter: topic, project, kind,
+  `<data>/evidence/<topic>/<ts>-<nn>-teach.md` (frontmatter: topic, project, kind,
   sha256, captured), ledgers `evidence_captured`, and blocks the prompt so the
   tutor never receives the teach-back in conversation (reads of the data home
   are not hook-enforced; the skill tells the tutor not to read evidence). Also `nd evidence add <topic> <path>
@@ -40,8 +40,9 @@ based on [Keep a Changelog](https://keepachangelog.com/).
   `source_paste` / `too_few_nodes` pre-filter, the transfer section of
   `agents/nd-grader.md`, `nd grade` / `/no-deceit:grade`, and
   `nd check --project`. Ledger events `evidence_captured` and `transfer_grade`;
-  `nd report` counts them. `nd grade` grades the evidence captured last (ledger
-  order). A passed transfer unlocks Tier 2 for the project the evidence names,
+  `nd report` counts them. `nd grade` grades the evidence captured last, read
+  from the data home alone (`<nn>` orders same-second captures). A passed
+  transfer unlocks Tier 2 for the project the evidence names,
   resolved to its governed repo through the `path` in `projects.edn` /
   `projects.json`; if it does not resolve, the pass is recorded and nothing
   unlocks. The unlock stays project-wide (`unlockedTopics` records the topics)

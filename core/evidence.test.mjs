@@ -64,8 +64,8 @@ test('teach file round-trips through its frontmatter; stamps and names sort', ()
   assert.deepEqual([meta.topic, meta.project, meta.kind, meta.sha256, meta.diagrams], ['t', 'p', 'teach-back', 'abc', '[mermaid]']);
   assert.equal(body, 'hello world\n');
   assert.equal(evidenceStamp(Date.UTC(2026, 8, 24, 10, 11, 12, 999)), '2026-09-24T10-11-12Z');
-  assert.equal(evidenceFileName('S', 'teach-back', 'md'), 'S-teach.md');
-  assert.equal(evidenceFileName('S', 'mermaid', 'mmd'), 'S-mermaid.mmd');
+  assert.equal(evidenceFileName('S', 1, 'teach-back', 'md'), 'S-01-teach.md');
+  assert.equal(evidenceFileName('S', 12, 'mermaid', 'mmd'), 'S-12-mermaid.mmd');
   assert.equal(summaryPathFor('/d/x.mmd'), '/d/x.mmd.summary.json');
   assert.equal(countWords(' a  b\nc '), 3);
 });

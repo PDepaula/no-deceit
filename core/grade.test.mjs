@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, readdirSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { projectPaths, dataPaths, readProjectState, readAllLedger, buildClassifyCfg, loadConfig } from './state.mjs';
+import { projectPaths, dataPaths, homePaths, readProjectState, readAllLedger, buildClassifyCfg, loadConfig } from './state.mjs';
 import { captureTeach, addEvidenceFile, latestEvidence, lastEvidenceTopic } from './evidence-io.mjs';
 import { parseFrontmatter, summaryPathFor } from './evidence.mjs';
 import { runGrade, runCheck } from './grader.mjs';
@@ -51,7 +51,7 @@ test('captureTeach writes the evidence file with frontmatter and ledgers evidenc
     assert.match(msg, /\/no-deceit:grade/);
     const dir = dataPaths(s.env).evidenceDir('etl');
     const [name] = readdirSync(dir);
-    assert.equal(name, '2026-09-24T10-11-12Z-teach.md');
+    assert.equal(name, '2026-09-24T10-11-12Z-01-teach.md');
     const { meta, body } = parseFrontmatter(readFileSync(join(dir, name), 'utf8'));
     assert.deepEqual([meta.topic, meta.project, meta.kind], ['etl', 'gd-integrations', 'teach-back']);
     assert.equal(meta.sha256, createHash('sha256').update(body).digest('hex'));
@@ -194,6 +194,24 @@ test('runGrade grades the evidence captured last, even within one second and acr
     let seen;
     await runGrade({ env: s.env, topic: 'etl', invoke: async (ctx) => { seen = ctx.job; return PASS; } });
     assert.match(readFileSync(seen.evidencePath, 'utf8'), /\(c\)/);
+  } finally { s.cleanup(); }
+});
+
+test('newest evidence and the default topic come from the data home alone, with no ledger', async () => {
+  const s = scratch();
+  try {
+    withManifest(s);
+    captureTeach({ env: s.env, arg: 'etl', body: `${TEACH} (old)`, nowMs: NOW });
+    captureTeach({ env: s.env, arg: 'joins', body: `${TEACH} (a)`, nowMs: NOW + 2000 });
+    const mm = join(s.dir, 'm.mmd'); writeFileSync(mm, 'flowchart TD\n A-->B\n');
+    const last = addEvidenceFile({ env: s.env, topic: 'joins', filePath: mm, nowMs: NOW + 2000 });
+    rmSync(homePaths(s.env).stateDir, { recursive: true, force: true });
+    assert.equal(lastEvidenceTopic(s.env), 'joins');
+    assert.equal(latestEvidence(s.env, 'joins'), last.path);
+    assert.match(latestEvidence(s.env, 'etl'), /-01-teach\.md$/);
+    let seen;
+    await runGrade({ env: s.env, invoke: async (ctx) => { seen = ctx.job; return PASS; } });
+    assert.equal(seen.evidencePath, last.path);
   } finally { s.cleanup(); }
 });
 

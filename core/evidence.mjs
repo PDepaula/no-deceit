@@ -175,9 +175,14 @@ export function evidenceStamp(nowMs) {
   return new Date(nowMs).toISOString().replace(/\.\d+Z$/, 'Z').replace(/:/g, '-');
 }
 
-/** Evidence file name for a stamp + kind + extension. */
-export function evidenceFileName(stamp, kind, ext) {
-  return `${stamp}-${kind === 'teach-back' ? 'teach' : kind}.${ext}`;
+/** Name prefix of the `seq`-th capture within one stamp (`<stamp>-01-`): names sort in capture order. */
+export function evidenceSeqPrefix(stamp, seq) {
+  return `${stamp}-${String(seq).padStart(2, '0')}-`;
+}
+
+/** Evidence file name for a stamp + same-second sequence + kind + extension. */
+export function evidenceFileName(stamp, seq, kind, ext) {
+  return `${evidenceSeqPrefix(stamp, seq)}${kind === 'teach-back' ? 'teach' : kind}.${ext}`;
 }
 
 /**
