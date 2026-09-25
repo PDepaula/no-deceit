@@ -302,6 +302,42 @@ test('bootstrap carries XDG config and data into the home: copies absent files, 
   } finally { s.cleanup(); }
 });
 
+test('the XDG carry-over is one-shot: a re-run never brings back files deleted from the home', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home);
+    const userHome = fakeUser(s.dir, { claude: false });
+    const xs = join(s.dir, 'xs'); const xc = join(s.dir, 'xc'); const xd = join(s.dir, 'xd');
+    const env = { ND_HOME: '', HOME: userHome, XDG_STATE_HOME: xs, XDG_CONFIG_HOME: xc, XDG_DATA_HOME: xd };
+    mkdirSync(join(xs, 'no-deceit'), { recursive: true });
+    writeFileSync(join(xs, 'no-deceit', 'ledger.jsonl'), '{"event":"old"}\n');
+    mkdirSync(join(xc, 'no-deceit'), { recursive: true });
+    writeFileSync(join(xc, 'no-deceit', 'config.json'), '{"graderModel":"sonnet"}');
+    mkdirSync(join(xd, 'no-deceit', 'evidence', 'etl'), { recursive: true });
+    writeFileSync(join(xd, 'no-deceit', 'evidence', 'etl', 'a-teach.md'), 'bad teach-back');
+    writeFileSync(join(xd, 'no-deceit', 'projects.edn'), '{:name "app" :path "/app"}\n');
+
+    const first = bootstrap({ home, userHome, env }).join('\n');
+    assert.match(first, /data: copied 2 file/);
+    const teach = join(home, 'data', 'evidence', 'etl', 'a-teach.md');
+    assert.ok(existsSync(teach));
+
+    rmSync(teach);
+    rmSync(join(home, 'data', 'projects.edn'));
+    writeFileSync(join(home, 'data', 'projects.json'), '[]');
+    rmSync(join(home, 'config', 'config.json'));
+    rmSync(join(home, 'state', 'ledger.jsonl'));
+
+    const again = bootstrap({ home, userHome, env }).join('\n');
+    assert.match(again, /already migrated/);
+    assert.doesNotMatch(again, /(ledger|config|data): copied/);
+    for (const f of [teach, join(home, 'data', 'projects.edn'), join(home, 'config', 'config.json'), join(home, 'state', 'ledger.jsonl')]) {
+      assert.ok(!existsSync(f), `${f} was brought back`);
+    }
+    assert.ok(existsSync(join(xd, 'no-deceit', 'evidence', 'etl', 'a-teach.md')), 'the XDG originals are never deleted');
+  } finally { s.cleanup(); }
+});
+
 function twoClones(s) {
   const origin = join(s.dir, 'origin'); g(s.dir, 'init', '-q', '-b', 'main', origin);
   commit(origin, 'README.md', 'v1');

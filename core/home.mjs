@@ -159,28 +159,35 @@ export function bootstrap({ home, userHome = homedir(), env, only = [], dryRun =
     say(made.length ? `  layout: created ${made.join(', ')}` : '  layout: projects/ data/ state/ config/ present; data/ is its own git repo');
   }
 
-  // Continuity: copy (never move, never overwrite) the pre-home XDG ledger,
-  // config and data into the home, which they stop being read from once the
-  // marker is down.
+  // Continuity, once per home: copy (never move, never overwrite) the pre-home
+  // XDG ledger, config and data into the home, which they stop being read from
+  // once the marker is down. The migration record in state/ keeps a re-run
+  // from bringing back a file the user has since deleted or replaced.
   const xdgEnv = { ...env, ND_HOME: '' };
   const homeEnv = { ...env, ND_HOME: home };
-  for (const [label, from, to] of [
-    ['ledger', homePaths(xdgEnv).ledger, homePaths(homeEnv).ledger],
-    ['config', homePaths(xdgEnv).configFile, homePaths(homeEnv).configFile],
-  ]) {
-    if (from !== to && existsSync(from) && !existsSync(to)) {
-      if (!dryRun) { mkdirSync(dirname(to), { recursive: true }); copyFileSync(from, to); }
-      say(`  ${label}: copied ${from} → ${to} (the old file is left in place)`);
+  const migrated = join(homePaths(homeEnv).stateDir, 'migrated-from-xdg');
+  if (existsSync(migrated)) {
+    say(`  xdg: already migrated (${readFileSync(migrated, 'utf8').trim()}); later XDG files are not copied`);
+  } else {
+    for (const [label, from, to] of [
+      ['ledger', homePaths(xdgEnv).ledger, homePaths(homeEnv).ledger],
+      ['config', homePaths(xdgEnv).configFile, homePaths(homeEnv).configFile],
+    ]) {
+      if (from !== to && existsSync(from) && !existsSync(to)) {
+        if (!dryRun) { mkdirSync(dirname(to), { recursive: true }); copyFileSync(from, to); }
+        say(`  ${label}: copied ${from} → ${to} (the old file is left in place)`);
+      }
     }
-  }
-  const fromData = dataPaths(xdgEnv).dataDir;
-  const toData = dataPaths(homeEnv).dataDir;
-  if (fromData !== toData && existsSync(fromData)) {
-    const copied = copyMissing(fromData, toData, dryRun);
-    if (copied.length) {
-      const tops = [...new Set(copied.map((f) => f.split('/')[0]))].sort();
-      say(`  data: copied ${copied.length} file(s) (${tops.join(', ')}) from ${fromData} → ${toData}; existing files kept, the old dir is left in place`);
+    const fromData = dataPaths(xdgEnv).dataDir;
+    const toData = dataPaths(homeEnv).dataDir;
+    if (fromData !== toData && existsSync(fromData)) {
+      const copied = copyMissing(fromData, toData, dryRun);
+      if (copied.length) {
+        const tops = [...new Set(copied.map((f) => f.split('/')[0]))].sort();
+        say(`  data: copied ${copied.length} file(s) (${tops.join(', ')}) from ${fromData} → ${toData}; existing files kept, the old dir is left in place`);
+      }
     }
+    if (!dryRun) { mkdirSync(dirname(migrated), { recursive: true }); writeFileSync(migrated, `migratedFromXdg ${new Date().toISOString()}\n`); }
   }
 
   let cursorHooks = null;

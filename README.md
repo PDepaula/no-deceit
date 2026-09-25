@@ -152,7 +152,8 @@ overwrites a link or file it did not make, never edits your shell profile
 (it prints the `PATH` line for `bin/`), and copies an older XDG ledger,
 `config.json` and data tree (curricula, evidence, verdicts, project manifest)
 into the home once, leaving the originals and never overwriting a file the
-home already has.
+home already has. The migration is recorded in `state/`, so a later
+`nd bootstrap` never brings back a file you deleted from the home.
 
 | Harness | What bootstrap does | Enforcement |
 | --- | --- | --- |
