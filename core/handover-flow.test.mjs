@@ -44,7 +44,7 @@ test('a governed project with no state file is Tier 2 locked at the gate', () =>
 });
 
 test('parse: /no-deceit:handover with and without args', () => {
-  assert.deepEqual(parseCommand('/no-deceit:handover stuck on joins'), { name: 'handover', arg: 'stuck on joins' });
+  assert.deepEqual(parseCommand('/no-deceit:handover stuck on joins'), { name: 'handover', arg: 'stuck on joins', body: '' });
   assert.deepEqual(parseHandoverArgs('--domain etl stuck on joins'), { domain: 'etl', reason: 'stuck on joins' });
   assert.deepEqual(parseHandoverArgs(''), { domain: null, reason: null });
 });

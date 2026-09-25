@@ -1,0 +1,57 @@
+{
+  "kind": "excalidraw",
+  "nodes": [
+    {
+      "id": "e1",
+      "label": "principle: join placement",
+      "shape": "ellipse",
+      "group": "g1",
+      "frame": null,
+      "emphasis": 2
+    },
+    {
+      "id": "e2",
+      "label": "gd-integrations",
+      "shape": "ellipse",
+      "group": "g1",
+      "frame": null,
+      "emphasis": 1
+    },
+    {
+      "id": "d1",
+      "label": "keep query-time join?",
+      "shape": "diamond",
+      "group": null,
+      "frame": null,
+      "emphasis": 1
+    }
+  ],
+  "edges": [
+    {
+      "from": "e1",
+      "to": "e2",
+      "label": "apply because reads dominate",
+      "directed": true,
+      "via": "binding"
+    },
+    {
+      "from": "e2",
+      "to": "d1",
+      "label": null,
+      "directed": true,
+      "via": "binding"
+    }
+  ],
+  "groups": {
+    "g1": [
+      "e1",
+      "e2"
+    ]
+  },
+  "frames": {},
+  "loose_text": [],
+  "clusters": 1,
+  "freedraw": 0,
+  "images": 0,
+  "emphasis_variance": 0.22
+}

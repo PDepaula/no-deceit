@@ -1,0 +1,54 @@
+{
+  "kind": "excalidraw",
+  "nodes": [
+    {
+      "id": "r1",
+      "label": "orders table",
+      "shape": "rectangle",
+      "group": null,
+      "frame": null,
+      "emphasis": 1
+    },
+    {
+      "id": "r2",
+      "label": "reporting DB",
+      "shape": "rectangle",
+      "group": null,
+      "frame": null,
+      "emphasis": 2
+    },
+    {
+      "id": "r3",
+      "label": "finance dashboard",
+      "shape": "rectangle",
+      "group": null,
+      "frame": null,
+      "emphasis": 2
+    }
+  ],
+  "edges": [
+    {
+      "from": "r1",
+      "to": "r2",
+      "label": "nightly ETL",
+      "directed": true,
+      "via": "binding"
+    },
+    {
+      "from": "r2",
+      "to": "r3",
+      "label": null,
+      "directed": true,
+      "via": "proximity"
+    }
+  ],
+  "groups": {},
+  "frames": {},
+  "loose_text": [
+    "read-heavy, written once"
+  ],
+  "clusters": 3,
+  "freedraw": 0,
+  "images": 0,
+  "emphasis_variance": 0.22
+}

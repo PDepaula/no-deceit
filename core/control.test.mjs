@@ -18,13 +18,13 @@ const NOW = 1_700_000_000_000;
 
 // --- parseCommand (pure) ---
 test('parses /no-deceit:tier 3', () => {
-  assert.deepEqual(parseCommand('/no-deceit:tier 3'), { name: 'tier', arg: '3' });
+  assert.deepEqual(parseCommand('/no-deceit:tier 3'), { name: 'tier', arg: '3', body: '' });
 });
 test('parses /no-deceit:mode coach', () => {
-  assert.deepEqual(parseCommand('/no-deceit:mode coach'), { name: 'mode', arg: 'coach' });
+  assert.deepEqual(parseCommand('/no-deceit:mode coach'), { name: 'mode', arg: 'coach', body: '' });
 });
 test('parses /no-deceit:status', () => {
-  assert.deepEqual(parseCommand('  /no-deceit:status  '), { name: 'status', arg: '' });
+  assert.deepEqual(parseCommand('  /no-deceit:status  '), { name: 'status', arg: '', body: '' });
 });
 test('parses /no-deceit:unlock with an override reason', () => {
   const r = parseCommand('/no-deceit:unlock --override "I know the fix, deadline"');

@@ -1,0 +1,94 @@
+{
+  "kind": "mermaid",
+  "diagram_type": "flowchart",
+  "nodes": [
+    {
+      "id": "P1",
+      "label": "Load time",
+      "subgraph": "principle"
+    },
+    {
+      "id": "P2",
+      "label": "Query time",
+      "subgraph": "principle"
+    },
+    {
+      "id": "D",
+      "label": "finance dashboard",
+      "subgraph": "gd"
+    },
+    {
+      "id": "E",
+      "label": "nightly ETL",
+      "subgraph": "gd"
+    },
+    {
+      "id": "T",
+      "label": "invoices table",
+      "subgraph": "store"
+    }
+  ],
+  "edges": [
+    {
+      "from": "P1",
+      "to": "D",
+      "label": "apply: read all day",
+      "directed": true
+    },
+    {
+      "from": "E",
+      "to": "T",
+      "label": null,
+      "directed": true
+    },
+    {
+      "from": "D",
+      "to": "T",
+      "label": "reads",
+      "directed": true
+    },
+    {
+      "from": "P2",
+      "to": "E",
+      "label": null,
+      "directed": false
+    },
+    {
+      "from": "P1",
+      "to": "P2",
+      "label": null,
+      "directed": true
+    },
+    {
+      "from": "P2",
+      "to": "E",
+      "label": null,
+      "directed": true
+    }
+  ],
+  "subgraphs": {
+    "principle": {
+      "label": "Join placement",
+      "members": [
+        "P1",
+        "P2"
+      ],
+      "parent": null
+    },
+    "gd": {
+      "label": "gd-integrations",
+      "members": [
+        "D",
+        "E"
+      ],
+      "parent": null
+    },
+    "store": {
+      "label": "reporting DB",
+      "members": [
+        "T"
+      ],
+      "parent": "gd"
+    }
+  }
+}

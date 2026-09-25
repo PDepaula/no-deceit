@@ -6,18 +6,23 @@
 
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, mkdtempSync, rmSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { prefilterMentalModel, prefilterCommitHistory, DEFAULT_MIN_CHARS } from './prefilter.mjs';
-import { MENTAL_RUBRIC, COMMIT_RUBRIC, PREFILTER_NEXT_QUESTION, finalizeUnlockVerdict } from './rubric.mjs';
+import { prefilterMentalModel, prefilterCommitHistory, prefilterTransfer, DEFAULT_MIN_CHARS } from './prefilter.mjs';
+import {
+  MENTAL_RUBRIC, COMMIT_RUBRIC, TRANSFER_RUBRIC, PREFILTER_NEXT_QUESTION, TRANSFER_PREFILTER_NEXT_QUESTION,
+  finalizeUnlockVerdict, finalizeTransferVerdict,
+} from './rubric.mjs';
+import { parseFrontmatter, summaryPathFor, evidenceStamp } from './evidence.mjs';
+import { latestEvidence, evidenceProject, lastEvidenceTopic } from './evidence-io.mjs';
 import { parseGraderOutput } from './grader-parse.mjs';
 import { buildGraderJob, assertJobBlind, graderSpawnPlan, defaultGraderModel, isGraderAuthFailure } from './grader-job.mjs';
 import { collectGitEvidence, commitsToEvidenceText } from './git-evidence.mjs';
 import { scoreRun, aggregateRuns, formatAuditReport } from './audit.mjs';
 import {
-  loadConfig, projectPaths, readProjectState, writeProjectState, appendLedger,
+  loadConfig, projectPaths, readProjectState, writeProjectState, appendLedger, dataPaths, isGoverned,
 } from './state.mjs';
 
 export function pluginRoot(fromUrl = import.meta.url) {
@@ -449,6 +454,7 @@ export async function runCheck({
   repoRoot,
   env = process.env,
   task = 'default',
+  project = null,
   invoke,
   timeoutMs,
   model,
@@ -483,6 +489,7 @@ export async function runCheck({
   appendLedger(env, {
     event: 'check_grade',
     task,
+    ...(project ? { project } : {}),
     verdict: result.verdict,
     error_class: result.error_class,
     misconceptions: result.misconceptions,
@@ -506,6 +513,19 @@ export function makeLiveGoldInvoke(env, timeoutMs) {
     const dir = mkdtempSync(join(tmpdir(), 'nd-audit-item-'));
     try {
       const evidencePath = join(dir, 'evidence.md');
+      if (item && item.route === 'transfer') {
+        const files = writeTransferFixtures(dir, item);
+        const outputPath = join(dir, 'out.json');
+        const jobPath = join(dir, 'job.json');
+        const blind = buildGraderJob({ kind: 'transfer', ...files, outputPath, rubric: job.rubric });
+        assertJobBlind(blind);
+        writeFileSync(jobPath, JSON.stringify(blind));
+        const cfg = loadConfig(env);
+        return await liveInvoke({
+          env, pluginRoot: pluginRoot(), model: cfg.graderModel,
+          timeoutMs: timeoutMs || plan.timeoutMs || cfg.graderTimeoutMs, jobPath,
+        });
+      }
       const text = item && item.route === 'commit-history'
         ? commitsToEvidenceText(item.commits || [])
         : (item && item.evidence) || '';
@@ -555,6 +575,16 @@ export async function runAudit({
           rubric: item.gold_criteria,
           item,
         });
+      } else if (item.route === 'transfer') {
+        observed[item.id] = await gradeTransferAttempt({
+          evidenceText: item.evidence || '',
+          sourceTexts: item.curriculum ? [item.curriculum] : [],
+          summary: item.summary || null,
+          diagramFile: Boolean(item.diagram_file),
+          invoke: (ctx) => resolved({ ...ctx, item }),
+          timeoutMs,
+          item,
+        });
       } else {
         observed[item.id] = await gradeUnlockAttempt({
           route: item.route,
@@ -571,4 +601,233 @@ export async function runAudit({
   }
   const agg = aggregateRuns(runScores);
   return { ...agg, runScores, report: formatAuditReport(agg, runScores) };
+}
+
+// --- Transfer grader (redesign report §2.2–2.3) --------------------------------
+
+/** Write a gold item's evidence/manifest/curriculum/summary as files; return the job's path keys. */
+function writeTransferFixtures(dir, item) {
+  const evidencePath = join(dir, 'evidence.md');
+  writeFileSync(evidencePath, item.evidence || '');
+  const projectsPath = join(dir, 'projects.md');
+  writeFileSync(projectsPath, item.projects || '');
+  const out = { evidencePath, projectsPath };
+  if (item.curriculum) {
+    out.curriculumPath = join(dir, 'curriculum.md');
+    writeFileSync(out.curriculumPath, item.curriculum);
+  }
+  if (item.summary) {
+    out.summaryPath = summaryPathFor(evidencePath);
+    writeFileSync(out.summaryPath, JSON.stringify(item.summary));
+  }
+  return out;
+}
+
+function notYetTransfer(source, extra = {}) {
+  const { criteria, structure } = finalizeTransferVerdict({ hasSummary: false });
+  return {
+    verdict: 'not_yet',
+    source,
+    calledLlm: source !== 'prefilter',
+    criteria,
+    structure,
+    error_class: 'conceptual',
+    misconceptions: [],
+    next_smaller_question: extra.next_smaller_question || TRANSFER_PREFILTER_NEXT_QUESTION.too_short,
+    rubric_gap: [],
+    parse_error: false,
+    prefilter_reason: extra.prefilter_reason || null,
+  };
+}
+
+/**
+ * Grade one principle-transfer teach-back. `invoke(ctx)` is the mockable LLM
+ * seam. `summaryPath`/`summary` are the optional parsed-diagram seam: when
+ * absent the grader reads the raw source and G1–G5 come back `unknown`.
+ */
+export async function gradeTransferAttempt({
+  evidenceText = '',
+  sourceTexts = [],
+  summary = null,
+  diagramFile = false,
+  minChars = DEFAULT_MIN_CHARS,
+  invoke,
+  timeoutMs = 120_000,
+  pluginRoot: root,
+  model,
+  evidencePath = '/evidence',
+  curriculumPath = null,
+  projectsPath = '/projects',
+  summaryPath = null,
+  outputPath = '/verdict.json',
+  item = null,
+} = {}) {
+  const pre = prefilterTransfer(evidenceText, { minChars, sourceTexts, summary, diagramFile });
+  if (!pre.ok) {
+    return notYetTransfer('prefilter', {
+      prefilter_reason: pre.reason,
+      next_smaller_question: TRANSFER_PREFILTER_NEXT_QUESTION[pre.reason],
+    });
+  }
+  const hasSummary = Boolean(summary || summaryPath);
+  const job = buildGraderJob({
+    kind: 'transfer', evidencePath, curriculumPath, projectsPath,
+    summaryPath: hasSummary ? (summaryPath || summaryPathFor(evidencePath)) : null,
+    outputPath, rubric: TRANSFER_RUBRIC,
+  });
+  assertJobBlind(job);
+  if (typeof invoke !== 'function') return notYetTransfer('grader_failure');
+  const plan = graderSpawnPlan({
+    pluginRoot: root || pluginRoot(),
+    model: model || defaultGraderModel(),
+    jobPath: outputPath.replace(/\.json$/, '.job.json'),
+    timeoutMs,
+  });
+  try {
+    const raw = await withTimeout(invoke({ job, plan, item }), timeoutMs);
+    const text = typeof raw === 'string' ? raw : JSON.stringify(raw);
+    const parsed = parseGraderOutput(text, { kind: 'transfer', hasSummary });
+    return { ...parsed, source: 'grader', calledLlm: true, prefilter_reason: null };
+  } catch (err) {
+    return notYetTransfer(err && err.code === 'TIMEOUT' ? 'timeout' : 'grader_failure');
+  }
+}
+
+function readTextIfExists(file) {
+  try { return readFileSync(file, 'utf8'); } catch { return null; }
+}
+
+/** curriculum.md plus any refs/<topic>/ text: what a source_paste is measured against. */
+function sourceTextsFor(env, topic) {
+  const dp = dataPaths(env);
+  const texts = [];
+  const cur = readTextIfExists(dp.curriculumFile(topic));
+  if (cur) texts.push(cur);
+  try {
+    for (const n of readdirSync(dp.refsDir(topic))) {
+      if (/\.(md|txt|markdown)$/i.test(n)) {
+        const t = readTextIfExists(join(dp.refsDir(topic), n));
+        if (t) texts.push(t);
+      }
+    }
+  } catch { /* no refs dir */ }
+  return texts;
+}
+
+function transferTutorNote(result, topic) {
+  if (result.verdict === 'unlocked') {
+    const m = (result.misconceptions || []).filter(Boolean);
+    return (
+      `The blind grader passed the transfer teach-back for ${topic}. Its wrongness is not the verdict: ` +
+      (m.length ? `coach these misconceptions kindly, in the developer's framing: ${m.join('; ')}.` : 'no misconceptions were flagged.')
+    );
+  }
+  return (
+    'The blind grader returned not_yet on the transfer teach-back. Deliver its next_smaller_question in the ' +
+    'skill\'s kind tone; do not argue the verdict. ' +
+    `Question: ${result.next_smaller_question || TRANSFER_PREFILTER_NEXT_QUESTION.too_short}`
+  );
+}
+
+/**
+ * `nd grade` / `/no-deceit:grade`: grade the newest evidence for a topic. Reads
+ * only files (evidence, projects manifest, curriculum, optional summary), writes
+ * `<data>/verdicts/<topic>/<ts>.json`, ledgers `transfer_grade`, and — when the
+ * project is governed — leaves the tutor a note and, on a pass, unlocks Tier 2.
+ */
+export async function runGrade({
+  repoRoot,
+  env = process.env,
+  topic = null,
+  project = null,
+  evidenceName = null,
+  invoke,
+  timeoutMs,
+  model,
+  spawnImpl,
+  sessionId = null,
+  nowMs = Date.now(),
+} = {}) {
+  const useTopic = topic || lastEvidenceTopic(env);
+  if (!useTopic) throw new Error('no topic: pass one (`nd grade <topic>`), or capture evidence first with /no-deceit:teach or `nd evidence add`');
+  const dp = dataPaths(env);
+  const evidencePath = latestEvidence(env, useTopic, { name: evidenceName });
+  if (!evidencePath) throw new Error(`no evidence for "${useTopic}" under ${dp.evidenceDir(useTopic)}`);
+  const projectsPath = dp.projectsManifests.find((f) => existsSync(f));
+  if (!projectsPath) {
+    throw new Error(
+      `no project manifest: write ${dp.projectsManifests[0]} (or .json/.md) naming your projects, one line each. ` +
+      'P2 is graded against that list, so the grader cannot judge transfer without it',
+    );
+  }
+  const curriculumPath = existsSync(dp.curriculumFile(useTopic)) ? dp.curriculumFile(useTopic) : null;
+  const summaryPath = existsSync(summaryPathFor(evidencePath)) ? summaryPathFor(evidencePath) : null;
+  let summary = null;
+  if (summaryPath) { try { summary = JSON.parse(readFileSync(summaryPath, 'utf8')); } catch { summary = null; } }
+
+  const cfg = loadConfig(env);
+  const raw = readFileSync(evidencePath, 'utf8');
+  const fm = parseFrontmatter(raw);
+  const kind = fm.meta.kind
+    || (() => { try { return JSON.parse(readFileSync(`${evidencePath}.meta.json`, 'utf8')).kind; } catch { return null; } })()
+    || 'pasted-text';
+  const claimed = project || evidenceProject(evidencePath);
+  const stamp = evidenceStamp(nowMs);
+  const outputPath = join(dp.verdictsDir(useTopic), `${stamp}.json`);
+  const resolved = invokeFromEnv(env, invoke) || makeLiveInvoke(env, { spawnImpl });
+
+  const result = await gradeTransferAttempt({
+    evidenceText: fm.body,
+    sourceTexts: sourceTextsFor(env, useTopic),
+    summary,
+    diagramFile: kind === 'mermaid' || kind === 'excalidraw',
+    minChars: cfg.attemptMinChars,
+    invoke: resolved,
+    timeoutMs: timeoutMs || cfg.graderTimeoutMs,
+    model: model || cfg.graderModel,
+    evidencePath, curriculumPath, projectsPath, summaryPath, outputPath,
+    pluginRoot: pluginRoot(),
+  });
+
+  const id = randomUUID();
+  writeJson(outputPath, { ...result, id, topic: useTopic, project: claimed, kind, evidencePath, route: 'transfer' });
+  const flags = {};
+  for (const [k, c] of Object.entries(result.criteria)) flags[k] = c.met;
+  appendLedger(env, {
+    event: 'transfer_grade',
+    topic: useTopic,
+    project: claimed,
+    kind,
+    verdict: result.verdict,
+    source: result.source,
+    criteria: flags,
+    structure: result.structure,
+    error_class: result.error_class,
+    misconceptions: result.misconceptions,
+    next_smaller_question: result.next_smaller_question,
+    prefilter_reason: result.prefilter_reason,
+    path: evidencePath,
+    id,
+    sessionId: sessionId || null,
+  });
+  if (repoRoot && isGoverned(repoRoot)) {
+    const before = readProjectState(repoRoot, env);
+    const topics = before.unlockedTopics || [];
+    writeProjectState(repoRoot, {
+      ...before,
+      ...(result.verdict === 'unlocked' ? { unlocked: true, unlockedTopics: topics.includes(useTopic) ? topics : [...topics, useTopic] } : {}),
+      lastDiagnosis: {
+        error_class: result.error_class,
+        misconceptions: result.misconceptions || [],
+        next_smaller_question: result.next_smaller_question,
+      },
+      pendingTutorNote: transferTutorNote(result, useTopic),
+    });
+  }
+  if (result.verdict === 'unlocked') {
+    return `Transfer teach-back for ${useTopic} passed (${result.source}). error_class=${result.error_class}.` +
+      `${repoRoot && isGoverned(repoRoot) ? ' Tier 2 is unlocked for this project.' : ''}`;
+  }
+  return `not_yet (${result.source}${result.prefilter_reason ? `: ${result.prefilter_reason}` : ''}). ` +
+    `Next question: ${result.next_smaller_question}`;
 }

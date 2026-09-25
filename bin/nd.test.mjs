@@ -272,3 +272,51 @@ test('nd doctor --grader-probe fails on an invalid API key notice', () => {
     assert.match(r.out, /grader login: FAIL — grader probe failed: .*Invalid API key/);
   } finally { s.cleanup(); }
 });
+
+const TEACH = 'Join at load time means readers get finished rows and pay once, at the price of staleness. In gd-integrations the dashboard join should move into the nightly ETL, unless finance needs same-hour totals.';
+
+test('nd evidence add copies a diagram into the data home, then nd grade grades it (mocked grader)', () => {
+  const s = scratch();
+  try {
+    const env = { ...s.env, XDG_DATA_HOME: join(s.dir, 'share') };
+    run(['init'], env, s.dir);
+    const note = join(s.dir, 'notes.md');
+    writeFileSync(note, TEACH);
+    const added = run(['evidence', 'add', 'etl', note, '--project', 'gd-integrations'], env, s.dir);
+    assert.match(added.out, /Captured pasted-text for etl/);
+    assert.ok(existsSync(join(s.dir, 'share', 'no-deceit', 'evidence', 'etl')));
+    const bad = join(s.dir, 'bad.excalidraw');
+    writeFileSync(bad, '{"type":"nope"}');
+    assert.notEqual(run(['evidence', 'add', 'etl', bad], env, s.dir, true).code, 0);
+    const nomanifest = run(['grade', 'etl'], env, s.dir, true);
+    assert.match(nomanifest.out, /no project manifest/);
+    writeFileSync(join(s.dir, 'share', 'no-deceit', 'projects.md'), '- gd-integrations: nightly ETL\n');
+    const mock = JSON.stringify({ criteria: Object.fromEntries(['P1', 'P2', 'P4', 'P5'].map((k) => [k, { met: true, span: 'x' }])) });
+    const g = run(['grade'], { ...env, ND_GRADER_MOCK_JSON: mock }, s.dir);
+    assert.match(g.out, /passed/);
+    assert.equal(readProjectState(s.dir, env).unlocked, true);
+  } finally { s.cleanup(); }
+});
+
+test('nd evidence and nd grade are refused inside an agent shell', () => {
+  const s = scratch();
+  try {
+    for (const args of [['evidence', 'add', 'etl', 'x.md'], ['grade', 'etl']]) {
+      const r = run(args, { ...s.env, CLAUDECODE: '1' }, s.dir, true);
+      assert.notEqual(r.code, 0);
+      assert.match(r.out, /refusing to run a state-changing/);
+    }
+  } finally { s.cleanup(); }
+});
+
+test('nd audit --set transfer gates the transfer gold set (oracle passes, inflate blocks)', () => {
+  const s = scratch();
+  try {
+    const ok = run(['audit', '--oracle', '--set', 'transfer'], s.env, s.dir);
+    assert.match(ok.out, /graded_up: 0/);
+    const bad = run(['audit', '--inflate', '--set', 'transfer'], s.env, s.dir, true);
+    assert.notEqual(bad.code, 0);
+    assert.match(bad.out, /gate: block/);
+    assert.match(run(['audit', '--oracle'], s.env, s.dir).out, /graded_up: 0/, 'default runs both sets');
+  } finally { s.cleanup(); }
+});

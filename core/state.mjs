@@ -66,6 +66,28 @@ export function homePaths(env = process.env) {
   };
 }
 
+/**
+ * The No Deceit data home (evidence, verdicts, curricula, project manifest).
+ * Resolution: `ND_DATA_DIR`, else `<ND_HOME>/data` (a checkout used as the
+ * home, whose gitignored data/ may itself be a nested private git repo), else
+ * the XDG fallback `$XDG_DATA_HOME/no-deceit` (~/.local/share/no-deceit). This
+ * only computes paths; it never creates a directory or a git repo. Layout per
+ * the redesign report §5.2: evidence/<topic>/, verdicts/<topic>/,
+ * curricula/<topic>/curriculum.md, refs/<topic>/, projects.{edn,json,md}.
+ */
+export function dataPaths(env = process.env) {
+  const dataDir = env.ND_DATA_DIR
+    || (env.ND_HOME ? join(env.ND_HOME, 'data') : join(xdg(env, 'XDG_DATA_HOME', ['.local', 'share']), 'no-deceit'));
+  return {
+    dataDir,
+    evidenceDir: (topic) => join(dataDir, 'evidence', topic),
+    verdictsDir: (topic) => join(dataDir, 'verdicts', topic),
+    curriculumFile: (topic) => join(dataDir, 'curricula', topic, 'curriculum.md'),
+    refsDir: (topic) => join(dataDir, 'refs', topic),
+    projectsManifests: ['projects.edn', 'projects.json', 'projects.md'].map((n) => join(dataDir, n)),
+  };
+}
+
 /** Project-scoped paths under <repo>/.no-deceit. */
 export function projectPaths(repoRoot) {
   const dir = join(repoRoot, '.no-deceit');
@@ -125,6 +147,7 @@ export function readProjectState(repoRoot, env = process.env) {
     lastUnlock: raw.lastUnlock || null,
     lastDiagnosis: raw.lastDiagnosis || null,
     pendingTutorNote: raw.pendingTutorNote || null,
+    unlockedTopics: Array.isArray(raw.unlockedTopics) ? raw.unlockedTopics : [],
     ...(raw.t3ExpiresAtMs != null ? { t3ExpiresAtMs: raw.t3ExpiresAtMs } : {}),
   };
 }
@@ -200,7 +223,9 @@ export function buildClassifyCfg(config, repoRoot, env = process.env) {
   const home = homePaths(env);
   const proj = projectPaths(repoRoot);
   return {
-    statePathPrefixes: [proj.dir, home.stateDir, home.configDir],
+    // The data home holds evidence and verdicts the tutor must not read or write
+    // before the grader has (§3.5); it is tamper territory like the state dirs.
+    statePathPrefixes: [proj.dir, home.stateDir, home.configDir, dataPaths(env).dataDir],
     testGlobs: config.testGlobs,
     toolingGlobs: config.toolingGlobs,
     ndBin: 'nd',

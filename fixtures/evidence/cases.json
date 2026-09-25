@@ -1,0 +1,54 @@
+{
+  "parsers": {
+    "excalidraw": {
+      "ns": "no-deceit.evidence.excalidraw",
+      "fn": "parse"
+    },
+    "mermaid": {
+      "ns": "no-deceit.evidence.mermaid",
+      "fn": "parse"
+    },
+    "mindmap": {
+      "ns": "no-deceit.evidence.mindmap",
+      "fn": "parse"
+    }
+  },
+  "cases": [
+    {
+      "name": "excalidraw unbound arrow resolved by proximity",
+      "parser": "excalidraw",
+      "input": "excalidraw/unbound-arrow.excalidraw",
+      "expect": "excalidraw/unbound-arrow.summary.json"
+    },
+    {
+      "name": "excalidraw deleted elements are ignored",
+      "parser": "excalidraw",
+      "input": "excalidraw/deleted-element.excalidraw",
+      "expect": "excalidraw/deleted-element.summary.json"
+    },
+    {
+      "name": "excalidraw clipboard paste with a group",
+      "parser": "excalidraw",
+      "input": "excalidraw/clipboard.json",
+      "expect": "excalidraw/clipboard.summary.json"
+    },
+    {
+      "name": "excalidraw Obsidian .excalidraw.md (uncompressed json)",
+      "parser": "excalidraw",
+      "input": "excalidraw/obsidian.excalidraw.md",
+      "expect": "excalidraw/obsidian.summary.json"
+    },
+    {
+      "name": "mind map with cross-links",
+      "parser": "mindmap",
+      "input": "mindmap/cross-links.md",
+      "expect": "mindmap/cross-links.summary.json"
+    },
+    {
+      "name": "mermaid flowchart with nested subgraphs",
+      "parser": "mermaid",
+      "input": "mermaid/flowchart-subgraphs.mmd",
+      "expect": "mermaid/flowchart-subgraphs.summary.json"
+    }
+  ]
+}

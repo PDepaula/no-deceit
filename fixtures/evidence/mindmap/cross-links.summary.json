@@ -1,0 +1,92 @@
+{
+  "kind": "mindmap-text",
+  "nodes": [
+    {
+      "id": "n1",
+      "label": "Join placement",
+      "depth": 0,
+      "parent": null
+    },
+    {
+      "id": "n2",
+      "label": "ETL time",
+      "depth": 1,
+      "parent": "n1"
+    },
+    {
+      "id": "n3",
+      "label": "materialised views",
+      "depth": 2,
+      "parent": "n2"
+    },
+    {
+      "id": "n4",
+      "label": "nightly load",
+      "depth": 2,
+      "parent": "n2"
+    },
+    {
+      "id": "n5",
+      "label": "Query time",
+      "depth": 1,
+      "parent": "n1"
+    },
+    {
+      "id": "n6",
+      "label": "fresh reads",
+      "depth": 2,
+      "parent": "n5"
+    },
+    {
+      "id": "n7",
+      "label": "Client",
+      "depth": 1,
+      "parent": "n1"
+    },
+    {
+      "id": "n8",
+      "label": "extra round trips",
+      "depth": 2,
+      "parent": "n7"
+    },
+    {
+      "id": "n9",
+      "label": "gd-integrations",
+      "depth": 0,
+      "parent": null
+    },
+    {
+      "id": "n10",
+      "label": "finance dashboard",
+      "depth": 1,
+      "parent": "n9"
+    },
+    {
+      "id": "n11",
+      "label": "orders sync",
+      "depth": 1,
+      "parent": "n9"
+    }
+  ],
+  "cross_links": [
+    {
+      "from": "n2",
+      "to": "n10",
+      "label": "because it is read all day",
+      "directed": true
+    },
+    {
+      "from": "n5",
+      "to": "n11",
+      "label": "freshness against cost",
+      "directed": false
+    },
+    {
+      "from": "n4",
+      "to": "n11",
+      "label": null,
+      "directed": true
+    }
+  ],
+  "unresolved_links": 1
+}

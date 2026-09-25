@@ -173,3 +173,74 @@ export function prefilterCommitHistory(commits) {
   if (!shared) return { ok: false, reason: 'no_shared_unit', commits: kept };
   return { ok: true, reason: null, commits: kept };
 }
+
+// --- Transfer route ---------------------------------------------------------
+
+export const SOURCE_PASTE_THRESHOLD = 0.8;
+const SHINGLE = 5;
+const MIN_NODES = 3;
+
+function wordTokens(text) {
+  return String(text ?? '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+
+function shingles(tokens) {
+  const out = new Set();
+  for (let i = 0; i + SHINGLE <= tokens.length; i++) out.add(tokens.slice(i, i + SHINGLE).join(' '));
+  return out;
+}
+
+/**
+ * Fraction of the evidence's 5-word runs that also occur in the source texts.
+ * A paraphrase shares vocabulary but not word runs; a paste shares nearly all.
+ */
+export function sourceOverlap(evidence, sourceTexts = []) {
+  const ev = shingles(wordTokens(evidence));
+  if (ev.size === 0) return 0;
+  const src = new Set();
+  for (const t of sourceTexts) for (const s of shingles(wordTokens(t))) src.add(s);
+  if (src.size === 0) return 0;
+  let hit = 0;
+  for (const s of ev) if (src.has(s)) hit++;
+  return hit / ev.size;
+}
+
+const URL_RE = /https?:\/\/\S+/gi;
+
+/** The text with fenced blocks removed (diagram source is not prose). */
+export function proseOf(text) {
+  return String(text ?? '').replace(/(^|\n)\s*(`{3,}|~{3,})[^\n]*\n[\s\S]*?(\n\s*\2[^\n]*|$)/g, '$1').trim();
+}
+
+function nodeCount(summary) {
+  const ds = summary && Array.isArray(summary.diagrams) ? summary.diagrams : null;
+  if (!ds || ds.length === 0) return null;
+  return ds.reduce((n, d) => n + (Array.isArray(d && d.nodes) ? d.nodes.length : 0), 0);
+}
+
+/**
+ * Transfer route. evidence is the captured teach-back / diagram source.
+ * options: minChars, sourceTexts (curriculum + refs text, for source_paste),
+ * summary (parsed diagram envelope, optional), diagramFile (evidence IS a
+ * diagram file, so it has no prose). A missing summary never rejects.
+ */
+export function prefilterTransfer(evidence, options = {}) {
+  const minChars = options.minChars ?? DEFAULT_MIN_CHARS;
+  const text = trimmed(evidence);
+  if (!text) return { ok: false, reason: 'empty' };
+  // A bare link (or a link plus a few words) is a pointer to the source, not a teach-back.
+  const hasUrl = (text.match(URL_RE) || []).length > 0;
+  if (hasUrl && text.replace(URL_RE, ' ').replace(/[^a-z0-9]/gi, '').length < 40) {
+    return { ok: false, reason: 'source_paste' };
+  }
+  if (!options.diagramFile && text.length < minChars) return { ok: false, reason: 'too_short' };
+  const nodes = nodeCount(options.summary);
+  const prose = options.diagramFile ? '' : proseOf(text);
+  if (nodes !== null && nodes < MIN_NODES && prose.length < minChars) {
+    return { ok: false, reason: 'too_few_nodes' };
+  }
+  if (sourceOverlap(text, options.sourceTexts || []) >= SOURCE_PASTE_THRESHOLD) {
+    return { ok: false, reason: 'source_paste' };
+  }
+  return { ok: true, reason: null };
+}

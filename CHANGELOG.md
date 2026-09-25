@@ -17,6 +17,42 @@ based on [Keep a Changelog](https://keepachangelog.com/).
 - **Changed:** `ND_GRADER_CHILD` is honoured as a worker marker, so the
   gate treats the grader child as a pass-through session.
 
+## [Unreleased] — Redesign phase 2: evidence capture and the transfer grader
+
+- **Added:** multi-line `/no-deceit:teach <topic> --project <p>`. `parseCommand`
+  now returns `body` (everything after line 1); the hook writes
+  `<data>/evidence/<topic>/<ts>-teach.md` (frontmatter: topic, project, kind,
+  sha256, captured), ledgers `evidence_captured`, and blocks the prompt so the
+  tutor never sees the teach-back first. Also `nd evidence add <topic> <path>
+  [--project p]`: copies, hashes and sidecars a note, `.mmd`/`.mermaid`,
+  `.excalidraw` / Excalidraw `.json` (`type` must be `excalidraw` or
+  `excalidraw/clipboard`), or Obsidian `.excalidraw.md`. Diagrams are stored raw.
+- **Added:** the data home (`core/state.mjs` `dataPaths`): `ND_DATA_DIR`, else
+  `$ND_HOME/data`, else `$XDG_DATA_HOME/no-deceit` (`~/.local/share/no-deceit`).
+  Compatible with `data/` being its own private git repo; No Deceit never creates
+  one. The data dir is tamper territory (category G), as are `nd evidence` and
+  `nd grade`.
+- **Added:** `TRANSFER_RUBRIC` (P1–P5, pass = P1 ∧ P2 ∧ P4 ∧ (P3 ∨ P5)),
+  the diagnostic `structure` field (G1–G5 `met|unmet|unknown`, never in the
+  verdict), mechanical `finalizeTransferVerdict`, the `curriculumPath` /
+  `projectsPath` / `summaryPath` job keys (`assertJobBlind` kept), a
+  `source_paste` / `too_few_nodes` pre-filter, the transfer section of
+  `agents/nd-grader.md`, `nd grade` / `/no-deceit:grade`, and
+  `nd check --project`. Ledger events `evidence_captured` and `transfer_grade`;
+  `nd report` counts them; a passed transfer unlocks Tier 2 for the project.
+- **Added:** `gold/transfer-gold.jsonl` (27 items, every case type in the
+  redesign report §2.2) and `nd audit [--set unlock|transfer|all]`; the release
+  gate is `graded_up = 0` over both sets.
+- **Added (port):** oracle cases for the new pure functions
+  (`transfer-pass`, `transfer-verdict`, `prefilter-transfer`,
+  `evidence-parse-teach-args`, `evidence-detect-diagrams`), and the parser
+  contract for the Babashka Excalidraw / Mermaid / mind-map parsers (PORTING.md
+  step 7) with fixture pairs under `fixtures/evidence/`, skipped by `bb test`
+  until `no-deceit.evidence.*` exists. No parser is implemented in Node.
+- **Changed:** `parseCommand` returns `{ name, arg, body }`; a multi-line prompt
+  whose first line is a `/no-deceit:` command is now a command (before, only
+  single-line prompts were).
+
 ## [Unreleased] — Redesign phase 1: Tier 2 default, handover, design-artifact gate
 
 - **Changed:** Tier 2 (locked) is the default for every governed project

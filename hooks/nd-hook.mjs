@@ -12,8 +12,9 @@ import { evaluate, evaluateStop, evaluateDisplay, evaluatePostToolUse } from '..
 import { decide, REASONS } from '../core/policy.mjs';
 import { appendLedger, gitToplevel, isGoverned, readProjectState, writeProjectState, writeSession } from '../core/state.mjs';
 import { parseCommand, setTier, setMode, renderStatus, renderStatusShort, startHandover, armHandoverForPrompt } from '../core/control.mjs';
-import { parseUnlockArgs, parseCheckArgs } from '../core/unlock-args.mjs';
-import { runUnlock, runCheck } from '../core/grader.mjs';
+import { parseUnlockArgs, parseCheckArgs, parseGradeArgs } from '../core/unlock-args.mjs';
+import { runUnlock, runCheck, runGrade } from '../core/grader.mjs';
+import { captureTeach } from '../core/evidence-io.mjs';
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -131,13 +132,19 @@ async function main() {
           message = await runUnlock({ repoRoot, env, sessionId: input.session_id, ...args });
         } else if (cmd.name === 'check') {
           const args = parseCheckArgs(cmd.arg);
-          message = await runCheck({ repoRoot, env, sessionId: input.session_id, task: args.task });
+          message = await runCheck({ repoRoot, env, sessionId: input.session_id, task: args.task, project: args.project });
+        } else if (cmd.name === 'teach') {
+          // The teach-back is evidence: capture it to the data home and block the
+          // prompt, so the tutor never sees it before the blind grader does.
+          message = captureTeach({ env, sessionId: input.session_id, arg: cmd.arg, body: cmd.body });
+        } else if (cmd.name === 'grade') {
+          message = await runGrade({ repoRoot, env, sessionId: input.session_id, ...parseGradeArgs(cmd.arg) });
         } else if (cmd.name === 'handover') {
           message = startHandover({ repoRoot, env, sessionId: input.session_id, arg: cmd.arg });
         } else if (cmd.name === 'status') {
           message = renderStatus({ repoRoot, env, sessionId: input.session_id });
         } else {
-          message = `Unknown No Deceit command: ${cmd.name}. Try tier, mode, unlock, check, handover, or status.`;
+          message = `Unknown No Deceit command: ${cmd.name}. Try tier, mode, unlock, check, teach, grade, handover, or status.`;
         }
       } catch (err) {
         message = `No Deceit: ${String((err && err.message) || err)}`;

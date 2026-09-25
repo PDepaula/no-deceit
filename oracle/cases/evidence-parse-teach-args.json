@@ -1,0 +1,13 @@
+{
+  "module": "evidence-parse-teach-args",
+  "js": {"file":"core/evidence.mjs","fn":"parseTeachArgs"},
+  "bb": {"ns":"no-deceit.evidence","fn":"parse-teach-args"},
+  "cases": [
+    {"name":"topic and project","args":["etl-vs-client-server --project gd-integrations"],"expect":{"topic":"etl-vs-client-server","project":"gd-integrations","error":null}},
+    {"name":"project= form","args":["etl --project=bondly"],"expect":{"topic":"etl","project":"bondly","error":null}},
+    {"name":"topic only","args":["etl"],"expect":{"topic":"etl","project":null,"error":null}},
+    {"name":"missing topic","args":[""],"expect":{"topic":null,"project":null,"error":"missing topic: /no-deceit:teach <topic> --project <project>, then the explanation on the next lines"}},
+    {"name":"path traversal topic","args":["../etc --project x"],"expect":{"topic":"../etc","project":"x","error":"topic \"../etc\" must be a slug (lowercase letters, digits, . _ -)"}},
+    {"name":"uppercase project rejected","args":["etl --project Bondly"],"expect":{"topic":"etl","project":"Bondly","error":"project \"Bondly\" must be a slug (lowercase letters, digits, . _ -)"}}
+  ]
+}

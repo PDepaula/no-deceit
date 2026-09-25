@@ -1,6 +1,6 @@
 // No Deceit — parse the blind grader's JSON output (PURE).
 
-import { finalizeUnlockVerdict, finalizeCheckVerdict } from './rubric.mjs';
+import { finalizeUnlockVerdict, finalizeCheckVerdict, finalizeTransferVerdict } from './rubric.mjs';
 
 export function extractJson(text) {
   if (typeof text !== 'string' || !text.trim()) return null;
@@ -30,7 +30,8 @@ function errorClass(v) {
  * Turn raw model text into a mechanical verdict.
  * kind: 'unlock' (default) | 'check'
  */
-export function parseGraderOutput(text, { route = 'mental-model', kind = 'unlock', checkIds = null } = {}) {
+export function parseGraderOutput(text, { route = 'mental-model', kind = 'unlock', checkIds = null, hasSummary = false } = {}) {
+  if (kind === 'transfer') return parseTransferOutput(text, { hasSummary });
   const obj = extractJson(text);
   if (!obj) {
     if (kind === 'check') {
@@ -80,6 +81,37 @@ export function parseGraderOutput(text, { route = 'mental-model', kind = 'unlock
   return {
     verdict,
     criteria,
+    parse_error: false,
+    error_class: errorClass(obj.error_class),
+    misconceptions: asList(obj.misconceptions),
+    next_smaller_question: obj.next_smaller_question ? String(obj.next_smaller_question) : null,
+    rubric_gap: asList(obj.rubric_gap),
+  };
+}
+
+/** Transfer kind: P1–P5 verdict plus the diagnostic G1–G5 `structure` field. */
+function parseTransferOutput(text, { hasSummary }) {
+  const obj = extractJson(text);
+  const base = {
+    error_class: 'conceptual',
+    misconceptions: [],
+    next_smaller_question: null,
+    rubric_gap: [],
+  };
+  if (!obj) {
+    return { ...finalizeTransferVerdict({ hasSummary }), parse_error: true, ...base };
+  }
+  const { verdict, criteria, structure } = finalizeTransferVerdict({
+    rawCriteria: obj.criteria || {},
+    rawStructure: obj.structure || {},
+    llmVerdict: obj.verdict,
+    torn: obj.torn === true,
+    hasSummary,
+  });
+  return {
+    verdict,
+    criteria,
+    structure,
     parse_error: false,
     error_class: errorClass(obj.error_class),
     misconceptions: asList(obj.misconceptions),
