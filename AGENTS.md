@@ -78,7 +78,7 @@ Read it before changing enforcement semantics.
 
 ## Test
 
-`node --test 'core/*.test.mjs' 'hooks/*.test.mjs' 'bin/*.test.mjs' 'adapters/*.test.mjs'` — pure Node
+`node --test 'core/*.test.mjs' 'hooks/*.test.mjs' 'bin/*.test.mjs' 'adapters/*.test.mjs'` (plus `node --test oracle/oracle.test.mjs`; `bb test` for the Babashka port, see `PORTING.md`) — pure Node
 test runner, no deps. The tier × category matrix, tamper / scope / fail-closed
 paths, the grader pre-filter / gold set / `nd audit` gate, the Phase 3
 fence / narration-format / Agent-ask / bashEditDiff paths, the Phase 4

@@ -1,0 +1,11 @@
+{
+  "module": "rubric",
+  "js": {"file": "core/rubric.mjs", "fn": "mentalPass"},
+  "bb": {"ns": "no-deceit.rubric", "fn": "mental-pass"},
+  "cases": [
+    {"name": "all pass", "args": [{"R1": true, "R2": true, "R3": true, "R4": true}], "expect": true},
+    {"name": "empty fails", "args": [{}], "expect": false},
+    {"name": "R1+R3 alone fails", "args": [{"R1": true, "R3": true}], "expect": false},
+    {"name": "R1+R3+R4 passes", "args": [{"R1": true, "R3": true, "R4": true}], "expect": true}
+  ]
+}
