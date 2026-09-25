@@ -68,8 +68,8 @@ which drives the real hook shim and CLI as subprocesses with piped payloads:
 
 ```bash
 git clone <this repo> ~/.claude/skills/no-deceit   # loads as no-deceit@skills-dir
-cd <a project> && nd init                           # opt in
-# In a Claude Code session there, ask it to write a source file at Tier 1:
-#   it should be denied with the Socratic reason, and no file should appear.
+cd <a project> && nd init                           # opt in (Tier 2, locked)
+# In a Claude Code session there, ask it to write a source file:
+#   it should be denied with the locked-Tier-2 reason, and no file should appear.
 nd ledger 10                                         # the denial is recorded
 ```
