@@ -143,8 +143,7 @@ export function bootstrap({ home, userHome = homedir(), env, only = [], dryRun =
   if (found.length) blockers.push(`No Deceit is already installed as a marketplace plugin (${found.join(', ')}). Uninstall it:  claude plugin uninstall no-deceit`);
   const a = linkAction(claudeTarget, claudeLink);
   if (a.kind === 'conflict') {
-    let isHome = false;
-    try { isHome = realpathSync(claudeLink) === realpathSync(home); } catch { /* dangling */ }
+    const isHome = !lstatSync(claudeLink).isSymbolicLink() && realpathSync(claudeLink) === realpathSync(home);
     blockers.push(isHome
       ? `this home is ${claudeLink}, inside the skills dir Claude Code scans. Move the checkout out, then run bootstrap from its new location:  mv ${claudeLink} ${join(userHome, 'no-deceit')} && ${join(userHome, 'no-deceit', 'bin', 'nd')} bootstrap`
       : `${claudeLink} ${a.note.split(';')[0]} (an older install). Move it out of the skills dir:  mv ${claudeLink} ${join(userHome, 'no-deceit.old')}`);

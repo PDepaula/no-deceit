@@ -227,6 +227,23 @@ test('bootstrap run from a home inside the skills dir says to move the checkout 
   } finally { s.cleanup(); }
 });
 
+test('bootstrap treats a skills-dir symlink to the home root as an older link to move out, not as the checkout', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home);
+    const userHome = fakeUser(s.dir);
+    const link = join(userHome, '.claude', 'skills', 'no-deceit');
+    mkdirSync(join(userHome, '.claude', 'skills'), { recursive: true });
+    symlinkSync(home, link);
+    let msg = '';
+    try { bootstrap({ home, userHome, env: { ND_HOME: '', HOME: userHome } }); } catch (e) { msg = e.message; }
+    assert.match(msg, new RegExp(`nothing changed[\\s\\S]*already a symlink to ${home}[\\s\\S]*mv ${link} ${join(userHome, 'no-deceit.old')}\n`));
+    assert.doesNotMatch(msg, /inside the skills dir/);
+    assert.equal(readlinkSync(link), home);
+    assert.ok(!existsSync(join(home, '.nd-home')));
+  } finally { s.cleanup(); }
+});
+
 test('bootstrap copies (not moves) a pre-home XDG ledger once', () => {
   const s = scratch();
   try {
