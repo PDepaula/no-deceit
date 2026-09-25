@@ -3,6 +3,20 @@
 All notable changes to this plugin are recorded here. Format is loosely
 based on [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased
+
+- **Fixed:** the blind unlock grader is no longer spawned with
+  `claude -p --bare`. `--bare` never reads OAuth credentials, so on a machine
+  whose only login is a Claude subscription the child printed "Not logged
+  in" and no verdict was produced. The grader now works with subscription
+  login or `ANTHROPIC_API_KEY`, and stays isolated by other means: read-only
+  tools, no inherited settings, an empty scratch cwd, and `ND_GRADER_CHILD`
+  (see `core/grader-job.mjs`).
+- **Added:** opt-in `nd doctor --grader-probe` runs a minimal grader child
+  and reports whether it can log in. Plain `nd doctor` makes no model call.
+- **Changed:** `ND_GRADER_CHILD` is honoured as a worker marker, so the
+  gate treats the grader child as a pass-through session.
+
 ## [0.7.1] — Fix strict-YAML frontmatter parse failure on Pi
 
 Frontmatter-quoting fix only — no skill prose, enforcement logic, or adapter
