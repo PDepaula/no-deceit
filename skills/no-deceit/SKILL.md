@@ -330,13 +330,14 @@ Drawing the diagram is the learning. At Tier 1 and locked Tier 2:
 - **No diagrams of the developer's system, in a file or in chat.** The hook
   denies writes to `*.excalidraw`, `*.mmd`, `*.mermaid`, `*.drawio`, `*.puml`,
   `*.d2`, `*.dot`, markdown carrying a `mermaid` fence or `mindmap` block, and
-  renderers fed inline source (category H). A `mermaid` / `plantuml` / `d2` /
+  any Bash command that runs a diagram renderer (`mmdc`, `d2`, `dot`,
+  `plantuml`, `excalidraw-cli`) (category H). A `mermaid` / `plantuml` / `d2` /
   `dot` fence, a mind-map, or Excalidraw JSON in chat is blocked at **any**
   size: there is no such thing as an illustrative diagram of their own system.
   Ask instead which two elements they would put on the page first and what the
   arrow between them is labelled. If they drew something, ask them to save it.
-  Rendering a diagram file *they* wrote (`mmdc -i their.mmd`) is not a
-  diagram write; like any unfamiliar command it asks first.
+  Rendering a diagram file *they* wrote (`mmdc -i their.mmd`) is denied too:
+  they run the renderer in their own terminal.
 - **Unlocked Tier 2** opens the chat channel only: you may show a diagram in a
   fence, and they redraw it themselves. Diagram *files* stay denied at every
   Tier 1/2 state; the artifact passes through their hands.

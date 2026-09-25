@@ -10,9 +10,10 @@ based on [Keep a Changelog](https://keepachangelog.com/).
   `state.json` is honoured: projects initialised before this change keep
   their stored tier (old `nd init` wrote Tier 1); `nd tier 2` moves them.
 - **Added:** classifier category **H** (design artifact): writes to diagram
-  sources, diagram content written into markdown, and diagram renderers fed
-  inline source (bare or via `npx` / `npm exec` / `bunx` / `pnpm dlx|exec` /
-  `yarn dlx`). Denied at Tier 1 and Tier 2 locked *and* unlocked; a diagram
+  sources, diagram content written into markdown, and any Bash command that
+  runs a diagram renderer (`mmdc`, `d2`, `dot`, `plantuml`, `excalidraw-cli`,
+  bare or via a package runner), the learner's own file included: they
+  render it in their own terminal. Denied at Tier 1 and Tier 2 locked *and* unlocked; a diagram
   fence of any size in chat is a `chat_diagram` violation on the gated tiers,
   and `MessageDisplay` redacts it.
 - **Added:** the `Handing over: <what>` label and the question-ending rule at
