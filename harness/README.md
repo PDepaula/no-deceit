@@ -20,6 +20,15 @@ other three, the `/no-deceit:` prompt commands still work where the harness
 delivers prompts, the ledger still records, and the diagram-file deny is a hard
 block everywhere because it is a PreToolUse decision.
 
+**Installed Pi or OpenCode the package way?** Remove that install before
+`nd bootstrap`, or the harness loads two copies that keep separate state
+(bootstrap does not inspect the package stores):
+
+- Pi: `pi remove git:github.com/PDepaula/no-deceit@<tag>` (the source exactly as
+  `pi list` shows it; `-l` for a project-local install).
+- OpenCode: delete `"no-deceit"` from the `plugin` array in
+  `~/.config/opencode/opencode.json` (or `.opencode/opencode.json`).
+
 `nd --cursor` stays as the Cursor transport for one more release (a shim while
 the transport moves under `harness/cursor/`). The repo-root manifests
 (`.claude-plugin/`, `.cursor-plugin/`, `package.json`'s `pi` key) exist so the

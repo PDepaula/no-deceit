@@ -171,9 +171,21 @@ pointing somewhere else (an older clone), bootstrap stops with nothing changed,
 whichever harness flags you pass: both copies would fire the hooks on every
 call and keep separate state. Run the step it prints (`claude plugin uninstall
 no-deceit`, or `mv ~/.claude/skills/no-deceit ~/no-deceit.old`, out of the
-directory Claude Code scans), then `nd bootstrap` again.
-An npm/OpenCode install (`opencode plugin no-deceit`) is deprecated: remove
-that entry from your OpenCode config and use `nd bootstrap --opencode`.
+directory Claude Code scans), then `nd bootstrap` again. The same holds for
+any harness link bootstrap would create: if `~/.config/opencode/plugins/no-deceit.ts`
+or `~/.pi/agent/extensions/no-deceit.ts` already points elsewhere, or
+`~/.cursor/hooks.json` is not valid JSON, bootstrap stops and prints the step.
+
+Bootstrap does not look inside Pi's or OpenCode's own package stores, so remove
+a package install yourself **before** running `nd bootstrap`, or both copies
+load:
+
+- Pi (`pi install git:github.com/PDepaula/no-deceit@<tag>`): `pi list` shows the
+  exact source; remove it with `pi remove git:github.com/PDepaula/no-deceit@<tag>`
+  (add `-l` if you installed it project-local).
+- OpenCode (`opencode plugin no-deceit`, deprecated npm route): delete
+  `"no-deceit"` from the `plugin` array in `~/.config/opencode/opencode.json`
+  (or the project's `.opencode/opencode.json`), then use `nd bootstrap --opencode`.
 
 **Marketplace, Pi and Cursor package routes still work** for people who just
 want the gate without a home: `claude plugin marketplace add PDepaula/no-deceit`,
