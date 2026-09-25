@@ -141,6 +141,14 @@ ordinary directory names in any repo, and matching `../../config` would deny
 commands like `npx tsc -p ../../config/tsconfig.base.json` as tamper. A
 deliberately disguised path is an accepted gap, per the enforcement ruling.
 
+### Known issue: inherited developer memory (open)
+
+Claude Code loads `CLAUDE.md` from every ancestor of the session's cwd, so a
+session in `<home>/projects/<app>` also loads the home's own `CLAUDE.md` /
+`AGENTS.md`: No Deceit's developer memory, meant for work on this repo, not on
+the governed project. OpenCode stops its `AGENTS.md` walk at the project's git
+root and is not affected. A fix is pending a design decision.
+
 ## To do a live end-to-end check by hand
 
 ```bash

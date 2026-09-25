@@ -197,6 +197,11 @@ against (the existing `projects.edn` or `projects.json` in the data home, which
 honors `ND_DATA_DIR`; else a new `data/projects.edn`), and opts it in (`nd init`, Tier 2). Projects keep
 their own remotes; No Deceit does not touch delivery.
 
+**Known issue:** Claude Code reads `CLAUDE.md` from every parent directory, so a
+session in `<home>/projects/<app>` also loads this home's own `CLAUDE.md` /
+`AGENTS.md` (No Deceit's developer memory, not instructions for your project).
+A fix is pending a design decision.
+
 ```bash
 nd update    # fetch, fast-forward only, print the release notes since your last update
 ```
