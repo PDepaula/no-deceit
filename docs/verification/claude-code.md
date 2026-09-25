@@ -22,8 +22,8 @@ lexically, so it breaks when the root is the symlink path.
 
 - **Verified (offline):** `node <symlink>/hooks/run.mjs SessionStart` runs the
   real shim through the symlink; `harness/packaging.test.mjs` guards the
-  manifest, the hook-event parity with the root `hooks/hooks.json`, and the
-  symlinks.
+  manifest, that `hooks/hooks.json` matches the root one (events, matchers,
+  timeouts) except for the `run.mjs` forwarder path, and the symlinks.
 - **Not live-verified in Claude Code:** that a *symlinked* skills-dir plugin
   loads its hooks and resolves `${CLAUDE_PLUGIN_ROOT}` (redesign report §5.4,
   Phase 0 spike). If it does not, the fallback is a `~/.claude/settings.json`
