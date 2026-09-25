@@ -95,24 +95,9 @@ The adapter is verified by `node --test` with OpenCode **not** required:
 
 ## Install (attended session; no firstmate required)
 
-Once published to npm (a captain step — see the README's install matrix and
-the main `README.md` "Publish" note):
-
-```bash
-opencode plugin no-deceit
-cd <a project> && nd init
-```
-
-Fallback (manual, no npm publish involved) — clone stays a full tree so
-relative imports resolve:
-
-```bash
-git clone https://github.com/PDepaula/no-deceit ~/.claude/skills/no-deceit
-# Point OpenCode at the plugin file inside that clone, e.g. in opencode.json:
-#   { "plugin": ["~/.claude/skills/no-deceit/harness/opencode/no-deceit.ts"] }
-# or symlink that file into ~/.config/opencode/plugins/ (do not copy it).
-cd <a project> && nd init
-```
+The README's "Install: a home repo, not a package" section owns the install
+steps (`nd bootstrap --opencode`; the npm `opencode plugin no-deceit` route is
+deprecated, see "Home-repo install" above).
 
 OpenCode already reads `~/.claude/skills`, so the teaching `SKILL.md` loads
-without a wrapper either way.
+without a wrapper.

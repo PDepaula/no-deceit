@@ -16,7 +16,7 @@ re-prove settled primitives.
 The Pi manifest now points at `./harness/pi/no-deceit.ts` (`package.json` is
 private; no `main`/`files`), and `nd bootstrap --pi` symlinks
 `~/.pi/agent/extensions/no-deceit.ts` to it — the same symlink shape as the
-manual fallback below, whose live run used `pi -e`. `harness/packaging.test.mjs`
+retired manual fallback (a clone plus a symlink); the live run below used `pi -e`. `harness/packaging.test.mjs`
 checks the manifest paths resolve. The relocated path and the bootstrap-made
 symlink were not re-run against a live Pi.
 
@@ -88,27 +88,12 @@ instead of silently breaking `pi install`.
 
 ## Install (attended session; no firstmate required)
 
-```bash
-pi install git:github.com/PDepaula/no-deceit@<tag>
-cd <a project> && nd init
-```
-
-This registers the package (extension + skill) in Pi's settings — see
+The README's "Install: a home repo, not a package" section owns the install
+steps (`nd bootstrap --pi`, or the package route
+`pi install git:github.com/PDepaula/no-deceit@<tag>`). See
 [Pi Packages](https://pi.dev/docs) for `-l` (project-local) vs. user-level
-install and how to pin a ref. It also makes the plugin discoverable in the
-[package gallery](https://pi.dev/packages) via the `pi-package` keyword,
-once published there (a captain step — this task does not submit it).
-
-Fallback (manual symlink, no package manifest involved): keep a full clone
-so relative imports resolve, then symlink the extension in — do not copy the
-`.ts` file out of the clone, `../run.mjs` must resolve next to it:
-
-```bash
-git clone https://github.com/PDepaula/no-deceit ~/.claude/skills/no-deceit
-ln -s ~/.claude/skills/no-deceit/harness/pi/no-deceit.ts ~/.pi/agent/extensions/no-deceit.ts
-# or project-local: .pi/extensions/no-deceit.ts → same target (after project trust)
-cd <a project> && nd init
-```
+install and how to pin a ref. Gallery discoverability via the `pi-package`
+keyword needs a gallery submission (a captain step).
 
 Pi reads Agent Skills natively, so the teaching layer needs no wrapper
 either way.
