@@ -49,6 +49,21 @@ export function parseCheckArgs(input) {
   return out;
 }
 
+/** `nd evidence add <topic> <path> [--project p]`: flags in any position, the rest positional. */
+export function parseEvidenceArgs(input) {
+  const tokens = tokenize(input);
+  const positional = [];
+  let project = null;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t === '--project') project = tokens[++i] ?? null;
+    else if (t.startsWith('--project=')) project = t.slice('--project='.length) || null;
+    else positional.push(t);
+  }
+  const [action = null, topic = null, filePath = null] = positional;
+  return { action, topic, filePath, project };
+}
+
 /** `nd grade` / `/no-deceit:grade`: [topic]. The project is the one the evidence names. */
 export function parseGradeArgs(input) {
   return { topic: tokenize(input).find((t) => !t.startsWith('-')) ?? null };

@@ -14,7 +14,7 @@
 import { gitToplevel, dataPaths, homePaths, projectPaths, isGoverned, readLedger, readAllLedger, loadConfig, readProjectState } from '../core/state.mjs';
 import { setTier, setMode, renderStatus, renderStatusShort } from '../core/control.mjs';
 import { parseReportArgs, summarizeLedger, formatReport } from '../core/report.mjs';
-import { parseUnlockArgs, parseCheckArgs, parseGradeArgs } from '../core/unlock-args.mjs';
+import { parseUnlockArgs, parseCheckArgs, parseGradeArgs, parseEvidenceArgs } from '../core/unlock-args.mjs';
 import { runUnlock, runCheck, runGrade, runAudit, probeGraderAuth } from '../core/grader.mjs';
 import { addEvidenceFile } from '../core/evidence-io.mjs';
 import { ITEMS } from '../gold/unlock-gold.mjs';
@@ -137,11 +137,10 @@ switch (sub) {
 
   case 'evidence': {
     guardAgentShell('evidence');
-    const [action, topic, file, ...flags] = rest;
+    const { action, topic, filePath, project } = parseEvidenceArgs(rest);
     if (action !== 'add') die('usage: nd evidence add <topic> <path> [--project <p>]');
-    const pi = flags.indexOf('--project');
     try {
-      const r = addEvidenceFile({ env, sessionId, topic, filePath: file, project: pi >= 0 ? flags[pi + 1] ?? null : null });
+      const r = addEvidenceFile({ env, sessionId, topic, filePath, project });
       say(`Captured ${r.kind} for ${topic}: ${r.path} (${r.words} words, sha256 ${r.sha256.slice(0, 12)}…). \`nd grade ${topic}\` when ready.`);
     } catch (e) { die(`No Deceit: ${e.message}`); }
     break;

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCommand } from './control.mjs';
-import { parseGradeArgs, parseCheckArgs } from './unlock-args.mjs';
+import { parseGradeArgs, parseCheckArgs, parseEvidenceArgs } from './unlock-args.mjs';
 import {
   parseTeachArgs, isSlug, validateExcalidraw, detectDiagrams, evidenceKindForFile, evidenceStamp,
   evidenceFileName, manifestProjectPath, renderTeachFile, parseFrontmatter, summaryPathFor, looksLikeMindmapText, countWords,
@@ -81,9 +81,15 @@ test('manifestProjectPath reads a path from projects.edn / projects.json, never 
   assert.equal(manifestProjectPath('- bondly: /p/bondly', '/d/projects.md', 'bondly'), null);
 });
 
-test('parseGradeArgs takes only a topic; parseCheckArgs --project', () => {
+test('parseGradeArgs takes only a topic; parseCheckArgs and parseEvidenceArgs take --project either way', () => {
   assert.deepEqual(parseGradeArgs('etl'), { topic: 'etl' });
   assert.deepEqual(parseGradeArgs(''), { topic: null });
   assert.deepEqual(parseCheckArgs('t1 --project bondly'), { task: 't1', project: 'bondly' });
   assert.deepEqual(parseCheckArgs(''), { task: 'default', project: null });
+  const want = { action: 'add', topic: 'etl', filePath: 'notes.md', project: 'gd' };
+  assert.deepEqual(parseEvidenceArgs(['add', 'etl', 'notes.md', '--project', 'gd']), want);
+  assert.deepEqual(parseEvidenceArgs(['add', 'etl', 'notes.md', '--project=gd']), want);
+  assert.deepEqual(parseEvidenceArgs(['add', '--project', 'gd', 'etl', 'notes.md']), want);
+  assert.deepEqual(parseEvidenceArgs(['add', 'etl', '--project=gd', 'notes.md']), want);
+  assert.deepEqual(parseEvidenceArgs(['add', 'etl', 'notes.md']), { ...want, project: null });
 });

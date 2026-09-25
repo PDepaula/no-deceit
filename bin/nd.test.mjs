@@ -282,7 +282,7 @@ test('nd evidence add copies a diagram into the data home, then nd grade grades 
     run(['init'], env, s.dir);
     const note = join(s.dir, 'notes.md');
     writeFileSync(note, TEACH);
-    const added = run(['evidence', 'add', 'etl', note, '--project', 'gd-integrations'], env, s.dir);
+    const added = run(['evidence', 'add', '--project=gd-integrations', 'etl', note], env, s.dir);
     assert.match(added.out, /Captured pasted-text for etl/);
     assert.ok(existsSync(join(s.dir, 'share', 'no-deceit', 'evidence', 'etl')));
     const bad = join(s.dir, 'bad.excalidraw');
