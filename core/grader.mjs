@@ -115,14 +115,14 @@ export async function probeGraderAuth({ env = process.env, spawnImpl, model, tim
     probe: true,
   });
   try {
-    await executeSpawnPlan(plan, { env, spawnImpl });
-    return { ok: true, message: 'grader can authenticate (minimal child answered)' };
+    const out = String(await executeSpawnPlan(plan, { env, spawnImpl })).trim();
+    if (/^ok\b/i.test(out)) {
+      return { ok: true, message: 'grader can authenticate (minimal child answered)' };
+    }
+    return { ok: false, code: 'GRADER_FAILURE', message: `grader probe failed: the child answered "${out.split('\n')[0]}" instead of ok` };
   } catch (e) {
     if (e && e.code === 'GRADER_AUTH') {
       return { ok: false, code: 'GRADER_AUTH', message: 'grader cannot authenticate: the child printed "Not logged in". Run `claude /login` (or set ANTHROPIC_API_KEY); until then every unlock rounds down.' };
-    }
-    if (e && e.code === 'ENOENT') {
-      return { ok: false, code: 'GRADER_FAILURE', message: 'grader cannot run: `claude` not found on PATH' };
     }
     return { ok: false, code: (e && e.code) || 'GRADER_FAILURE', message: `grader probe failed: ${(e && e.message) || e}` };
   }

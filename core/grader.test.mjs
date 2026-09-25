@@ -565,3 +565,9 @@ test('probeGraderAuth is ok when the minimal child answers', async () => {
   const r = await probeGraderAuth({ spawnImpl: fakeChildSpawn({ stdout: 'ok', capture: {} }) });
   assert.equal(r.ok, true);
 });
+
+test('probeGraderAuth is not ok when the child prints another auth error and exits non-zero', async () => {
+  const r = await probeGraderAuth({ spawnImpl: fakeChildSpawn({ stdout: 'Invalid API key · Please run /login', code: 1, capture: {} }) });
+  assert.equal(r.ok, false);
+  assert.match(r.message, /Invalid API key/);
+});

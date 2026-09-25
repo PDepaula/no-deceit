@@ -243,3 +243,13 @@ test('nd doctor --grader-probe is ok when the grader child answers', () => {
     assert.match(r.out, /grader login: ok/);
   } finally { s.cleanup(); }
 });
+
+test('nd doctor --grader-probe fails on an invalid API key notice', () => {
+  const s = scratch();
+  try {
+    const bin = fakeClaude(s.dir, "echo 'Invalid API key · Please run /login'; exit 1");
+    const env = { ...s.env, PATH: `${bin}:${s.env.PATH}` };
+    const r = run(['doctor', '--grader-probe'], env, s.dir);
+    assert.match(r.out, /grader login: FAIL — grader probe failed: .*Invalid API key/);
+  } finally { s.cleanup(); }
+});
