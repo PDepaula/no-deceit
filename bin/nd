@@ -15,7 +15,7 @@ import { gitToplevel, homePaths, projectPaths, isGoverned, readLedger, readAllLe
 import { setTier, setMode, renderStatus, renderStatusShort } from '../core/control.mjs';
 import { parseReportArgs, summarizeLedger, formatReport } from '../core/report.mjs';
 import { parseUnlockArgs, parseCheckArgs } from '../core/unlock-args.mjs';
-import { runUnlock, runCheck, runAudit } from '../core/grader.mjs';
+import { runUnlock, runCheck, runAudit, probeGraderAuth } from '../core/grader.mjs';
 import { ITEMS } from '../gold/unlock-gold.mjs';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 
@@ -86,7 +86,8 @@ switch (sub) {
   nd report [--since <when>] [--until <when>]
                                   weekly-style ledger summary (default window: 7 days;
                                   --since/--until: ISO date or relative 7d/24h/30m/1w)
-  nd doctor                       report paths and run the armed self-check
+  nd doctor [--grader-probe]      report paths and run the armed self-check;
+                                  --grader-probe also runs a minimal grader login check
   nd --cursor                     Cursor preToolUse transport (stdin JSON → stdout decision)`);
     break;
 
@@ -203,6 +204,12 @@ switch (sub) {
       say(`  gate armed:  ${r.decision === 'deny' ? 'yes (Tier 1 source write is denied)' : 'NO — gate not blocking!'}`);
     } catch (e) {
       say(`  gate armed:  NO — ${e.message}`);
+    }
+    if (rest.includes('--grader-probe')) {
+      const probe = await probeGraderAuth({ env, model: cfg.graderModel });
+      say(`  grader login: ${probe.ok ? 'ok — ' : 'FAIL — '}${probe.message}`);
+    } else {
+      say('  grader login: not checked (run nd doctor --grader-probe)');
     }
     break;
   }

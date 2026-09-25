@@ -70,40 +70,56 @@ export function defaultGraderModel() {
 }
 
 /**
- * Fresh-process spawn plan. The child is `claude -p --bare` so it does not
- * inherit the tutor session, skills, or hooks. argv/stdin/env mention only
- * the job file path and the grader agent file.
+ * Fresh-process spawn plan. The child is a plain `claude -p` — NOT `--bare`,
+ * which never reads OAuth credentials and so cannot authenticate on a
+ * subscription-only machine. Blindness comes from isolation instead: a
+ * read-only tool list, no setting sources (so no user/project settings, hooks,
+ * plugins, or CLAUDE.md), no MCP servers, no skills/slash commands, no session
+ * persistence, no auto-memory, a scratch cwd (`scratchCwd`: the shell creates
+ * an empty temp dir), and `ND_GRADER_CHILD=1`, which the hook scope guard
+ * treats as a pass-through marker. argv/stdin/env mention only the job file
+ * path and the grader agent file.
  */
 export function graderSpawnPlan({
   pluginRoot,
   model = defaultGraderModel(),
   jobPath,
   timeoutMs = 120_000,
+  probe = false,
 } = {}) {
   const agent = join(pluginRoot, 'agents', 'nd-grader.md');
-  const prompt =
+  const prompt = probe ? 'Reply with the single word: ok' : (
     `Read the JSON job file at ${jobPath}. ` +
     `Read only the file paths named in that job (evidencePath, rubricPath, answerPath). ` +
     `Grade against the rubric in the job. Print one JSON object and nothing else. ` +
-    `Do not read any other files.`;
+    `Do not read any other files.`);
   return {
     command: 'claude',
     args: [
       '-p',
-      '--bare',
       '--model', model,
       '--no-session-persistence',
       '--output-format', 'text',
       '--max-turns', '4',
+      '--tools', 'Read',
       '--allowedTools', 'Read',
+      '--setting-sources', '',
+      '--strict-mcp-config',
+      '--disable-slash-commands',
       '--dangerously-skip-permissions',
       '--system-prompt-file', agent,
       prompt,
     ],
     stdin: null,
     timeoutMs,
-    envExtra: { ND_GRADER_CHILD: '1' },
+    scratchCwd: true,
+    envExtra: { ND_GRADER_CHILD: '1', CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' },
     jobPath,
     agentPath: agent,
   };
+}
+
+/** True when the child's output is the not-authenticated notice, not a verdict. */
+export function isGraderAuthFailure(text) {
+  return /^not logged in\b/i.test(String(text || '').trim());
 }

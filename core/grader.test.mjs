@@ -13,7 +13,10 @@ import {
   runCheck,
   runAudit,
   withTimeout,
+  executeSpawnPlan,
+  probeGraderAuth,
 } from './grader.mjs';
+import { graderSpawnPlan } from './grader-job.mjs';
 import { parseUnlockArgs } from './unlock-args.mjs';
 import { scoreRun, aggregateRuns } from './audit.mjs';
 
@@ -497,4 +500,74 @@ test('scoreRun treats an inflated fail-case as graded_up', () => {
     { 'fluent-empty-01': { verdict: 'unlocked' } },
   );
   assert.equal(s.graded_up, 1);
+});
+
+function fakeChildSpawn({ stdout = '', stderr = '', code = 0, capture }) {
+  return (command, args, opts) => {
+    capture.command = command; capture.args = args; capture.opts = opts;
+    capture.cwdExisted = opts.cwd ? existsSync(opts.cwd) : null;
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.kill = () => {};
+    setImmediate(() => {
+      if (stdout) child.stdout.emit('data', stdout);
+      if (stderr) child.stderr.emit('data', stderr);
+      child.emit('close', code);
+    });
+    return child;
+  };
+}
+
+test('executeSpawnPlan runs the grader in an empty scratch cwd with the child marker and cleans up', async () => {
+  const capture = {};
+  const plan = graderSpawnPlan({ pluginRoot: '/plugin', jobPath: '/tmp/j.json' });
+  const out = await executeSpawnPlan(plan, {
+    env: { PATH: '/bin', ANTHROPIC_API_KEY: 'k' },
+    spawnImpl: fakeChildSpawn({ stdout: '{"verdict":"not_yet"}', capture }),
+  });
+  assert.equal(out, '{"verdict":"not_yet"}');
+  assert.equal(capture.command, 'claude');
+  assert.equal(capture.args.includes('--bare'), false);
+  assert.ok(capture.opts.cwd.startsWith(tmpdir()), 'cwd is a scratch dir');
+  assert.equal(capture.cwdExisted, true);
+  assert.equal(existsSync(capture.opts.cwd), false, 'scratch cwd removed after the run');
+  assert.equal(capture.opts.env.ND_GRADER_CHILD, '1');
+  assert.equal(capture.opts.env.PATH, '/bin');
+});
+
+test('executeSpawnPlan turns "Not logged in" into a GRADER_AUTH failure, not a verdict', async () => {
+  const capture = {};
+  const plan = graderSpawnPlan({ pluginRoot: '/plugin', jobPath: '/tmp/j.json' });
+  await assert.rejects(
+    executeSpawnPlan(plan, { spawnImpl: fakeChildSpawn({ stdout: 'Not logged in · Please run /login', code: 1, capture }) }),
+    (e) => e.code === 'GRADER_AUTH' && /cannot authenticate/.test(e.message),
+  );
+});
+
+test('executeSpawnPlan keeps a verdict whose quoted evidence says "not logged in"', async () => {
+  const verdict = '{"verdict":"unlocked","criteria":{"R1":{"met":true,"span":"a user who is not logged in gets a 401; please run /login first"}}}';
+  const plan = graderSpawnPlan({ pluginRoot: '/plugin', jobPath: '/tmp/j.json' });
+  const out = await executeSpawnPlan(plan, { spawnImpl: fakeChildSpawn({ stdout: verdict, capture: {} }) });
+  assert.equal(out, verdict);
+});
+
+test('probeGraderAuth reports "grader cannot authenticate" on Not logged in', async () => {
+  const capture = {};
+  const r = await probeGraderAuth({ spawnImpl: fakeChildSpawn({ stdout: 'Not logged in · Please run /login', code: 1, capture }) });
+  assert.equal(r.ok, false);
+  assert.match(r.message, /grader cannot authenticate/);
+  assert.equal(capture.args.includes('--bare'), false);
+  assert.equal(capture.opts.env.ND_GRADER_CHILD, '1');
+});
+
+test('probeGraderAuth is ok when the minimal child answers', async () => {
+  const r = await probeGraderAuth({ spawnImpl: fakeChildSpawn({ stdout: 'ok', capture: {} }) });
+  assert.equal(r.ok, true);
+});
+
+test('probeGraderAuth is not ok when the child prints another auth error and exits non-zero', async () => {
+  const r = await probeGraderAuth({ spawnImpl: fakeChildSpawn({ stdout: 'Invalid API key · Please run /login', code: 1, capture: {} }) });
+  assert.equal(r.ok, false);
+  assert.match(r.message, /Invalid API key/);
 });

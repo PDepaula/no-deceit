@@ -9,9 +9,10 @@
 // from the model's Bash calls, so the agent cannot forge an exemption.
 
 // Environment markers that mark a non-attended (worker/headless) session.
+// ND_GRADER_CHILD marks the blind grader child (core/grader-job.mjs).
 // CLAUDECODE is deliberately NOT here: an attended developer session sets it
 // too, so exempting on it would disable the gate for everyone.
-export const WORKER_MARKERS = ['FM_TASK_ID', 'ND_EXEMPT', 'ND_WORKER', 'ND_HEADLESS'];
+export const WORKER_MARKERS = ['FM_TASK_ID', 'ND_EXEMPT', 'ND_WORKER', 'ND_HEADLESS', 'ND_GRADER_CHILD'];
 
 /**
  * scopeDecision({ hasNoDeceitDir, env, workerMarkers? }) -> { inScope, reason }

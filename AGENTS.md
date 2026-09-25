@@ -42,7 +42,10 @@ Read it before changing enforcement semantics.
   audit|ledger|report|doctor`) plus Cursor's `nd --cursor` transport;
   auto-added to PATH by the Claude plugin. `nd report` is read-only.
 - `agents/nd-grader.md` — the blind grader agent; spawned only by the hook or
-  `nd`, never by the tutor. Model is `graderModel` (default `haiku`).
+  `nd`, never by the tutor. Never spawn it with `claude --bare` (skips OAuth →
+  "Not logged in"); blindness is flag/cwd/env isolation in
+  `core/grader-job.mjs`, and `nd doctor --grader-probe` checks the child can
+  log in. Model is `graderModel` (default `haiku`).
 - `gold/unlock-gold.mjs` — adversarial gold set; `nd audit` release gate is
   `graded_up = 0` before accepting a grader-prompt change.
 - `skills/no-deceit/SKILL.md` — the teaching layer.

@@ -50,6 +50,15 @@ test('PreToolUse in a worker session (FM_TASK_ID) is a pass-through (no output)'
   } finally { s.cleanup(); }
 });
 
+test('PreToolUse in the blind grader child (ND_GRADER_CHILD=1) is a pass-through', () => {
+  const s = scratch();
+  try {
+    const env = { ...s.env, ND_GRADER_CHILD: '1' };
+    const out = runHook('PreToolUse', { session_id: 's', cwd: s.repo, tool_name: 'Write', tool_input: { file_path: join(s.repo, 'src/x.mjs') } }, env);
+    assert.equal(out, null, 'the grader child must never be gated by No Deceit hooks');
+  } finally { s.cleanup(); }
+});
+
 test('UserPromptSubmit /no-deceit:tier 2 is handled in-hook, blocks the prompt, and changes state', () => {
   const s = scratch();
   try {

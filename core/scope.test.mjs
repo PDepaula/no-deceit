@@ -34,3 +34,8 @@ test('a plain CLAUDECODE session (no worker marker) is still in scope', () => {
   const r = scopeDecision({ hasNoDeceitDir: true, env: { CLAUDECODE: '1' } });
   assert.equal(r.inScope, true);
 });
+
+test('the blind grader child (ND_GRADER_CHILD) is exempt', () => {
+  const r = scopeDecision({ hasNoDeceitDir: true, env: { ND_GRADER_CHILD: '1' } });
+  assert.equal(r.inScope, false);
+});
