@@ -80,7 +80,7 @@ test('plain Tier 1 checks the stored topic: refused without its curriculum, allo
   const s = scratch();
   try {
     setTier({ repoRoot: s.repo, env: s.env, tier: 2, topic: 'foo' });
-    assert.throws(() => setTier({ repoRoot: s.repo, env: s.env, tier: 1 }), /Tier 1 for "foo" needs a curriculum/);
+    assert.throws(() => setTier({ repoRoot: s.repo, env: s.env, tier: 1 }), /Tier 1 for "foo" needs a curriculum[\s\S]*nd tier 1 --no-topic/);
     assert.deepEqual([readProjectState(s.repo, s.env).tier, readProjectState(s.repo, s.env).topic], [2, 'foo']);
     setTier({ repoRoot: s.repo, env: s.env, tier: 3 });
     assert.throws(() => setTier({ repoRoot: s.repo, env: s.env, tier: 1 }), /Tier 1 for "foo" needs a curriculum/);
@@ -139,8 +139,6 @@ test('resolveEffective: with a topic, the unlock is per topic; without one, proj
   const other = resolveEffective({ project: { ...project, topic: 'caching' } });
   assert.equal(other.t2Unlocked, false, 'a pass for etl does not open caching');
   assert.equal(other.topic, 'caching');
-  assert.equal(resolveEffective({ project: { tier: 2, unlocked: false, unlockedTopics: [], topic: 'etl' }, session: { unlockedTopics: ['etl'] } }).t2Unlocked, true);
-  assert.equal(resolveEffective({ project: { ...project, topic: 'a' }, session: { topic: 'etl' } }).t2Unlocked, true, 'the session topic wins');
 });
 
 test('the gate reads the topic: the same project is locked for another topic, unlocked for a passed one', () => {
@@ -154,7 +152,7 @@ test('the gate reads the topic: the same project is locked for another topic, un
   } finally { s.cleanup(); }
 });
 
-test('an override in a topic session unlocks that topic', () => {
+test('an override with an active topic unlocks that topic', () => {
   const s = scratch();
   try {
     setTier({ repoRoot: s.repo, env: s.env, tier: 2, topic: 'caching' });

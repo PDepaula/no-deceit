@@ -53,14 +53,19 @@ export function parseTierArgs(input) {
   return { tier, topic, clearTopic, error: problem };
 }
 
-/** The refusal `nd tier 1 --topic <t>` gives, naming both ways to get a curriculum. */
-export function tier1Refusal(topic, missing) {
+/**
+ * The refusal `nd tier 1 --topic <t>` gives, naming both ways to get a curriculum.
+ * `stored`: the topic came from project state, not this call, so `--no-topic` is
+ * also offered as the way to the plain code tutor.
+ */
+export function tier1Refusal(topic, missing, { stored = false } = {}) {
   return (
     `Tier 1 for "${topic}" needs a curriculum, and ${missing.join('; ')}. ` +
     `Two ways to get one: (1) \`nd curriculum build ${topic} --goal "<what you must be able to do>" ` +
     `--mission "<why you are learning it>" --from <path|url> [--from ...]\` has the scout draft both files ` +
     `for you to review; (2) write open.md and sealed.md yourself under the curricula/${topic}/ directory of ` +
-    `the data home (format: docs/curriculum-format.md; \`nd doctor\` prints the data home).`
+    `the data home (format: docs/curriculum-format.md; \`nd doctor\` prints the data home).` +
+    (stored ? ` Or \`nd tier 1 --no-topic\` for the plain code tutor with no topic.` : '')
   );
 }
 

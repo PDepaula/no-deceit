@@ -38,8 +38,9 @@ export function parseCommand(promptText) {
 
 /**
  * Set the tier. `topic` (Tier 1 or 2) records the active topic, which makes the
- * Tier 2 unlock apply per topic; Tier 1 with a topic needs a ready curriculum
- * (R2) and otherwise refuses with the two ways to get one. `clearTopic` drops
+ * Tier 2 unlock apply per topic; Tier 1 with a topic in effect (given or
+ * already stored) needs a ready curriculum (R2) and otherwise refuses with the
+ * two ways to get one. `clearTopic` drops
  * the active topic. Neither given: the topic is left as it was.
  */
 export function setTier({ repoRoot, env, sessionId, tier, topic = null, clearTopic = false, nowMs = Date.now() }) {
@@ -51,7 +52,7 @@ export function setTier({ repoRoot, env, sessionId, tier, topic = null, clearTop
   if (n === 1 && nextTopic) {
     const cur = readCurriculum(env, nextTopic);
     const ready = curriculumReady({ ...cur, minChars: loadConfig(env).curriculumMinChars });
-    if (!ready.ok) throw new Error(tier1Refusal(nextTopic, ready.missing));
+    if (!ready.ok) throw new Error(tier1Refusal(nextTopic, ready.missing, { stored: !topic }));
   }
 
   if (n === 3) {

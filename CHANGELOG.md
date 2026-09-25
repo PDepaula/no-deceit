@@ -97,7 +97,7 @@ based on [Keep a Changelog](https://keepachangelog.com/).
   resolved to its governed repo through the `path` in `projects.edn` /
   `projects.json`; if it does not resolve, the pass is recorded and nothing
   unlocks. The unlock stays project-wide (`unlockedTopics` records the topics)
-  until topics become session state in phase 3.
+  until topics arrive in phase 3 (as project state).
 - **Added:** `gold/transfer-gold.jsonl` (27 items, every case type in the
   redesign report §2.2); `nd audit` runs it with the unlock set, and the
   release gate is `graded_up = 0` over both sets.

@@ -280,7 +280,7 @@ function tutorNoteFor(result) {
   );
 }
 
-/** An unlock earned in a topic session also counts for that topic (the unlock is per topic there). */
+/** An unlock earned while a topic is active also counts for that topic (the unlock is per topic there). */
 function withActiveTopic(state) {
   if (!state.topic || state.unlockedTopics.includes(state.topic)) return {};
   return { unlockedTopics: [...state.unlockedTopics, state.topic] };

@@ -41,6 +41,8 @@ test('curriculumReady: both files, non-trivial, mission and a concept', () => {
 });
 
 test('tier1Refusal names both ways to get a curriculum', () => {
+  assert.doesNotMatch(tier1Refusal('etl', ['sealed.md does not exist']), /--no-topic/);
+  assert.match(tier1Refusal('etl', ['sealed.md does not exist'], { stored: true }), /nd tier 1 --no-topic/);
   const m = tier1Refusal('etl', ['sealed.md does not exist']);
   assert.match(m, /nd curriculum build etl/);
   assert.match(m, /write open\.md and sealed\.md yourself/);
