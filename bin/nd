@@ -13,6 +13,8 @@
 
 import { gitToplevel, dataPaths, homePaths, projectPaths, isGoverned, readLedger, readAllLedger, loadConfig, readProjectState } from '../core/state.mjs';
 import { setTier, setMode, renderStatus, renderStatusShort } from '../core/control.mjs';
+import { parseTierArgs } from '../core/curriculum.mjs';
+import { runCurriculumBuild, checkCurriculumFiles, reviewCurriculumFiles, markReviewed } from '../core/scout.mjs';
 import { parseReportArgs, summarizeLedger, formatReport } from '../core/report.mjs';
 import { parseUnlockArgs, parseCheckArgs, parseGradeArgs, parseEvidenceArgs } from '../core/unlock-args.mjs';
 import { runUnlock, runCheck, runGrade, runAudit, probeGraderAuth } from '../core/grader.mjs';
@@ -20,17 +22,24 @@ import { addEvidenceFile } from '../core/evidence-io.mjs';
 import { ITEMS } from '../gold/unlock-gold.mjs';
 import { ITEMS as TRANSFER_ITEMS } from '../gold/transfer-gold.mjs';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { parseCurriculumBuildArgs } from '../core/unlock-args.mjs';
+import { createInterface } from 'node:readline/promises';
 
 const env = process.env;
 const cwd = process.cwd();
 const repoRoot = gitToplevel(cwd);
 const sessionId = env.ND_SESSION || env.CLAUDE_SESSION_ID || null;
 
-const MUTATING = new Set(['init', 'tier', 'mode', 'unlock', 'check', 'grade', 'evidence']);
+const MUTATING = new Set(['init', 'tier', 'mode', 'unlock', 'check', 'grade', 'evidence', 'curriculum']);
 const AGENT_SHELL_MARKERS = ['CLAUDECODE', 'CURSOR_AGENT', 'PI_CODING_AGENT'];
 
 function die(msg, code = 1) { process.stderr.write(msg + '\n'); process.exit(code); }
 function say(msg) { process.stdout.write(msg + '\n'); }
+
+async function ask(question) {
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  try { return (await rl.question(question)).trim(); } finally { rl.close(); }
+}
 
 function inAgentShell() {
   return AGENT_SHELL_MARKERS.some((k) => env[k] && !env.ND_ALLOW_AGENT);
@@ -75,7 +84,10 @@ switch (sub) {
     say(`nd — No Deceit control CLI
 
   nd init                         opt this project in (create .no-deceit/)
-  nd tier <1|2|3>                 set the tier (3 is a time-boxed grant)
+  nd tier <1|2|3> [--topic <t>|--no-topic]
+                                  set the tier (3 is a time-boxed grant). --topic records the active
+                                  topic (Tier 2's unlock is then per topic); Tier 1 with a topic
+                                  needs a ready curriculum (open.md + sealed.md)
   nd mode <coach|pair|ask>        set the domain mode
   nd status [--short]             show the current tier/mode
   nd unlock [task]                grade .no-deceit/attempts/<task>.md (default task: default)
@@ -87,6 +99,11 @@ switch (sub) {
   nd evidence add <topic> <path> [--project <p>]
                                   copy + hash a note, .mmd/.mermaid, .excalidraw or .excalidraw.md
                                   into the data home (evidence/<topic>/)
+  nd curriculum build <topic> --goal "<...>" --mission "<...>" --from <path|url> [--from ...]
+                                  [--projects a,b] [--force]   the scout drafts open.md + sealed.md
+  nd curriculum check <topic>     audit both files against the format (read-only)
+  nd curriculum review <topic>    print mission, sources and outline only (no spoilers)
+  nd curriculum reviewed <topic>  mark it reviewed (advisory; Tier 1 never requires it)
   nd grade [topic]                blind transfer grade of the newest evidence for the topic
                                   (default topic: the last one captured); same as /no-deceit:grade;
                                   a pass unlocks the project the evidence names (manifest path)
@@ -107,8 +124,28 @@ switch (sub) {
 
   case 'tier': {
     guardAgentShell('tier');
-    try { say(setTier({ repoRoot, env, sessionId, tier: rest[0] })); }
+    const t = parseTierArgs(rest);
+    if (t.error) die(`No Deceit: ${t.error}`);
+    try { say(setTier({ repoRoot, env, sessionId, tier: t.tier, topic: t.topic, clearTopic: t.clearTopic })); }
     catch (e) { die(`No Deceit: ${e.message}`); }
+    break;
+  }
+
+  case 'curriculum': {
+    const [action, ...args] = rest;
+    if (action === 'build' || action === 'reviewed') guardAgentShell('curriculum');
+    try {
+      if (action === 'build') {
+        const { error, ...a } = parseCurriculumBuildArgs(args);
+        if (error) throw new Error(error);
+        if (!a.goal && process.stdin.isTTY) a.goal = await ask('What must you be able to do when you are done? ');
+        if (!a.mission && process.stdin.isTTY) a.mission = await ask('Why are you learning this (your mission)? ');
+        say(await runCurriculumBuild({ env, sessionId, cwd, ...a }));
+      } else if (action === 'check') say(checkCurriculumFiles({ env, topic: args[0] }));
+      else if (action === 'review') say(reviewCurriculumFiles({ env, topic: args[0] }));
+      else if (action === 'reviewed') say(markReviewed({ env, sessionId, topic: args[0] }));
+      else die('usage: nd curriculum <build|check|review|reviewed> <topic> (see `nd help`)');
+    } catch (e) { die(`No Deceit: ${e.message}`); }
     break;
   }
 

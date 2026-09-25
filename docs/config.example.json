@@ -8,6 +8,9 @@
   "graderTimeoutMs": 120000,
   "attemptMinChars": 80,
   "auditRuns": 3,
+  "curriculumMinChars": 300,
+  "curriculumModel": "sonnet",
+  "scoutTimeoutMs": 600000,
 
   "tier1MaxFenceLines": 6,
   "messageDisplayRedaction": true,

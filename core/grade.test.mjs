@@ -4,7 +4,8 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, readdirSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { projectPaths, dataPaths, homePaths, readProjectState, readAllLedger, buildClassifyCfg, loadConfig } from './state.mjs';
+import { projectPaths, dataPaths, homePaths, readProjectState, writeProjectState, readAllLedger, buildClassifyCfg, loadConfig } from './state.mjs';
+import { resolveEffective } from './policy.mjs';
 import { captureTeach, addEvidenceFile, latestEvidence, lastEvidenceTopic } from './evidence-io.mjs';
 import { parseFrontmatter, summaryPathFor } from './evidence.mjs';
 import { runGrade, runCheck } from './grader.mjs';
@@ -147,11 +148,37 @@ test('runGrade: a pass unlocks the project the evidence names, not the repo the 
     mkdirSync(projectPaths(here).dir, { recursive: true });
     captureTeach({ env: s.env, arg: 'etl --project gd-integrations', body: TEACH, nowMs: NOW });
     const out = await runGrade({ repoRoot: here, env: s.env, invoke: async () => PASS });
-    assert.match(out, new RegExp(`Tier 2 is unlocked for gd-integrations \\(${s.repo}\\)`));
+    assert.match(out, new RegExp(`Tier 2 is unlocked for topic etl in gd-integrations \\(${s.repo}\\)\\.$`));
     assert.equal(readProjectState(here, s.env).unlocked, false);
     assert.match(readProjectState(here, s.env).pendingTutorNote, /stale is fine/, 'the tutor note stays where the developer is');
     assert.equal(readProjectState(s.repo, s.env).unlocked, true);
     assert.deepEqual(readProjectState(s.repo, s.env).unlockedTopics, ['etl']);
+  } finally { s.cleanup(); }
+});
+
+test('runGrade: a pass for another topic than the target project\'s active one says that topic stays locked', async () => {
+  const s = scratch();
+  try {
+    withManifest(s);
+    writeProjectState(s.repo, { ...readProjectState(s.repo, s.env), topic: 'caching' });
+    captureTeach({ env: s.env, arg: 'etl --project gd-integrations', body: TEACH, nowMs: NOW });
+    const out = await runGrade({ repoRoot: s.repo, env: s.env, invoke: async () => PASS });
+    assert.match(out, /Tier 2 is unlocked for topic etl in gd-integrations/);
+    assert.match(out, /Its active topic is caching, which stays locked \(switch with `nd tier 2 --topic etl`\)/);
+    assert.equal(resolveEffective({ project: readProjectState(s.repo, s.env) }).t2Unlocked, false);
+  } finally { s.cleanup(); }
+});
+
+test('runGrade: a pass for another topic says nothing about an active topic that is already unlocked', async () => {
+  const s = scratch();
+  try {
+    withManifest(s);
+    writeProjectState(s.repo, { ...readProjectState(s.repo, s.env), topic: 'caching', unlocked: true, unlockedTopics: ['caching'] });
+    captureTeach({ env: s.env, arg: 'etl --project gd-integrations', body: TEACH, nowMs: NOW });
+    const out = await runGrade({ repoRoot: s.repo, env: s.env, invoke: async () => PASS });
+    assert.match(out, new RegExp(`Tier 2 is unlocked for topic etl in gd-integrations \\(${s.repo}\\)\\.$`));
+    assert.doesNotMatch(out, /stays locked/);
+    assert.equal(resolveEffective({ project: readProjectState(s.repo, s.env) }).t2Unlocked, true);
   } finally { s.cleanup(); }
 });
 

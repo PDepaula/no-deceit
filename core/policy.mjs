@@ -150,7 +150,7 @@ export const REASONS = {
  * Resolve raw on-disk state into the effective policy state.
  * Pure: the caller supplies preamblePresent (a file check) and nowMs (the clock).
  *
- *   project  = { tier: 1|2 (absent => 2), mode, unlocked? }   from <repo>/.no-deceit/state.json
+ *   project  = { tier: 1|2 (absent => 2), mode, unlocked?, topic?, unlockedTopics? }   from <repo>/.no-deceit/state.json
  *   session  = { t3ExpiresAtMs?, unlocked? }     from the session overlay
  */
 export function resolveEffective({ project = {}, session = {}, preamblePresent = false, nowMs = Date.now() } = {}) {
@@ -175,11 +175,18 @@ export function resolveEffective({ project = {}, session = {}, preamblePresent =
     }
   }
 
-  const t2Unlocked = Boolean(project.unlocked) || Boolean(session.unlocked);
+  // Topic-scoped unlock: with an active topic (project state), the Tier 2 unlock
+  // applies to that topic only, so a pass for another topic does not open this
+  // one. With no active topic, the project-level flag decides.
+  const topic = project.topic || null;
+  const t2Unlocked = topic
+    ? (project.unlockedTopics || []).includes(topic)
+    : Boolean(project.unlocked) || Boolean(session.unlocked);
 
   return {
     tier,
     mode,
+    topic,
     t2Unlocked,
     t3Active,
     t3PreamblePresent: Boolean(preamblePresent),
