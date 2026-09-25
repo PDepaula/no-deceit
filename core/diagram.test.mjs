@@ -222,16 +222,17 @@ test('a backslash-newline continuation keeps one command in one segment', () => 
   }
 });
 
-test('a backslash-newline ending a comment is not a continuation', () => {
+test('a # inside quotes or a length expansion does not stop a continuation', () => {
   for (const command of [
-    '# note \\\n mmdc -i a.mmd',
-    '# render \\\nmmdc -i a.mmd -o a.svg',
-    'ls # \\\ndot -Tpng a.dot -o a.png',
-    'echo ok # done \\\nnpx mmdc -i a',
+    'echo "# build" && dot a.dot \\\n -Tpng -o a.png',
+    'echo "# build" && npx \\\n -p @mermaid-js/mermaid-cli mmdc -i a',
+    'n=${#files[@]}; dot a.dot \\\n -Tpng -o a.png',
   ]) {
     assert.equal(classify('Bash', { command }, cfg), 'H', JSON.stringify(command));
   }
-  assert.notEqual(classify('Bash', { command: '# render \\\necho ok' }, cfg), 'H');
+  for (const command of ['echo "# build" && grep -rn \\\n mmdc core/', 'n=${#files[@]}; grep -rn \\\n mmdc core/']) {
+    assert.notEqual(classify('Bash', { command }, cfg), 'H', JSON.stringify(command));
+  }
 });
 
 test('dot and d2 as plain words are not renderer invocations', () => {
