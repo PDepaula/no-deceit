@@ -20,7 +20,10 @@ function scratch() {
 const NOW = Date.UTC(2026, 8, 24, 10, 11, 12);
 const TEACH = 'Join at load time means readers get finished rows and pay once, at the price of staleness.\nIn gd-integrations the dashboard join should move into the nightly ETL, unless finance needs same-hour totals.';
 const PASS = { verdict: 'unlocked', criteria: { P1: { met: true, span: 'a' }, P2: { met: true, span: 'b' }, P3: { met: true, span: 'c' }, P4: { met: true, span: 'd' } }, structure: { G1: 'met' }, misconceptions: ['stale is fine'] };
-const withManifest = (s) => { mkdirSync(dataPaths(s.env).dataDir, { recursive: true }); writeFileSync(dataPaths(s.env).projectsManifests[2], '- gd-integrations: nightly ETL\n'); };
+const withManifest = (s, [file, text] = [1, JSON.stringify([{ name: 'gd-integrations', path: s.repo, summary: 'nightly ETL' }])]) => {
+  mkdirSync(dataPaths(s.env).dataDir, { recursive: true });
+  writeFileSync(dataPaths(s.env).projectsManifests[file], text);
+};
 
 test('data home: ND_DATA_DIR > ND_HOME/data > XDG_DATA_HOME fallback; it is tamper territory', () => {
   assert.equal(dataPaths({ ND_DATA_DIR: '/x', ND_HOME: '/h' }).dataDir, '/x');
@@ -118,7 +121,7 @@ test('runGrade: pass writes a verdict file, ledgers transfer_grade, unlocks Tier
     });
     assert.match(out, /passed/);
     assert.equal(seen.kind, 'transfer');
-    assert.equal(seen.projectsPath, dataPaths(s.env).projectsManifests[2]);
+    assert.equal(seen.projectsPath, dataPaths(s.env).projectsManifests[1]);
     assert.equal('curriculumPath' in seen, false);
     assert.equal('summaryPath' in seen, false, 'no parser summary: the seam is simply absent');
     const verdictFile = join(dataPaths(s.env).verdictsDir('etl'), '2026-09-24T10-11-13Z.json');
@@ -133,6 +136,74 @@ test('runGrade: pass writes a verdict file, ledgers transfer_grade, unlocks Tier
     assert.equal(st.unlocked, true);
     assert.deepEqual(st.unlockedTopics, ['etl']);
     assert.match(st.pendingTutorNote, /stale is fine/);
+  } finally { s.cleanup(); }
+});
+
+test('runGrade: a pass unlocks the project the evidence names, not the repo the command runs in', async () => {
+  const s = scratch();
+  try {
+    withManifest(s);
+    const here = join(s.dir, 'here');
+    mkdirSync(projectPaths(here).dir, { recursive: true });
+    captureTeach({ env: s.env, arg: 'etl --project gd-integrations', body: TEACH, nowMs: NOW });
+    const out = await runGrade({ repoRoot: here, env: s.env, invoke: async () => PASS });
+    assert.match(out, new RegExp(`Tier 2 is unlocked for gd-integrations \\(${s.repo}\\)`));
+    assert.equal(readProjectState(here, s.env).unlocked, false);
+    assert.match(readProjectState(here, s.env).pendingTutorNote, /stale is fine/, 'the tutor note stays where the developer is');
+    assert.equal(readProjectState(s.repo, s.env).unlocked, true);
+    assert.deepEqual(readProjectState(s.repo, s.env).unlockedTopics, ['etl']);
+  } finally { s.cleanup(); }
+});
+
+test('runGrade: a pass whose project does not resolve to a governed repo is recorded but unlocks nothing', async () => {
+  const cases = [
+    ['etl', [1, JSON.stringify([])], /Not unlocked: the evidence names no project/],
+    ['etl --project gd-integrations', [2, '- gd-integrations: nightly ETL\n'], /Not unlocked: .*projects\.md gives no path for project "gd-integrations"/],
+    ['etl --project gd-integrations', [1, JSON.stringify([{ name: 'gd-integrations', path: 'elsewhere' }])], /Not unlocked: .*elsewhere \(project "gd-integrations"\) is not a governed repo/],
+  ];
+  for (const [arg, manifest, why] of cases) {
+    const s = scratch();
+    try {
+      withManifest(s, manifest);
+      captureTeach({ env: s.env, arg, body: TEACH, nowMs: NOW });
+      const out = await runGrade({ repoRoot: s.repo, env: s.env, invoke: async () => PASS });
+      assert.match(out, /passed/);
+      assert.match(out, why);
+      assert.equal(out.split('\n').length, 2, 'one line says why');
+      assert.equal(readProjectState(s.repo, s.env).unlocked, false);
+      assert.deepEqual(readProjectState(s.repo, s.env).unlockedTopics, []);
+      const g = readAllLedger(s.env).find((e) => e.event === 'transfer_grade');
+      assert.deepEqual([g.topic, g.verdict], ['etl', 'unlocked']);
+    } finally { s.cleanup(); }
+  }
+});
+
+test('runGrade grades the evidence captured last, even within one second and across kinds', async () => {
+  const s = scratch();
+  try {
+    withManifest(s);
+    const a = join(s.dir, 'a.md'); writeFileSync(a, `${TEACH} (a)`);
+    const b = join(s.dir, 'b.md'); writeFileSync(b, `${TEACH} (b)`);
+    addEvidenceFile({ env: s.env, topic: 'etl', filePath: a, nowMs: NOW });
+    const second = addEvidenceFile({ env: s.env, topic: 'etl', filePath: b, nowMs: NOW });
+    assert.equal(latestEvidence(s.env, 'etl'), second.path);
+    const mm = join(s.dir, 'm.mmd'); writeFileSync(mm, 'flowchart TD\n A-->B\n');
+    const mermaid = addEvidenceFile({ env: s.env, topic: 'etl', filePath: mm, nowMs: NOW });
+    assert.equal(latestEvidence(s.env, 'etl'), mermaid.path);
+    captureTeach({ env: s.env, arg: 'etl', body: `${TEACH} (c)`, nowMs: NOW });
+    let seen;
+    await runGrade({ env: s.env, topic: 'etl', invoke: async (ctx) => { seen = ctx.job; return PASS; } });
+    assert.match(readFileSync(seen.evidencePath, 'utf8'), /\(c\)/);
+  } finally { s.cleanup(); }
+});
+
+test('runGrade rejects a topic that is not a slug and writes nothing', async () => {
+  const s = scratch();
+  try {
+    withManifest(s);
+    await assert.rejects(runGrade({ env: s.env, topic: '../../x', invoke: async () => PASS }), /slug/);
+    assert.deepEqual(readAllLedger(s.env), []);
+    assert.equal(existsSync(join(dataPaths(s.env).dataDir, 'verdicts')), false);
   } finally { s.cleanup(); }
 });
 

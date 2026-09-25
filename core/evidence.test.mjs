@@ -4,7 +4,7 @@ import { parseCommand } from './control.mjs';
 import { parseGradeArgs, parseCheckArgs } from './unlock-args.mjs';
 import {
   parseTeachArgs, isSlug, validateExcalidraw, detectDiagrams, evidenceKindForFile, evidenceStamp,
-  evidenceFileName, renderTeachFile, parseFrontmatter, summaryPathFor, looksLikeMindmapText, countWords,
+  evidenceFileName, manifestProjectPath, renderTeachFile, parseFrontmatter, summaryPathFor, looksLikeMindmapText, countWords,
 } from './evidence.mjs';
 
 test('parseCommand returns the body after line 1', () => {
@@ -70,9 +70,20 @@ test('teach file round-trips through its frontmatter; stamps and names sort', ()
   assert.equal(countWords(' a  b\nc '), 3);
 });
 
-test('parseGradeArgs and parseCheckArgs --project', () => {
-  assert.deepEqual(parseGradeArgs('etl --project p --evidence e.md'), { topic: 'etl', project: 'p', evidenceName: 'e.md' });
-  assert.deepEqual(parseGradeArgs(''), { topic: null, project: null, evidenceName: null });
+test('manifestProjectPath reads a path from projects.edn / projects.json, never from projects.md', () => {
+  const edn = '[{:name "bondly" :path "/p/bondly"}\n {:name "gd-integrations" :path "projects/gd" :summary "nightly ETL"}\n {:name "nopath"}]';
+  assert.equal(manifestProjectPath(edn, '/d/projects.edn', 'gd-integrations'), 'projects/gd');
+  assert.equal(manifestProjectPath(edn, '/d/projects.edn', 'nopath'), null);
+  assert.equal(manifestProjectPath(edn, '/d/projects.edn', 'other'), null);
+  const json = JSON.stringify([{ name: 'bondly', path: '/p/bondly' }]);
+  assert.equal(manifestProjectPath(json, '/d/projects.json', 'bondly'), '/p/bondly');
+  assert.equal(manifestProjectPath('{not json', '/d/projects.json', 'bondly'), null);
+  assert.equal(manifestProjectPath('- bondly: /p/bondly', '/d/projects.md', 'bondly'), null);
+});
+
+test('parseGradeArgs takes only a topic; parseCheckArgs --project', () => {
+  assert.deepEqual(parseGradeArgs('etl'), { topic: 'etl' });
+  assert.deepEqual(parseGradeArgs(''), { topic: null });
   assert.deepEqual(parseCheckArgs('t1 --project bondly'), { task: 't1', project: 'bondly' });
   assert.deepEqual(parseCheckArgs(''), { task: 'default', project: null });
 });

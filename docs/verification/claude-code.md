@@ -58,8 +58,10 @@ which drives the real hook shim and CLI as subprocesses with piped payloads:
     injected context; an empty body captures nothing
   - `/no-deceit:grade` runs the transfer grader (mocked via
     `ND_GRADER_MOCK_JSON`), writes a verdict file, ledgers `transfer_grade`, and
-    unlocks Tier 2; a missing project manifest is an error, not a silent pass
-  - the data dir, `nd evidence` and `nd grade` classify as category G;
+    unlocks Tier 2 for the project the evidence names (resolved through the
+    manifest's `path`); a missing project manifest is an error, not a silent pass
+  - writes and Bash references to the data dir, `nd evidence` and `nd grade`
+    classify as category G (reads of the data dir are not hook-enforced);
     `nd evidence` / `nd grade` refuse inside an agent shell
   - `finalizeTransferVerdict` is mechanical (no upgrade, torn and missing-span
     round down); a missing diagram summary yields G1–G5 `unknown`, never a fail

@@ -290,7 +290,7 @@ test('nd evidence add copies a diagram into the data home, then nd grade grades 
     assert.notEqual(run(['evidence', 'add', 'etl', bad], env, s.dir, true).code, 0);
     const nomanifest = run(['grade', 'etl'], env, s.dir, true);
     assert.match(nomanifest.out, /no project manifest/);
-    writeFileSync(join(s.dir, 'share', 'no-deceit', 'projects.md'), '- gd-integrations: nightly ETL\n');
+    writeFileSync(join(s.dir, 'share', 'no-deceit', 'projects.json'), JSON.stringify([{ name: 'gd-integrations', path: s.dir, summary: 'nightly ETL' }]));
     const mock = JSON.stringify({ criteria: Object.fromEntries(['P1', 'P2', 'P4', 'P5'].map((k) => [k, { met: true, span: 'x' }])) });
     const g = run(['grade'], { ...env, ND_GRADER_MOCK_JSON: mock }, s.dir);
     assert.match(g.out, /passed/);
@@ -309,14 +309,12 @@ test('nd evidence and nd grade are refused inside an agent shell', () => {
   } finally { s.cleanup(); }
 });
 
-test('nd audit --set transfer gates the transfer gold set (oracle passes, inflate blocks)', () => {
+test('nd audit gates both gold sets: an inflated transfer grade is an upgrade too', () => {
   const s = scratch();
   try {
-    const ok = run(['audit', '--oracle', '--set', 'transfer'], s.env, s.dir);
-    assert.match(ok.out, /graded_up: 0/);
-    const bad = run(['audit', '--inflate', '--set', 'transfer'], s.env, s.dir, true);
+    const bad = run(['audit', '--inflate'], s.env, s.dir, true);
     assert.notEqual(bad.code, 0);
-    assert.match(bad.out, /gate: block/);
-    assert.match(run(['audit', '--oracle'], s.env, s.dir).out, /graded_up: 0/, 'default runs both sets');
+    assert.match(bad.out, /upgraded ids: .*fluent-empty-01/);
+    assert.match(bad.out, /upgraded ids: .*recall-perfect-01/);
   } finally { s.cleanup(); }
 });

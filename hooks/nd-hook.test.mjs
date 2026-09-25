@@ -284,7 +284,7 @@ test('/no-deceit:teach with no body captures nothing, and /no-deceit:grade runs 
     assert.match(empty.reason, /nothing to capture/);
     runHook('UserPromptSubmit', { session_id: 't', cwd: s.repo, prompt: `/no-deceit:teach etl --project gd-integrations\n${TEACH_BODY}` }, env);
     mkdirSync(join(s.dir, 'share', 'no-deceit'), { recursive: true });
-    writeFileSync(join(s.dir, 'share', 'no-deceit', 'projects.md'), '- gd-integrations: nightly ETL\n');
+    writeFileSync(join(s.dir, 'share', 'no-deceit', 'projects.edn'), `[{:name "gd-integrations" :path "${s.repo}" :summary "nightly ETL"}]\n`);
     const mock = JSON.stringify({ verdict: 'unlocked', criteria: Object.fromEntries(['P1', 'P2', 'P3', 'P4'].map((k) => [k, { met: true, span: 'x' }])) });
     const graded = runHook('UserPromptSubmit', { session_id: 't', cwd: s.repo, prompt: '/no-deceit:grade' }, { ...env, ND_GRADER_MOCK_JSON: mock });
     assert.equal(graded.decision, 'block');

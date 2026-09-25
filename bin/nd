@@ -87,11 +87,10 @@ switch (sub) {
   nd evidence add <topic> <path> [--project <p>]
                                   copy + hash a note, .mmd/.mermaid, .excalidraw or .excalidraw.md
                                   into the data home (evidence/<topic>/)
-  nd grade [topic] [--project <p>] [--evidence <file>]
-                                  blind transfer grade of the newest evidence for the topic
-                                  (default topic: the last one captured); same as /no-deceit:grade
-  nd audit [--runs 3] [--set unlock|transfer|all]
-                                  run the gold sets; release gate is graded_up = 0
+  nd grade [topic]                blind transfer grade of the newest evidence for the topic
+                                  (default topic: the last one captured); same as /no-deceit:grade;
+                                  a pass unlocks the project the evidence names (manifest path)
+  nd audit [--runs 3]             run both gold sets; release gate is graded_up = 0
   nd ledger [N]                   show the last N ledger entries (default 20)
   nd report [--since <when>] [--until <when>]
                                   weekly-style ledger summary (default window: 7 days;
@@ -162,10 +161,7 @@ switch (sub) {
     const runs = runsFlag >= 0 ? Number(rest[runsFlag + 1]) || cfg.auditRuns : cfg.auditRuns;
     const oracle = rest.includes('--oracle') || env.ND_AUDIT_MOCK === 'oracle';
     const inflate = rest.includes('--inflate') || env.ND_AUDIT_MOCK === 'inflate';
-    const setFlag = rest.indexOf('--set');
-    const which = setFlag >= 0 ? rest[setFlag + 1] : 'all';
-    if (!['unlock', 'transfer', 'all'].includes(which)) die('nd audit: --set must be unlock, transfer, or all');
-    const items = [...(which === 'transfer' ? [] : ITEMS), ...(which === 'unlock' ? [] : TRANSFER_ITEMS)];
+    const items = [...ITEMS, ...TRANSFER_ITEMS];
     try {
       const invoke = oracle || inflate
         ? async ({ item }) => {

@@ -23,15 +23,16 @@ based on [Keep a Changelog](https://keepachangelog.com/).
   now returns `body` (everything after line 1); the hook writes
   `<data>/evidence/<topic>/<ts>-teach.md` (frontmatter: topic, project, kind,
   sha256, captured), ledgers `evidence_captured`, and blocks the prompt so the
-  tutor never sees the teach-back first. Also `nd evidence add <topic> <path>
+  tutor never receives the teach-back in conversation (reads of the data home
+  are not hook-enforced; the skill tells the tutor not to read evidence). Also `nd evidence add <topic> <path>
   [--project p]`: copies, hashes and sidecars a note, `.mmd`/`.mermaid`,
   `.excalidraw` / Excalidraw `.json` (`type` must be `excalidraw` or
   `excalidraw/clipboard`), or Obsidian `.excalidraw.md`. Diagrams are stored raw.
 - **Added:** the data home (`core/state.mjs` `dataPaths`): `ND_DATA_DIR`, else
   `$ND_HOME/data`, else `$XDG_DATA_HOME/no-deceit` (`~/.local/share/no-deceit`).
   Compatible with `data/` being its own private git repo; No Deceit never creates
-  one. The data dir is tamper territory (category G), as are `nd evidence` and
-  `nd grade`.
+  one. Writes and shell commands in the data dir are tamper territory
+  (category G), as are `nd evidence` and `nd grade`.
 - **Added:** `TRANSFER_RUBRIC` (P1–P5, pass = P1 ∧ P2 ∧ P4 ∧ (P3 ∨ P5)),
   the diagnostic `structure` field (G1–G5 `met|unmet|unknown`, never in the
   verdict), mechanical `finalizeTransferVerdict`, the `curriculumPath` /
@@ -39,10 +40,15 @@ based on [Keep a Changelog](https://keepachangelog.com/).
   `source_paste` / `too_few_nodes` pre-filter, the transfer section of
   `agents/nd-grader.md`, `nd grade` / `/no-deceit:grade`, and
   `nd check --project`. Ledger events `evidence_captured` and `transfer_grade`;
-  `nd report` counts them; a passed transfer unlocks Tier 2 for the project.
+  `nd report` counts them. `nd grade` grades the evidence captured last (ledger
+  order). A passed transfer unlocks Tier 2 for the project the evidence names,
+  resolved to its governed repo through the `path` in `projects.edn` /
+  `projects.json`; if it does not resolve, the pass is recorded and nothing
+  unlocks. The unlock stays project-wide (`unlockedTopics` records the topics)
+  until topics become session state in phase 3.
 - **Added:** `gold/transfer-gold.jsonl` (27 items, every case type in the
-  redesign report §2.2) and `nd audit [--set unlock|transfer|all]`; the release
-  gate is `graded_up = 0` over both sets.
+  redesign report §2.2); `nd audit` runs it with the unlock set, and the
+  release gate is `graded_up = 0` over both sets.
 - **Added (port):** oracle cases for the new pure functions
   (`transfer-pass`, `transfer-verdict`, `prefilter-transfer`,
   `evidence-parse-teach-args`, `evidence-detect-diagrams`), and the parser

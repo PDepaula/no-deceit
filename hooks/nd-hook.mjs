@@ -135,7 +135,7 @@ async function main() {
           message = await runCheck({ repoRoot, env, sessionId: input.session_id, task: args.task, project: args.project });
         } else if (cmd.name === 'teach') {
           // The teach-back is evidence: capture it to the data home and block the
-          // prompt, so the tutor never sees it before the blind grader does.
+          // prompt, so the tutor never receives it in conversation.
           message = captureTeach({ env, sessionId: input.session_id, arg: cmd.arg, body: cmd.body });
         } else if (cmd.name === 'grade') {
           message = await runGrade({ repoRoot, env, sessionId: input.session_id, ...parseGradeArgs(cmd.arg) });

@@ -8,8 +8,8 @@
 // `evidence_captured`. Diagrams are stored raw; parsing is not done here.
 
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
-import { basename, extname, join } from 'node:path';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { basename, dirname, extname, join } from 'node:path';
 import { dataPaths, appendLedger, readAllLedger } from './state.mjs';
 import {
   parseTeachArgs, isSlug, countWords, detectDiagrams, evidenceKindForFile, evidenceStamp,
@@ -39,7 +39,7 @@ function writeNew(dir, name, write) {
  * `/no-deceit:teach <topic> --project <p>` + body. Writes
  * `<data>/evidence/<topic>/<ts>-teach.md` with frontmatter, ledgers
  * `evidence_captured`, and returns the message shown to the developer (the hook
- * blocks the prompt, so the tutor never sees the evidence first).
+ * blocks the prompt, so the tutor never receives the teach-back in conversation).
  */
 export function captureTeach({ env, sessionId = null, arg, body, nowMs = Date.now() }) {
   const { topic, project, error } = parseTeachArgs(arg);
@@ -91,15 +91,15 @@ export function addEvidenceFile({ env, sessionId = null, topic, filePath, projec
   return { path: dest, kind, sha256: hash, words };
 }
 
-const isEvidenceFile = (n) => !n.endsWith('.meta.json') && !n.endsWith('.summary.json');
-
-/** Newest evidence file for a topic (names start with a sortable stamp), or null. */
-export function latestEvidence(env, topic, { name = null } = {}) {
+/**
+ * Newest evidence file for a topic, or null. Capture order comes from the
+ * append-only ledger, not file names: same-second captures share a stamp.
+ */
+export function latestEvidence(env, topic) {
   const dir = dataPaths(env).evidenceDir(topic);
-  let names;
-  try { names = readdirSync(dir).filter(isEvidenceFile).sort(); } catch { return null; }
-  const pick = name ? names.find((n) => n === name) : names[names.length - 1];
-  return pick ? join(dir, pick) : null;
+  const rows = readAllLedger(env).filter((e) =>
+    e.event === 'evidence_captured' && e.topic === topic && e.path && dirname(e.path) === dir && existsSync(e.path));
+  return rows.length ? rows[rows.length - 1].path : null;
 }
 
 /** Project a piece of evidence claims: teach frontmatter, or the .meta.json sidecar. */

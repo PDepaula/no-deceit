@@ -146,6 +146,30 @@ export function evidenceKindForFile(filename, text) {
   return { kind: null, ext: null, error: 'unsupported file type (use .md, .txt, .mmd, .mermaid, .excalidraw, .excalidraw.md, or an Excalidraw .json)' };
 }
 
+/**
+ * The repo path a project manifest gives for project `name`, or null. Only
+ * projects.edn (`{:name "…" :path "…"}` maps) and projects.json (an array of
+ * `{name, path}` objects) carry paths; projects.md is free text for the grader.
+ */
+export function manifestProjectPath(text, fileName, name) {
+  if (/\.json$/.test(fileName)) {
+    let list;
+    try { list = JSON.parse(text); } catch { return null; }
+    const hit = Array.isArray(list) ? list.find((p) => p && p.name === name) : null;
+    return hit && typeof hit.path === 'string' && hit.path ? hit.path : null;
+  }
+  if (/\.edn$/.test(fileName)) {
+    for (const [map] of String(text ?? '').matchAll(/\{[^{}]*\}/g)) {
+      const n = /:name\s+"([^"]*)"/.exec(map);
+      if (n && n[1] === name) {
+        const p = /:path\s+"([^"]*)"/.exec(map);
+        return p && p[1] ? p[1] : null;
+      }
+    }
+  }
+  return null;
+}
+
 /** `2026-09-24T10-11-32Z`: sortable, filename-safe. */
 export function evidenceStamp(nowMs) {
   return new Date(nowMs).toISOString().replace(/\.\d+Z$/, 'Z').replace(/:/g, '-');

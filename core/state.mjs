@@ -223,8 +223,9 @@ export function buildClassifyCfg(config, repoRoot, env = process.env) {
   const home = homePaths(env);
   const proj = projectPaths(repoRoot);
   return {
-    // The data home holds evidence and verdicts the tutor must not read or write
-    // before the grader has (§3.5); it is tamper territory like the state dirs.
+    // The data home holds evidence and verdicts: writes and Bash references to it
+    // are tamper territory like the state dirs. Reads are not hook-enforced; the
+    // tutor is instructed not to read evidence files (§3.5).
     statePathPrefixes: [proj.dir, home.stateDir, home.configDir, dataPaths(env).dataDir],
     testGlobs: config.testGlobs,
     toolingGlobs: config.toolingGlobs,

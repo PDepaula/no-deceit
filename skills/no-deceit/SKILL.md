@@ -334,9 +334,11 @@ project, and what they would do. They may paste a Mermaid fence, Excalidraw
 JSON, or a markdown mind map there, or run `nd evidence add <topic> <file>`
 for a `.mmd` / `.excalidraw` / `.excalidraw.md` / note file. Either way the
 evidence is captured by the hook or the `nd` CLI into the No Deceit data
-home, **the prompt never reaches you**, and you cannot read the evidence
-files (they are tamper territory, category G). `/no-deceit:grade` (or
-`nd grade`) then spawns the blind grader, exactly as `nd unlock` does.
+home and **the prompt is blocked, so it never reaches you** in conversation.
+**Do not read the evidence files** in the data home: the hook denies writes
+and shell commands there (category G) but does not stop a read, so this one
+is on you. `/no-deceit:grade` (or `nd grade`) then spawns the blind grader,
+exactly as `nd unlock` does.
 
 - **You never grade a teach-back, spawn the grader, or capture evidence.**
   If the developer describes their explanation in chat, you may discuss it as
@@ -347,7 +349,11 @@ files (they are tamper territory, category G). `/no-deceit:grade` (or
   condition; P5 a boundary in their own systems. Pass is
   P1 ∧ P2 ∧ P4 ∧ (P3 ∨ P5). A wrong-but-specific transfer **passes**; its
   wrongness arrives as `misconceptions[]` for you to coach.
-- A passed transfer grade unlocks Tier 2 for the project, like an unlock.
+- A passed transfer grade unlocks Tier 2 for the project the evidence names
+  (its `--project`, resolved to a governed repo through the manifest's
+  `path`), like an unlock. If it cannot be resolved, the pass is recorded but
+  nothing unlocks. The unlock is project-wide for now: topics become session
+  state in a later phase.
   On `not_yet`, deliver the grader's `next_smaller_question` in the kind tone.
   If the diagnosis lists diagram structure gaps (G1–G5: grouped,
   interconnected, directional, emphasized, non-verbal), turn an unmet one into

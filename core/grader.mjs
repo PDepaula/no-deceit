@@ -8,14 +8,14 @@ import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, mkdtempSync, rmSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prefilterMentalModel, prefilterCommitHistory, prefilterTransfer, DEFAULT_MIN_CHARS } from './prefilter.mjs';
 import {
   MENTAL_RUBRIC, COMMIT_RUBRIC, TRANSFER_RUBRIC, PREFILTER_NEXT_QUESTION, TRANSFER_PREFILTER_NEXT_QUESTION,
   finalizeUnlockVerdict, finalizeTransferVerdict,
 } from './rubric.mjs';
-import { parseFrontmatter, summaryPathFor, evidenceStamp } from './evidence.mjs';
+import { parseFrontmatter, summaryPathFor, evidenceStamp, isSlug, manifestProjectPath } from './evidence.mjs';
 import { latestEvidence, evidenceProject, lastEvidenceTopic } from './evidence-io.mjs';
 import { parseGraderOutput } from './grader-parse.mjs';
 import { buildGraderJob, assertJobBlind, graderSpawnPlan, defaultGraderModel, isGraderAuthFailure } from './grader-job.mjs';
@@ -729,18 +729,29 @@ function transferTutorNote(result, topic) {
   );
 }
 
+/** The governed repo a passing grade unlocks: the evidence's project, resolved through the manifest. */
+function unlockTarget(projectsPath, project) {
+  if (!project) return { why: 'the evidence names no project (capture it with --project <p>)' };
+  const path = manifestProjectPath(readFileSync(projectsPath, 'utf8'), projectsPath, project);
+  if (!path) return { why: `${projectsPath} gives no path for project "${project}"` };
+  const repo = resolve(dirname(projectsPath), path);
+  if (!isGoverned(repo)) return { why: `${repo} (project "${project}") is not a governed repo` };
+  return { repo };
+}
+
 /**
  * `nd grade` / `/no-deceit:grade`: grade the newest evidence for a topic. Reads
  * only files (evidence, projects manifest, curriculum, optional summary), writes
- * `<data>/verdicts/<topic>/<ts>.json`, ledgers `transfer_grade`, and — when the
- * project is governed — leaves the tutor a note and, on a pass, unlocks Tier 2.
+ * `<data>/verdicts/<topic>/<ts>.json`, ledgers `transfer_grade`, and leaves the
+ * tutor a note when the current project is governed. A pass unlocks Tier 2 for
+ * the project the evidence names, resolved to its repo through the manifest.
+ * Enforcement stays project-level: `unlockedTopics` is the per-topic record
+ * until topics become session state (redesign phase 3).
  */
 export async function runGrade({
   repoRoot,
   env = process.env,
   topic = null,
-  project = null,
-  evidenceName = null,
   invoke,
   timeoutMs,
   model,
@@ -750,8 +761,9 @@ export async function runGrade({
 } = {}) {
   const useTopic = topic || lastEvidenceTopic(env);
   if (!useTopic) throw new Error('no topic: pass one (`nd grade <topic>`), or capture evidence first with /no-deceit:teach or `nd evidence add`');
+  if (!isSlug(useTopic)) throw new Error(`topic "${useTopic}" must be a slug (lowercase letters, digits, . _ -)`);
   const dp = dataPaths(env);
-  const evidencePath = latestEvidence(env, useTopic, { name: evidenceName });
+  const evidencePath = latestEvidence(env, useTopic);
   if (!evidencePath) throw new Error(`no evidence for "${useTopic}" under ${dp.evidenceDir(useTopic)}`);
   const projectsPath = dp.projectsManifests.find((f) => existsSync(f));
   if (!projectsPath) {
@@ -771,7 +783,7 @@ export async function runGrade({
   const kind = fm.meta.kind
     || (() => { try { return JSON.parse(readFileSync(`${evidencePath}.meta.json`, 'utf8')).kind; } catch { return null; } })()
     || 'pasted-text';
-  const claimed = project || evidenceProject(evidencePath);
+  const claimed = evidenceProject(evidencePath);
   const stamp = evidenceStamp(nowMs);
   const outputPath = join(dp.verdictsDir(useTopic), `${stamp}.json`);
   const resolved = invokeFromEnv(env, invoke) || makeLiveInvoke(env, { spawnImpl });
@@ -811,11 +823,8 @@ export async function runGrade({
     sessionId: sessionId || null,
   });
   if (repoRoot && isGoverned(repoRoot)) {
-    const before = readProjectState(repoRoot, env);
-    const topics = before.unlockedTopics || [];
     writeProjectState(repoRoot, {
-      ...before,
-      ...(result.verdict === 'unlocked' ? { unlocked: true, unlockedTopics: topics.includes(useTopic) ? topics : [...topics, useTopic] } : {}),
+      ...readProjectState(repoRoot, env),
       lastDiagnosis: {
         error_class: result.error_class,
         misconceptions: result.misconceptions || [],
@@ -825,8 +834,13 @@ export async function runGrade({
     });
   }
   if (result.verdict === 'unlocked') {
-    return `Transfer teach-back for ${useTopic} passed (${result.source}). error_class=${result.error_class}.` +
-      `${repoRoot && isGoverned(repoRoot) ? ' Tier 2 is unlocked for this project.' : ''}`;
+    const passed = `Transfer teach-back for ${useTopic} passed (${result.source}). error_class=${result.error_class}.`;
+    const target = unlockTarget(projectsPath, claimed);
+    if (!target.repo) return `${passed}\nNot unlocked: ${target.why}.`;
+    const before = readProjectState(target.repo, env);
+    const topics = before.unlockedTopics;
+    writeProjectState(target.repo, { ...before, unlocked: true, unlockedTopics: topics.includes(useTopic) ? topics : [...topics, useTopic] });
+    return `${passed} Tier 2 is unlocked for ${claimed} (${target.repo}).`;
   }
   return `not_yet (${result.source}${result.prefilter_reason ? `: ${result.prefilter_reason}` : ''}). ` +
     `Next question: ${result.next_smaller_question}`;

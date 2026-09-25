@@ -72,7 +72,9 @@ counts handovers per domain.
 of the same prompt: the mechanism in your words, where it lands in one of your
 projects, and what you would do and why. The hook writes it (with a hash) under
 the data home (`evidence/<topic>/`), ledgers `evidence_captured`, and blocks the
-prompt, so the tutor never sees it before the grader does. Diagrams (a Mermaid
+prompt, so the tutor never receives it in conversation (the tutor is told not
+to read evidence files; the hook denies writes and shell commands in the data
+home but does not block reads). Diagrams (a Mermaid
 fence, Excalidraw JSON, a markdown mind map) are captured raw; `nd evidence add
 <topic> <file>` does the same for `.mmd`, `.mermaid`, `.excalidraw`,
 `.excalidraw.md` and note files. `/no-deceit:grade` (or `nd grade`) runs the
@@ -80,9 +82,15 @@ blind grader against a fixed rubric (P1–P5: mechanism, a real project *from
 your project manifest* and a concrete locus, change and cost, a falsifiable
 judgment, a boundary; pass = P1 ∧ P2 ∧ P4 ∧ (P3 ∨ P5)). Correctness is not a
 criterion: a wrong-but-specific transfer passes and its wrongness is coached.
-The data home is `ND_DATA_DIR`, else `$ND_HOME/data`, else
-`~/.local/share/no-deceit`; you create `projects.{edn,json,md}` there (one line
-per project). Diagram parsing into a scene summary is a later step; until a
+A pass unlocks Tier 2 for the project the evidence names (its `--project`), not
+the repo you run the command in: that project must be listed with a `path` to
+its governed repo in `projects.edn` (`[{:name "gd-integrations" :path
+"/abs/or/relative/to/data" :summary "…"}]`) or `projects.json` (the same fields
+as an array of objects). Otherwise the pass is recorded and nothing unlocks.
+The unlock is project-wide for now; topics become session state in a later
+phase. The data home is `ND_DATA_DIR`, else `$ND_HOME/data`, else
+`~/.local/share/no-deceit`; you create `projects.{edn,json,md}` there (one entry
+per project; `projects.md` is free text for the grader and carries no paths). Diagram parsing into a scene summary is a later step; until a
 summary exists the grader reads the raw source and reports diagram-structure
 signals as `unknown`.
 
