@@ -36,15 +36,19 @@ based on [Keep a Changelog](https://keepachangelog.com/).
 - **Added:** `nd curriculum build <topic> --goal --mission --from <path|url>`,
   `check`, `review` (mission, sources and outline only, so review does not spoil
   the topic) and `reviewed`. The builder is `agents/nd-scout.md`, a fresh
-  `claude -p` with `Read` and `WebFetch` only (`curriculumModel`, default
-  `sonnet`; `scoutTimeoutMs`); it prints both files, the shell validates them
+  `claude -p` with `Read` and `WebFetch` only, in `dontAsk` mode without
+  skip-permissions: `Read` is allowed only for its job directory, the topic's
+  curriculum directory and the files passed with `--from` (a directory source is
+  refused) (`curriculumModel`, default `sonnet`; `scoutTimeoutMs`); it prints both files, the shell validates them
   against the format, regenerates the keyword list, stamps `built:` and
   `reviewed: no`, and writes them, or rejects the whole build. `ND_SCOUT_MOCK_FILE`
   is the test seam. `nd curriculum build` / `reviewed` are category G and refuse in
   an agent shell; `ND_SCOUT_CHILD` is a worker marker.
-- **Added (Tier 1):** `nd tier 1 --topic <t>` and `/no-deceit:tier 1 <t>` succeed
-  only when both files exist and are non-trivial (`curriculumMinChars`, a mission,
-  at least one concept); otherwise they refuse and name the two ways to get one.
+- **Added (Tier 1):** `nd tier 1 --topic <t>` and `/no-deceit:tier 1 <t>` (and
+  `nd tier 1` with a topic already stored) succeed only when both files exist and
+  are non-trivial (`curriculumMinChars`, a mission, at least one concept);
+  otherwise they refuse and name the two ways to get one. Tier 1 with no topic
+  stays the plain code tutor and needs no curriculum.
   `nd status` notes an unreviewed curriculum (`reviewed:` stays advisory).
   SessionStart and prompt context inject the curriculum paths for the active topic
   with the rule that the tutor may read `sealed.md` but never quote it. `SKILL.md`

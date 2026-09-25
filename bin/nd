@@ -127,7 +127,7 @@ switch (sub) {
     const t = parseTierArgs(rest);
     if (t.error) die(`No Deceit: ${t.error}`);
     try { say(setTier({ repoRoot, env, sessionId, tier: t.tier, topic: t.topic, clearTopic: t.clearTopic })); }
-    catch (e) { die(e.message.startsWith('No Deceit') ? e.message : `No Deceit: ${e.message}`); }
+    catch (e) { die(`No Deceit: ${e.message}`); }
     break;
   }
 

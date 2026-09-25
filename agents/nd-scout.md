@@ -14,7 +14,8 @@ The job file path is in the user prompt. Read that JSON: it has `topic`, the
 learner's `goal` (what they must be able to do when done), their `mission` (why
 they are learning it), `sources` (each `{kind, ref}`: `Read` a path, `WebFetch` a
 url), `projects`, and `formatDocPath`. **Read the format document first** and follow it
-exactly. Read only the job file, the format document and the listed sources.
+exactly. Read only the job file, the format document and the listed sources;
+any other read is denied.
 
 ## Method (after the engram curriculum architect)
 

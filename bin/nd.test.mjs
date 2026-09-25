@@ -333,6 +333,7 @@ test('nd tier 1 --topic refuses without a curriculum (exit 1, two ways named) an
     assert.equal(r.code, 1);
     assert.match(r.out, /nd curriculum build etl-basics/);
     assert.match(r.out, /write open\.md and sealed\.md yourself/);
+    assert.doesNotMatch(r.out, /No Deceit: No Deceit/);
     assert.equal(readProjectState(s.dir, s.env).tier, 2);
     const d = join(s.dir, 'data', 'curricula', 'etl-basics');
     mkdirSync(d, { recursive: true });

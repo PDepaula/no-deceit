@@ -5,7 +5,7 @@
 // The scout structures knowledge; the tutor teaches from it; the grader grades
 // against it. None of the three is the others, and only `nd` spawns the scout.
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { appendLedger, dataPaths, loadConfig } from './state.mjs';
@@ -33,7 +33,6 @@ export async function runCurriculumBuild({
   force = false,
   invoke,
   spawnImpl,
-  model,
   timeoutMs,
   cwd = process.cwd(),
   nowMs = Date.now(),
@@ -49,21 +48,32 @@ export async function runCurriculumBuild({
     throw new Error(`a curriculum for "${topic}" already exists at ${dp.curriculumDir(topic)}; pass --force to rebuild it (review status resets)`);
   }
   const cfg = loadConfig(env);
-  const sources = from.map((f) => (classifySource(f).kind === 'url' ? classifySource(f) : { kind: 'path', ref: resolve(cwd, f) }));
-  for (const s of sources) if (s.kind === 'path' && !existsSync(s.ref)) throw new Error(`--from path does not exist: ${s.ref}`);
+  const sources = from.map((f) => {
+    if (classifySource(f).kind === 'url') return classifySource(f);
+    const ref = resolve(cwd, f);
+    if (!existsSync(ref)) throw new Error(`--from path does not exist: ${ref}`);
+    if (!statSync(ref).isFile()) throw new Error(`--from path is not a file: ${ref} (the scout may read only the files you name; pass each file with its own --from)`);
+    return { kind: 'path', ref: realpathSync(ref) };
+  });
 
   const root = pluginRoot();
-  const job = buildScoutJob({ topic, goal: String(goal).trim(), mission: String(mission).trim(), sources, projects, formatDocPath: join(root, 'docs', 'curriculum-format.md') });
-  const scratch = mkdtempSync(join(tmpdir(), 'nd-scout-job-'));
+  const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'nd-scout-job-')));
   const jobPath = join(scratch, 'job.json');
-  const useModel = model || cfg.curriculumModel;
+  const formatDocPath = join(scratch, 'curriculum-format.md');
+  const job = buildScoutJob({ topic, goal: String(goal).trim(), mission: String(mission).trim(), sources, projects, formatDocPath });
+  const useModel = cfg.curriculumModel;
   let text;
   try {
+    copyFileSync(join(root, 'docs', 'curriculum-format.md'), formatDocPath);
     writeFileSync(jobPath, JSON.stringify(job));
     const mock = invokeFromEnv(env) || invoke;
     if (mock) text = await mock({ job, jobPath });
     else {
-      const plan = scoutSpawnPlan({ pluginRoot: root, model: useModel, jobPath, timeoutMs: timeoutMs || cfg.scoutTimeoutMs });
+      const plan = scoutSpawnPlan({
+        pluginRoot: root, model: useModel, jobPath, timeoutMs: timeoutMs || cfg.scoutTimeoutMs,
+        readDirs: [scratch, resolve(dp.curriculumDir(topic))],
+        readFiles: sources.filter((x) => x.kind === 'path').map((x) => x.ref),
+      });
       try { text = await executeSpawnPlan(plan, { env, spawnImpl }); } catch (e) {
         if (e && e.code === 'TIMEOUT') throw new Error(`the scout timed out after ${plan.timeoutMs} ms (raise scoutTimeoutMs in config.json, or give it less to read)`);
         throw e;

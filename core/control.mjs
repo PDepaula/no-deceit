@@ -47,10 +47,11 @@ export function setTier({ repoRoot, env, sessionId, tier, topic = null, clearTop
   if (![1, 2, 3].includes(n)) throw new Error(`invalid tier: ${tier}`);
   const before = readProjectState(repoRoot, env);
   if (n === 3 && (topic || clearTopic)) throw new Error('a topic applies to Tier 1 or Tier 2, not to a Tier 3 grant');
-  if (n === 1 && topic) {
-    const cur = readCurriculum(env, topic);
+  const nextTopic = clearTopic ? null : (topic || before.topic || null);
+  if (n === 1 && nextTopic) {
+    const cur = readCurriculum(env, nextTopic);
     const ready = curriculumReady({ ...cur, minChars: loadConfig(env).curriculumMinChars });
-    if (!ready.ok) throw new Error(tier1Refusal(topic, ready.missing));
+    if (!ready.ok) throw new Error(tier1Refusal(nextTopic, ready.missing));
   }
 
   if (n === 3) {
@@ -68,7 +69,6 @@ export function setTier({ repoRoot, env, sessionId, tier, topic = null, clearTop
 
   // Tier 1 / 2 are project settings. Clear any active Tier 3 grant.
   const { t3ExpiresAtMs, ...rest } = before;
-  const nextTopic = clearTopic ? null : (topic || before.topic || null);
   writeProjectState(repoRoot, { ...rest, tier: n, topic: nextTopic });
   if (sessionId) writeSession(env, sessionId, { t3ExpiresAtMs: null });
   appendLedger(env, {

@@ -328,8 +328,10 @@ them to fill the file. Once it exists and the grant is active:
 
 `nd tier 1 --topic <t>` (or `/no-deceit:tier 1 <t>`) succeeds only when the topic
 has a curriculum: `open.md` for the developer and `sealed.md` for you and the
-grader. The session context names both paths when a topic is active. Tier 1 with
-no topic works as before.
+grader. The session context names both paths when a topic is active. The
+curriculum requirement applies whenever a topic is in effect, including one
+already stored from an earlier `nd tier` call. Tier 1 with no topic is not
+curriculum-bound: it stays the plain code tutor and needs no curriculum.
 
 - **You may read `sealed.md`, and you must not quote, recite, paraphrase or
   summarise it.** It holds the concept map, the mechanisms, the traps and the

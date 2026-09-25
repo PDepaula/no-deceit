@@ -2,9 +2,10 @@
 // build pipeline (mocked), and the curriculum context. No live model.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync, realpathSync } from 'node:fs';
+import { EventEmitter } from 'node:events';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTier, renderStatus, topicContext, unlockOverride } from './control.mjs';
 import { resolveEffective } from './policy.mjs';
@@ -69,11 +70,33 @@ test('Tier 1 without a topic keeps today’s behaviour (no curriculum needed); T
     assert.equal(readProjectState(s.repo, s.env).topic, null);
     setTier({ repoRoot: s.repo, env: s.env, tier: 2, topic: 'anything' });
     assert.equal(readProjectState(s.repo, s.env).topic, 'anything');
-    setTier({ repoRoot: s.repo, env: s.env, tier: 1 });
-    assert.equal(readProjectState(s.repo, s.env).topic, 'anything', 'a plain tier change leaves the topic alone');
     setTier({ repoRoot: s.repo, env: s.env, tier: 2, clearTopic: true });
     assert.equal(readProjectState(s.repo, s.env).topic, null);
     assert.throws(() => setTier({ repoRoot: s.repo, env: s.env, tier: 3, topic: 'x' }), /not to a Tier 3/);
+  } finally { s.cleanup(); }
+});
+
+test('plain Tier 1 checks the stored topic: refused without its curriculum, allowed with one or with --no-topic', () => {
+  const s = scratch();
+  try {
+    setTier({ repoRoot: s.repo, env: s.env, tier: 2, topic: 'foo' });
+    assert.throws(() => setTier({ repoRoot: s.repo, env: s.env, tier: 1 }), /Tier 1 for "foo" needs a curriculum/);
+    assert.deepEqual([readProjectState(s.repo, s.env).tier, readProjectState(s.repo, s.env).topic], [2, 'foo']);
+    setTier({ repoRoot: s.repo, env: s.env, tier: 3 });
+    assert.throws(() => setTier({ repoRoot: s.repo, env: s.env, tier: 1 }), /Tier 1 for "foo" needs a curriculum/);
+    install(s.env, 'foo');
+    assert.match(setTier({ repoRoot: s.repo, env: s.env, tier: 1 }), /Tier set to 1 for topic foo/);
+    setTier({ repoRoot: s.repo, env: s.env, tier: 2, topic: 'bar' });
+    assert.match(setTier({ repoRoot: s.repo, env: s.env, tier: 1, clearTopic: true }), /^Tier set to 1\.$/);
+    assert.equal(readProjectState(s.repo, s.env).topic, null);
+  } finally { s.cleanup(); }
+});
+
+test('open.md with CRLF line endings is a ready curriculum', () => {
+  const s = scratch();
+  try {
+    install(s.env, 'etl-basics', { open: OPEN.replace(/\n/g, '\r\n') });
+    assert.match(setTier({ repoRoot: s.repo, env: s.env, tier: 1, topic: 'etl-basics' }), /Tier set to 1 for topic etl-basics/);
   } finally { s.cleanup(); }
 });
 
@@ -159,12 +182,22 @@ test('category G: the agent may not run nd curriculum build/reviewed or write cu
 
 // --- the scout ---
 
-test('scout spawn plan: fresh claude -p, read/fetch tools only, no --bare, scout marker', () => {
-  const plan = scoutSpawnPlan({ pluginRoot: '/p', model: 'sonnet', jobPath: '/j.json', timeoutMs: 5 });
+const allowedToolsOf = (args) => {
+  const i = args.indexOf('--allowedTools') + 1;
+  const end = args.findIndex((a, j) => j >= i && a.startsWith('--'));
+  return args.slice(i, end < 0 ? args.length : end);
+};
+
+test('scout spawn plan: fresh claude -p, read/fetch tools only, scoped Read, no skip-permissions, scout marker', () => {
+  const plan = scoutSpawnPlan({ pluginRoot: '/p', model: 'sonnet', jobPath: '/j.json', timeoutMs: 5, readDirs: ['/job'], readFiles: ['/src/a.md'] });
   assert.equal(plan.command, 'claude');
   assert.ok(!plan.args.includes('--bare'));
+  assert.ok(!plan.args.some((a) => /skip-permissions|bypassPermissions/.test(a)));
+  assert.equal(plan.args[plan.args.indexOf('--permission-mode') + 1], 'dontAsk');
   assert.equal(plan.args[plan.args.indexOf('--tools') + 1], 'Read,WebFetch');
+  assert.deepEqual(allowedToolsOf(plan.args), ['WebFetch', 'Read(//job/**)', 'Read(//src/a.md)']);
   assert.ok(!plan.args.some((a) => /Write|Bash|Edit/.test(a)));
+  assert.throws(() => scoutSpawnPlan({ pluginRoot: '/p', jobPath: '/j.json', readFiles: ['rel.md'] }), /must be absolute/);
   assert.equal(plan.args[plan.args.indexOf('--system-prompt-file') + 1], '/p/agents/nd-scout.md');
   assert.equal(plan.envExtra.ND_SCOUT_CHILD, '1');
   assert.equal(plan.timeoutMs, 5);
@@ -189,7 +222,7 @@ test('nd curriculum build writes both files, regenerates keywords from the seale
     assert.match(msg, /2 concepts, 7 keywords/);
     assert.equal(seenJob.goal, 'place each join');
     assert.equal(seenJob.sources[0].kind, 'path');
-    assert.match(seenJob.formatDocPath, /docs\/curriculum-format\.md$/);
+    assert.match(seenJob.formatDocPath, /curriculum-format\.md$/);
     const dp = dataPaths(s.env);
     const open = readFileSync(dp.curriculumOpen('etl-basics'), 'utf8');
     assert.match(open, /^built: 2026-09-25 by nd-scout \(sonnet\)$/m);
@@ -202,6 +235,39 @@ test('nd curriculum build writes both files, regenerates keywords from the seale
     setTier({ repoRoot: s.repo, env: s.env, tier: 1, topic: 'etl-basics' });
     await assert.rejects(runCurriculumBuild(BUILD(s, { invoke: async () => scoutText() })), /already exists.*--force/);
     await runCurriculumBuild(BUILD(s, { force: true, invoke: async () => scoutText() }));
+  } finally { s.cleanup(); }
+});
+
+test('nd curriculum build spawns the scout with Read scoped to its job dir, the topic dir and the --from files', async () => {
+  const s = scratch();
+  try {
+    let seen;
+    const spawnImpl = (command, args) => {
+      const allowed = allowedToolsOf(args);
+      const jobDir = allowed[1].slice('Read(/'.length, -'/**)'.length);
+      const job = JSON.parse(readFileSync(join(jobDir, 'job.json'), 'utf8'));
+      seen = { command, args, allowed, job, formatDoc: readFileSync(job.formatDocPath, 'utf8') };
+      const child = new EventEmitter();
+      child.stdout = new EventEmitter();
+      child.stderr = new EventEmitter();
+      setImmediate(() => { child.stdout.emit('data', scoutText()); child.emit('close', 0); });
+      return child;
+    };
+    await runCurriculumBuild(BUILD(s, { from: [join(FIX, 'open.md'), 'https://x.test/page'], spawnImpl }));
+    assert.equal(seen.command, 'claude');
+    assert.ok(!seen.args.some((a) => /skip-permissions|bypassPermissions/.test(a)));
+    assert.equal(seen.args[seen.args.indexOf('--permission-mode') + 1], 'dontAsk');
+    const jobDir = dirname(seen.job.formatDocPath);
+    assert.deepEqual(seen.allowed, [
+      'WebFetch',
+      `Read(/${jobDir}/**)`,
+      `Read(/${resolve(dataPaths(s.env).curriculumDir('etl-basics'))}/**)`,
+      `Read(/${realpathSync(join(FIX, 'open.md'))})`,
+    ]);
+    assert.deepEqual(seen.job.sources.map((x) => x.kind), ['path', 'url']);
+    assert.match(seen.formatDoc, /./);
+    assert.ok(!existsSync(jobDir), 'the job dir is removed after the build');
+    await assert.rejects(runCurriculumBuild(BUILD(s, { force: true, from: [FIX], spawnImpl })), /not a file/);
   } finally { s.cleanup(); }
 });
 

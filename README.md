@@ -41,7 +41,10 @@ projects initialised before that default keep their stored tier, and
   agent responds with Socratic questions that redirect you back to the problem.
   For a *topic*, `nd tier 1 --topic <t>` (or `/no-deceit:tier 1 <t>`) makes it
   curriculum-bound: it succeeds only when the topic has a curriculum (below), and
-  the tutor then never reveals a concept before you have attempted it.
+  the tutor then never reveals a concept before you have attempted it. The
+  curriculum requirement applies whenever a topic is in effect, including one
+  stored from an earlier `nd tier` call; Tier 1 with no topic stays the plain
+  code tutor and needs no curriculum.
 - **Tier 2 — Guided.** Unlocks once you show real engagement. Write your mental
   model to `.no-deceit/attempts/<task>.md` (or keep a commit history of
   meaningfully different attempts) and run `nd unlock`. A **blind grader** in a

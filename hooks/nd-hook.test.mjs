@@ -318,6 +318,7 @@ test('/no-deceit:tier 1 <topic> refuses without a curriculum, then succeeds and 
     assert.equal(refused.decision, 'block');
     assert.match(refused.reason, /needs a curriculum/);
     assert.match(refused.reason, /nd curriculum build etl-basics/);
+    assert.doesNotMatch(refused.reason, /No Deceit: No Deceit/);
     assert.equal(readProjectState(s.repo, s.env).tier, 2);
 
     const dp = installCurriculum(s, 'etl-basics');

@@ -14,7 +14,7 @@
 // supplies text. The line-based parsing is deliberate, so a Babashka port
 // needs no YAML library.
 
-import { isSlug, parseFrontmatter } from './evidence.mjs';
+import { isSlug, parseFrontmatter as parseFrontmatterLf } from './evidence.mjs';
 
 export const KINDS = ['concept', 'procedure', 'fact'];
 export const ACCESS = ['open', 'browser-only', 'paid'];
@@ -22,7 +22,7 @@ export const DEFAULT_MIN_CHARS = 300;
 
 /**
  * Parse the arguments of `nd tier` / `/no-deceit:tier`: `<tier> [<topic>]`,
- * `--topic <t>` / `--topic=<t>`, `--no-topic`. Pure. `tier` is returned as the
+ * `--topic <t>`, `--no-topic`. Pure. `tier` is returned as the
  * raw token (setTier validates it); only the topic can produce `error` here.
  */
 export function parseTierArgs(input) {
@@ -33,7 +33,6 @@ export function parseTierArgs(input) {
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
     if (t === '--topic') topic = tokens[++i] ?? null;
-    else if (t.startsWith('--topic=')) topic = t.slice('--topic='.length) || null;
     else if (t === '--no-topic') clearTopic = true;
     else if (t.startsWith('-')) continue;
     else if (tier === null) tier = t;
@@ -49,7 +48,7 @@ export function parseTierArgs(input) {
 /** The refusal `nd tier 1 --topic <t>` gives, naming both ways to get a curriculum. */
 export function tier1Refusal(topic, missing) {
   return (
-    `No Deceit: Tier 1 for "${topic}" needs a curriculum, and ${missing.join('; ')}. ` +
+    `Tier 1 for "${topic}" needs a curriculum, and ${missing.join('; ')}. ` +
     `Two ways to get one: (1) \`nd curriculum build ${topic} --goal "<what you must be able to do>" ` +
     `--mission "<why you are learning it>" --from <path|url> [--from ...]\` has the scout draft both files ` +
     `for you to review; (2) write open.md and sealed.md yourself under the curricula/${topic}/ directory of ` +
@@ -60,6 +59,8 @@ export function tier1Refusal(topic, missing) {
 // --- text helpers -------------------------------------------------------
 
 function lines(text) { return String(text ?? '').replace(/\r\n/g, '\n').split('\n'); }
+
+function parseFrontmatter(text) { return parseFrontmatterLf(String(text ?? '').replace(/\r\n/g, '\n')); }
 
 function sectionLines(text, heading) {
   const ls = lines(parseFrontmatter(text).body);

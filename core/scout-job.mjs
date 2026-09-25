@@ -5,8 +5,10 @@
 // given, and it prints both curriculum files on stdout between markers; the shell
 // validates them and writes them. It has no Write or Bash tool, so the only file
 // a build can create is the one core/scout.mjs writes after the format check.
+// It runs without skip-permissions in `dontAsk` mode: WebFetch is allowed, Read
+// only for the directories and files the shell names, and anything else is denied.
 
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 
 export const SCOUT_JOB_KEYS = ['topic', 'goal', 'mission', 'sources', 'projects', 'formatDocPath'];
 
@@ -21,7 +23,13 @@ export function classifySource(ref) {
   return /^https?:\/\//i.test(ref) ? { kind: 'url', ref } : { kind: 'path', ref };
 }
 
-export function scoutSpawnPlan({ pluginRoot, model = 'sonnet', jobPath, timeoutMs = 600_000 } = {}) {
+/** Permission rules for the scout: WebFetch, plus Read of each absolute dir (recursively) and file. */
+export function scoutAllowedTools({ readDirs = [], readFiles = [] } = {}) {
+  for (const p of [...readDirs, ...readFiles]) if (!isAbsolute(p)) throw new Error(`scout read path must be absolute: ${p}`);
+  return ['WebFetch', ...readDirs.map((d) => `Read(/${d}/**)`), ...readFiles.map((f) => `Read(/${f})`)];
+}
+
+export function scoutSpawnPlan({ pluginRoot, model = 'sonnet', jobPath, timeoutMs = 600_000, readDirs = [], readFiles = [] } = {}) {
   const agent = join(pluginRoot, 'agents', 'nd-scout.md');
   const prompt =
     `Read the JSON job file at ${jobPath}. Read the format document it names (formatDocPath) and every source it lists ` +
@@ -35,11 +43,11 @@ export function scoutSpawnPlan({ pluginRoot, model = 'sonnet', jobPath, timeoutM
       '--output-format', 'text',
       '--max-turns', '40',
       '--tools', 'Read,WebFetch',
-      '--allowedTools', 'Read,WebFetch',
+      '--permission-mode', 'dontAsk',
+      '--allowedTools', ...scoutAllowedTools({ readDirs, readFiles }),
       '--setting-sources', '',
       '--strict-mcp-config',
       '--disable-slash-commands',
-      '--dangerously-skip-permissions',
       '--system-prompt-file', agent,
       prompt,
     ],

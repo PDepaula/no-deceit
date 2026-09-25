@@ -16,7 +16,6 @@ const sealed = readFileSync(join(FIX, 'sealed.md'), 'utf8');
 test('parseTierArgs: positional topic, --topic, --no-topic, and errors', () => {
   assert.deepEqual(parseTierArgs('1 etl-basics'), { tier: '1', topic: 'etl-basics', clearTopic: false, error: null });
   assert.equal(parseTierArgs('1 --topic etl').topic, 'etl');
-  assert.equal(parseTierArgs('2 --topic=etl').topic, 'etl');
   assert.equal(parseTierArgs(['2', '--no-topic']).clearTopic, true);
   assert.equal(parseTierArgs('2').topic, null);
   assert.match(parseTierArgs('1 ../x').error, /must be a slug/);
