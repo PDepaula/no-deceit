@@ -117,6 +117,7 @@ const LAUNCHERS = [
   { words: ['npm', 'x'], valueFlags: ['-p', '--package'] },
   { words: ['npm', 'exec'], valueFlags: ['-p', '--package'] },
   { words: ['pnpm', 'exec'] },
+  { words: ['yarn', 'exec'] },
   { words: ['pnpm', 'dlx'], valueFlags: ['-p', '--package'] },
   { words: ['yarn', 'dlx'], valueFlags: ['-p', '--package'] },
   { words: ['exec'], valueFlags: ['-a'] },

@@ -30,6 +30,7 @@
     {"name": "launcher word as an extension filter is not a launcher", "args": ["Bash", {"command": "fd -e sh plantuml"}], "expect": "U"},
     {"name": "which env mmdc is inspect", "args": ["Bash", {"command": "which env mmdc"}], "expect": "A"},
     {"name": "bun x runs the renderer", "args": ["Bash", {"command": "bun x mmdc -i a.mmd -o a.svg"}], "expect": "H"},
+    {"name": "yarn exec runs the renderer", "args": ["Bash", {"command": "yarn exec mmdc -i a.mmd -o a.svg"}], "expect": "H"},
     {"name": "npm x runs the renderer", "args": ["Bash", {"command": "npm x mmdc -i a.mmd -o a.svg"}], "expect": "H"},
     {"name": "command without a lookup flag runs the renderer", "args": ["Bash", {"command": "command mmdc -i a.mmd -o a.svg"}], "expect": "H"},
     {"name": "command -v is a lookup, not a render", "args": ["Bash", {"command": "command -v mmdc"}], "expect": "U"},

@@ -145,6 +145,7 @@ test('a launcher word used as an ordinary argument never puts a renderer in comm
 test('bun x and npm x run the renderer; command runs it unless it is a -v/-V lookup', () => {
   assert.equal(classify('Bash', { command: 'bun x mmdc -i a.mmd -o a.svg' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'npm x mmdc -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'yarn exec mmdc -i a.mmd -o a.svg' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'command mmdc -i a.mmd -o a.svg' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'command -p mmdc -i a.mmd -o a.svg' }, cfg), 'H');
   assert.notEqual(classify('Bash', { command: 'command -v mmdc' }, cfg), 'H');
