@@ -121,5 +121,5 @@ export function graderSpawnPlan({
 
 /** True when the child's output is the not-authenticated notice, not a verdict. */
 export function isGraderAuthFailure(text) {
-  return /not logged in|please run \/login/i.test(String(text || ''));
+  return /^not logged in\b/i.test(String(text || '').trim());
 }

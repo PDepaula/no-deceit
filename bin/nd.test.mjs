@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -202,5 +202,44 @@ test('nd report (read-only) is allowed inside an agent shell', () => {
   try {
     const r = run(['report'], { ...s.env, CLAUDECODE: '1' }, s.dir);
     assert.match(r.out, /No Deceit report/);
+  } finally { s.cleanup(); }
+});
+
+function fakeClaude(dir, script) {
+  const bin = join(dir, 'fakebin');
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(join(bin, 'claude'), `#!/bin/sh\n${script}\n`, { mode: 0o755 });
+  return bin;
+}
+
+test('nd doctor makes no grader call unless --grader-probe is passed', () => {
+  const s = scratch();
+  try {
+    const marker = join(s.dir, 'claude-called');
+    const bin = fakeClaude(s.dir, `touch '${marker}'; echo ok`);
+    const env = { ...s.env, PATH: `${bin}:${s.env.PATH}` };
+    const r = run(['doctor'], env, s.dir);
+    assert.match(r.out, /grader login: not checked \(run nd doctor --grader-probe\)/);
+    assert.equal(existsSync(marker), false);
+  } finally { s.cleanup(); }
+});
+
+test('nd doctor --grader-probe reports a grader that cannot authenticate', () => {
+  const s = scratch();
+  try {
+    const bin = fakeClaude(s.dir, "echo 'Not logged in · Please run /login'; exit 1");
+    const env = { ...s.env, PATH: `${bin}:${s.env.PATH}` };
+    const r = run(['doctor', '--grader-probe'], env, s.dir);
+    assert.match(r.out, /grader login: FAIL — grader cannot authenticate/);
+  } finally { s.cleanup(); }
+});
+
+test('nd doctor --grader-probe is ok when the grader child answers', () => {
+  const s = scratch();
+  try {
+    const bin = fakeClaude(s.dir, 'echo ok');
+    const env = { ...s.env, PATH: `${bin}:${s.env.PATH}` };
+    const r = run(['doctor', '--grader-probe'], env, s.dir);
+    assert.match(r.out, /grader login: ok/);
   } finally { s.cleanup(); }
 });

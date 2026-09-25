@@ -103,10 +103,10 @@ export function executeSpawnPlan(plan, { env = process.env, spawnImpl = spawn } 
 }
 
 /**
- * `nd doctor` probe: run a minimal grader child (same isolation flags, trivial
+ * `nd doctor --grader-probe`: run a minimal grader child (same isolation flags, trivial
  * prompt) and report whether it can authenticate. Never grades anything.
  */
-export async function probeGraderAuth({ env = process.env, spawnImpl, model, timeoutMs = 60_000 } = {}) {
+export async function probeGraderAuth({ env = process.env, spawnImpl, model, timeoutMs = 20_000 } = {}) {
   const plan = graderSpawnPlan({
     pluginRoot: pluginRoot(),
     model: model || defaultGraderModel(),

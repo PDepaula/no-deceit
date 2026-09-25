@@ -545,6 +545,13 @@ test('executeSpawnPlan turns "Not logged in" into a GRADER_AUTH failure, not a v
   );
 });
 
+test('executeSpawnPlan keeps a verdict whose quoted evidence says "not logged in"', async () => {
+  const verdict = '{"verdict":"unlocked","criteria":{"R1":{"met":true,"span":"a user who is not logged in gets a 401; please run /login first"}}}';
+  const plan = graderSpawnPlan({ pluginRoot: '/plugin', jobPath: '/tmp/j.json' });
+  const out = await executeSpawnPlan(plan, { spawnImpl: fakeChildSpawn({ stdout: verdict, capture: {} }) });
+  assert.equal(out, verdict);
+});
+
 test('probeGraderAuth reports "grader cannot authenticate" on Not logged in', async () => {
   const capture = {};
   const r = await probeGraderAuth({ spawnImpl: fakeChildSpawn({ stdout: 'Not logged in · Please run /login', code: 1, capture }) });

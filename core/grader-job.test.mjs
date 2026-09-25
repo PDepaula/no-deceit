@@ -89,4 +89,5 @@ test('graderSpawnPlan isolates the child without --bare (OAuth must keep working
 test('isGraderAuthFailure recognises the not-logged-in notice', () => {
   assert.equal(isGraderAuthFailure('Not logged in · Please run /login'), true);
   assert.equal(isGraderAuthFailure('{"verdict":"unlocked"}'), false);
+  assert.equal(isGraderAuthFailure('{"verdict":"unlocked","criteria":{"R1":{"met":true,"span":"a user who is not logged in gets a 401"}}}'), false);
 });

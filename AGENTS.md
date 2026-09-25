@@ -44,7 +44,7 @@ Read it before changing enforcement semantics.
 - `agents/nd-grader.md` — the blind grader agent; spawned only by the hook or
   `nd`, never by the tutor. Never spawn it with
   `claude --bare` (skips OAuth → "Not logged in"); blindness is flag/cwd/env
-  isolation in `core/grader-job.mjs`, probed by `nd doctor`. Model is `graderModel` (default `haiku`).
+  isolation in `core/grader-job.mjs`, probed by `nd doctor --grader-probe`. Model is `graderModel` (default `haiku`).
 - `gold/unlock-gold.mjs` — adversarial gold set; `nd audit` release gate is
   `graded_up = 0` before accepting a grader-prompt change.
 - `skills/no-deceit/SKILL.md` — the teaching layer.
