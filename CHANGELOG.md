@@ -3,6 +3,21 @@
 All notable changes to this plugin are recorded here. Format is loosely
 based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.0] — Redesign phase 4: the home repo
+
+One-line index; the what / why / what-you-should-notice is in
+`docs/releases/v0.8.0.md`.
+
+- **Added:** home layout (`projects/ data/ state/ config/`, `.nd-home`), `nd bootstrap`
+  (harness symlinks, marketplace double-fire check), `nd project add`, `nd update`
+  (ff-only + release notes), `core/home.mjs` + pure `core/update.mjs`.
+- **Changed:** `adapters/` → `harness/`; `harness/claude-code/` skills-dir plugin;
+  manifests repointed; `package.json` private (no `main`/`files`/`bin`); state and
+  config resolve under `ND_HOME` when a home exists, XDG otherwise.
+- **Added:** `docs/releases/`, `docs/decisions/` (D1–D8, R1–R8), `harness/README.md`,
+  and the npm `0.7.2` deprecation stub in `docs/releases/npm-0.7.2/` (captain publishes).
+- **Docs:** README rewritten for the git install.
+
 ## Unreleased
 
 - **Fixed:** the blind unlock grader is no longer spawned with

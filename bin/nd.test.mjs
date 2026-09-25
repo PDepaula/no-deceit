@@ -11,7 +11,7 @@ const ND = join(dirname(fileURLToPath(import.meta.url)), 'nd');
 
 function scratch() {
   const dir = mkdtempSync(join(tmpdir(), 'nd-cli-'));
-  const env = { ...process.env, XDG_STATE_HOME: join(dir, 'state'), XDG_CONFIG_HOME: join(dir, 'config'), HOME: dir };
+  const env = { ...process.env, XDG_STATE_HOME: join(dir, 'state'), XDG_CONFIG_HOME: join(dir, 'config'), HOME: dir, ND_HOME: '' };
   delete env.CLAUDECODE; delete env.CURSOR_AGENT; delete env.PI_CODING_AGENT;
   delete env.FM_TASK_ID; delete env.ND_ALLOW_AGENT;
   return { dir, env, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
@@ -75,6 +75,34 @@ test('nd check is refused inside an agent shell (tutor cannot spawn the grader)'
     const r = run(['check', 'heap'], { ...s.env, CLAUDECODE: '1' }, s.dir, true);
     assert.notEqual(r.code, 0);
     assert.match(r.out, /refusing to run a state-changing/);
+  } finally { s.cleanup(); }
+});
+
+test('nd project / bootstrap / update are refused inside an agent shell', () => {
+  const s = scratch();
+  try {
+    for (const args of [['project', 'add', s.dir], ['bootstrap', '--dry-run'], ['update']]) {
+      const r = run(args, { ...s.env, CLAUDECODE: '1' }, s.dir, true);
+      assert.notEqual(r.code, 0, args.join(' '));
+      assert.match(r.out, /refusing to run a state-changing/);
+    }
+  } finally { s.cleanup(); }
+});
+
+test('nd bootstrap --dry-run prints the plan and writes nothing in the checkout', () => {
+  const s = scratch();
+  try {
+    const r = run(['bootstrap', '--dry-run'], { ...s.env, HOME: s.dir }, s.dir);
+    assert.match(r.out, /dry run/);
+    assert.match(r.out, /PATH:/);
+  } finally { s.cleanup(); }
+});
+
+test('nd project add refuses until the checkout is a home', () => {
+  const s = scratch();
+  try {
+    const r = run(['project', 'add', s.dir], s.env, s.dir, true);
+    assert.match(r.out, /not a home yet/);
   } finally { s.cleanup(); }
 });
 

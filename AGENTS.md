@@ -27,24 +27,24 @@ Read it before changing enforcement semantics.
   engagement grader: pre-filter, mechanical verdict, blindness, gold scoring),
   `evidence.mjs` (redesign phase 2: teach args, diagram kind detection, evidence file
   format; `TRANSFER_RUBRIC` / `finalizeTransferVerdict` live in `rubric.mjs`,
-  `prefilterTransfer` in `prefilter.mjs`), `report.mjs` (Phase 5 earned-time summary + per-domain Coach/Pair
+  `prefilterTransfer` in `prefilter.mjs`), `update.mjs` (home-repo helpers), `report.mjs` (Phase 5 earned-time summary + per-domain Coach/Pair
   suggestions over ledger entries). Keep these pure so per-harness adapters
   import them unchanged.
 - `core/state.mjs`, `core/control.mjs`, `core/gate.mjs`, `core/grader.mjs`,
-  `core/git-evidence.mjs`, `core/evidence-io.mjs` — the imperative shell: XDG state I/O, ledger,
+  `core/git-evidence.mjs`, `core/evidence-io.mjs`, `core/home.mjs` (bootstrap / project add / update) — the imperative shell: home-or-XDG state I/O, ledger,
   tier/mode/unlock ops, fail-closed orchestrator (`evaluate` /
   `evaluateStop` / `evaluateDisplay` / `evaluatePostToolUse`), and the
   mockable grader spawn.
 - `hooks/nd-hook.mjs` + `hooks/hooks.json` — the Claude Code hook shim
   (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`,
   `MessageDisplay`); thin, all policy in core. `MessageDisplay` is Claude-Code-only.
-- `adapters/` — Phase 4 shells over the same `evaluate()`: OpenCode
+- `harness/` — Phase 4 shells over the same `evaluate()`: OpenCode
   (`tool.execute.before` throws), Pi (`tool_call` `{block:true}`), Cursor
-  (`nd --cursor` stdout object). Mapping lives in `adapters/map-tool.mjs`;
+  (`nd --cursor` stdout object). Mapping lives in `harness/map-tool.mjs`;
   do not fork policy. Verification records: `docs/verification/<harness>.md`.
 - `bin/nd` — the developer's shell CLI (`init|tier|mode|status|unlock|check|evidence|grade|
-  audit|ledger|report|doctor`) plus Cursor's `nd --cursor` transport;
-  auto-added to PATH by the Claude plugin. `nd report` is read-only.
+  audit|ledger|report|doctor|project|bootstrap|update`) plus Cursor's `nd --cursor` transport;
+  put on PATH by the marketplace plugin route, or by the line `nd bootstrap` prints. `nd report` is read-only.
 - `agents/nd-grader.md` — the blind grader agent; spawned only by the hook or
   `nd`, never by the tutor. Never spawn it with `claude --bare` (skips OAuth →
   "Not logged in"); blindness is flag/cwd/env isolation in
@@ -58,18 +58,19 @@ Read it before changing enforcement semantics.
 - `gold/unlock-gold.mjs` — adversarial gold set; `nd audit` release gate is
   `graded_up = 0` before accepting a grader-prompt change.
 - `skills/no-deceit/SKILL.md` — the teaching layer.
-- Distribution manifests (Phase 6, packaging only — no policy lives here):
+- Distribution manifests (packaging only — no policy lives here). The repo is
+  a git-installed *home* (`nd bootstrap` symlinks `harness/*` into each
+  harness; gitignored `projects/ data/ state/ config/`; no npm publishing):
   `.claude-plugin/` is Claude Code's manifest and doubles as this repo's own
-  marketplace; `.cursor-plugin/plugin.json` gives Cursor its own `hooks`
-  pointer at `adapters/cursor/hooks.json` (Cursor's convention-based hook
+  marketplace (`source` stays `./`, see `docs/decisions/r1-r8.md`); `.cursor-plugin/plugin.json` gives Cursor its own `hooks`
+  pointer at `harness/cursor/hooks.json` (Cursor's convention-based hook
   discovery would otherwise silently pick up Claude Code's differently-
   shaped `hooks/hooks.json` and index-but-not-enforce — do not delete
   `.cursor-plugin/` to "deduplicate" with `.claude-plugin/`); `package.json`'s
-  `pi` key + `pi-package` keyword are Pi's package manifest, `main` is
-  OpenCode's `opencode plugin <module>` entrypoint, and `files` is the npm
-  publish allowlist (excludes `*.test.mjs`). What was actually verified for
+  `pi` key + `pi-package` keyword are Pi's package manifest (the package is
+  `private`, with no `main`/`files`/`bin`). What was actually verified for
   each (including two known adapter gaps found during this pass) is in
-  `docs/verification/<harness>.md`; `adapters/packaging.test.mjs` guards the
+  `docs/verification/<harness>.md`; `harness/packaging.test.mjs` guards the
   manifests against drift.
 
 ## Non-negotiable invariants (do not regress)
@@ -94,7 +95,7 @@ Read it before changing enforcement semantics.
 
 ## Test
 
-`node --test 'core/*.test.mjs' 'hooks/*.test.mjs' 'bin/*.test.mjs' 'adapters/*.test.mjs'` (plus `node --test oracle/oracle.test.mjs`; `bb test` for the Babashka port, see `PORTING.md`) — pure Node
+`node --test 'core/*.test.mjs' 'hooks/*.test.mjs' 'bin/*.test.mjs' 'harness/*.test.mjs'` (plus `node --test oracle/oracle.test.mjs`; `bb test` for the Babashka port, see `PORTING.md`) — pure Node
 test runner, no deps. The tier × category matrix, tamper / scope / fail-closed
 paths, the grader pre-filter / gold set / `nd audit` gate, the Phase 3
 fence / narration-format / Agent-ask / bashEditDiff paths, the Phase 4

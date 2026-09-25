@@ -168,6 +168,7 @@ test('Bash mutating nd subcommand (tier) is category G', () => {
 });
 test('Bash mutating nd subcommand (unlock) is category G', () => {
   assert.equal(classify('Bash', { command: 'nd unlock --override "because"' }, cfg), 'G');
+  for (const c of ['nd project add /x', 'nd bootstrap', 'nd update']) assert.equal(classify('Bash', { command: c }, cfg), 'G', c);
 });
 test('Bash mutating nd check (blind grader) is category G — tutor must not spawn it', () => {
   assert.equal(classify('Bash', { command: 'nd check parser' }, cfg), 'G');

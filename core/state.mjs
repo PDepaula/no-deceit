@@ -11,6 +11,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 
@@ -53,10 +54,42 @@ function xdg(env, varName, fallbackSub) {
   return base;
 }
 
-/** Home-scoped (XDG) paths: config file, state dir, ledger, sessions dir. */
+/**
+ * A checkout is a No Deceit *home* once `nd bootstrap` has dropped the
+ * `.nd-home` marker in it (the gitignored projects/ data/ state/ config/ dirs
+ * live beside it). Returns the home root for a checkout root, else null.
+ */
+export function detectHome(checkoutRoot) {
+  return existsSync(join(checkoutRoot, '.nd-home')) ? checkoutRoot : null;
+}
+
+/**
+ * Env with `ND_HOME` defaulted from the checkout the shim runs from. An
+ * explicit `ND_HOME` (even the empty string, which turns the home off and
+ * falls back to XDG) always wins.
+ */
+export function withDetectedHome(env, checkoutRoot) {
+  if (env.ND_HOME !== undefined) return env;
+  const home = detectHome(checkoutRoot);
+  return home ? { ...env, ND_HOME: home } : env;
+}
+
+/** The checkout this code runs from (core/..): the candidate home for `defaultEnv`. */
+export const CHECKOUT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** `process.env` plus the home auto-detected from the running checkout. Shims use this; tests pass their own env. */
+export function defaultEnv() {
+  return withDetectedHome(process.env, CHECKOUT_ROOT);
+}
+
+/**
+ * Home-scoped paths: config file, state dir, ledger, sessions dir. With a home
+ * (`ND_HOME`) they are `<home>/config` and `<home>/state`; otherwise the XDG
+ * fallback (~/.config/no-deceit, ~/.local/state/no-deceit).
+ */
 export function homePaths(env = process.env) {
-  const stateDir = join(xdg(env, 'XDG_STATE_HOME', ['.local', 'state']), 'no-deceit');
-  const configDir = join(xdg(env, 'XDG_CONFIG_HOME', ['.config']), 'no-deceit');
+  const stateDir = env.ND_HOME ? join(env.ND_HOME, 'state') : join(xdg(env, 'XDG_STATE_HOME', ['.local', 'state']), 'no-deceit');
+  const configDir = env.ND_HOME ? join(env.ND_HOME, 'config') : join(xdg(env, 'XDG_CONFIG_HOME', ['.config']), 'no-deceit');
   return {
     stateDir,
     configDir,

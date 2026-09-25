@@ -1,0 +1,19 @@
+{
+  "name": "no-deceit",
+  "version": "0.7.2",
+  "description": "No Deceit moved to a git-based install; this npm package is unmaintained. See https://github.com/PDepaula/no-deceit",
+  "license": "MIT",
+  "author": "Patrick De Paula",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PDepaula/no-deceit.git"
+  },
+  "homepage": "https://github.com/PDepaula/no-deceit#readme",
+  "files": [
+    "README.md",
+    "postinstall.js"
+  ],
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  }
+}

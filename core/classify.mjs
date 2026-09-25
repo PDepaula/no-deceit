@@ -248,7 +248,7 @@ function invokesRenderer(cmd) {
 
 // --- Bash shape detection ------------------------------------------------
 
-const RE_MUTATING_ND = /(^|[\s;&|(])nd\s+(tier|mode|unlock|init|reset|set|check|grade|evidence)\b/;
+const RE_MUTATING_ND = /(^|[\s;&|(])nd\s+(tier|mode|unlock|init|reset|set|check|grade|evidence|project|bootstrap|update)\b/;
 const RE_READONLY_ND = /(^|[\s;&|(])nd\s+(status|ledger|show|doctor|help|audit|report)\b/;
 
 // Unambiguous file-authoring shapes: specific syntax that always writes, so
