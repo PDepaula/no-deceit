@@ -212,9 +212,10 @@ export function proseOf(text) {
   return String(text ?? '').replace(/(^|\n)\s*(`{3,}|~{3,})[^\n]*\n[\s\S]*?(\n\s*\2[^\n]*|$)/g, '$1').trim();
 }
 
+/** Nodes across the parsed diagrams; null when none was parsed (an unparsed entry is no summary). */
 function nodeCount(summary) {
-  const ds = summary && Array.isArray(summary.diagrams) ? summary.diagrams : null;
-  if (!ds || ds.length === 0) return null;
+  const ds = (summary && Array.isArray(summary.diagrams) ? summary.diagrams : []).filter((d) => d && d.parsed !== false);
+  if (ds.length === 0) return null;
   return ds.reduce((n, d) => n + (Array.isArray(d && d.nodes) ? d.nodes.length : 0), 0);
 }
 

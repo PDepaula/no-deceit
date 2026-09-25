@@ -58,6 +58,10 @@ test('prefilterTransfer: empty, too_short, source_paste (excerpt and bare URL), 
   assert.equal(prefilterTransfer('flowchart TD\n a --> b', { summary: tiny, diagramFile: true }).reason, 'too_few_nodes');
   // No summary: nothing fails because a summary is missing.
   assert.equal(prefilterTransfer('flowchart TD\n a --> b', { diagramFile: true }).ok, true);
+  // parsed:false entries are no summary; parsed ones still count on their own.
+  const er = { kind: 'mermaid', diagram_type: 'erDiagram', parsed: false };
+  assert.equal(prefilterTransfer('erDiagram\n A ||--o{ B : has', { summary: { version: 1, diagrams: [er] }, diagramFile: true }).ok, true);
+  assert.equal(prefilterTransfer('erDiagram\n A ||--o{ B : has', { summary: { version: 1, diagrams: [er, tiny.diagrams[0]] }, diagramFile: true }).reason, 'too_few_nodes');
   assert.equal(sourceOverlap('one two', ['one two']), 0); // fewer than one 5-word run
   assert.equal(proseOf('words\n```mermaid\nA-->B\n```\nmore').includes('A-->B'), false);
 });
