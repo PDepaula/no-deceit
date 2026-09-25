@@ -98,6 +98,17 @@ test('nd bootstrap --dry-run prints the plan and writes nothing in the checkout'
   } finally { s.cleanup(); }
 });
 
+test('nd bootstrap --cursor runs bootstrap for Cursor, not the Cursor hook transport', () => {
+  const s = scratch();
+  try {
+    mkdirSync(join(s.dir, '.cursor'));
+    const r = run(['bootstrap', '--dry-run', '--cursor'], { ...s.env, HOME: s.dir }, s.dir);
+    assert.match(r.out, /dry run/);
+    assert.match(r.out, /cursor: preToolUse → .*nd --cursor merged into/);
+    assert.doesNotMatch(r.out, /"permission"/);
+  } finally { s.cleanup(); }
+});
+
 test('nd project add refuses until the checkout is a home', () => {
   const s = scratch();
   try {

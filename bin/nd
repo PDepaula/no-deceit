@@ -47,7 +47,9 @@ function guardAgentShell(sub) {
   }
 }
 
-if (process.argv.slice(2).includes('--cursor')) {
+// Cursor's hook runs `nd --cursor`; only a leading `--cursor` is the transport
+// (`nd bootstrap --cursor` is bootstrap's harness flag).
+if (process.argv[2] === '--cursor') {
   const { runCursorHook } = await import('../harness/cursor/run.mjs');
   await runCursorHook({ stdin: process.stdin, stdout: process.stdout, env, cwd: repoRoot });
   process.exit(0);
