@@ -15,7 +15,8 @@ for (const f of readdirSync(casesDir).filter((n) => n.endsWith('.json')).sort())
   test(`oracle cases: ${spec.module}`, async () => {
     const mod = await import(pathToFileURL(join(root, spec.js.file)).href);
     for (const c of spec.cases) {
-      const got = JSON.parse(JSON.stringify(mod[spec.js.fn](...c.args)));
+      const r = mod[spec.js.fn](...c.args);
+      const got = r === undefined ? null : JSON.parse(JSON.stringify(r));
       assert.deepEqual(got, c.expect, c.name);
     }
   });

@@ -54,9 +54,9 @@ Tests go in `test/no_deceit/`.
 Core namespaces in `src/` may only require `clojure.string`, `clojure.set`,
 `clojure.walk`, `clojure.edn` and other `no-deceit.*` namespaces, may not
 `:import`, and may not call `slurp`/`spit`/`System/*`/Java classes. `bb lint`
-reads the forms (comments and docstrings don't count) and fails on any of
-these. Time, env and I/O are passed in as arguments, exactly like
-`core/*.mjs`.
+reads the forms (comments, docstrings and top-level `(comment ...)` blocks
+don't count) and fails on any of these. Time, env and I/O are passed in as
+arguments, exactly like `core/*.mjs`.
 
 ## Cutting over
 

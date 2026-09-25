@@ -63,8 +63,9 @@
     (let [forms (e/parse-string-all (slurp f)
                                     {:all true
                                      :auto-resolve (fn [a] (if (= :current a) 'user a))})]
-      (mapcat #(if (and (seq? %) (= 'ns (first %)))
-                 (ns-violations %)
+      (mapcat #(case (when (seq? %) (first %))
+                 ns (ns-violations %)
+                 comment []
                  (body-violations %))
               forms))
     (catch Exception ex [[nil (str "unreadable: " (ex-message ex))]])))

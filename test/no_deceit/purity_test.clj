@@ -14,6 +14,7 @@
   (is (= [] (lint-src (str "(ns no-deceit.x \"uses babashka.fs? no\"\n"
                            "  (:require [clojure [string :as str]] [no-deceit.y :as y]))\n"
                            ";; (slurp \"f\") System/getenv\n"
+                           "(comment (slurp \"x.json\"))\n"
                            "(defn f [m] (str/upper-case (:k m)) (Math/abs -1) (.trim \" a \"))")))))
 
 (deftest impure-requires-fail
