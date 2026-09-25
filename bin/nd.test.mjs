@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { appendLedger, projectPaths, readProjectState } from '../core/state.mjs';
+import { appendLedger, projectPaths, readProjectState, writeProjectState } from '../core/state.mjs';
 
 const ND = join(dirname(fileURLToPath(import.meta.url)), 'nd');
 
@@ -33,6 +33,25 @@ test('nd init opts the project in and nd tier persists', () => {
     assert.ok(existsSync(projectPaths(s.dir).dir));
     run(['tier', '2'], s.env, s.dir);
     assert.equal(readProjectState(s.dir, s.env).tier, 2);
+  } finally { s.cleanup(); }
+});
+
+test('nd init defaults the project to Tier 2 (R1)', () => {
+  const s = scratch();
+  try {
+    const r = run(['init'], s.env, s.dir);
+    assert.match(r.out, /Tier 2, mode ask/);
+    assert.equal(readProjectState(s.dir, s.env).tier, 2);
+  } finally { s.cleanup(); }
+});
+
+test('re-running nd init keeps and reports a stored Tier 1 (no migration)', () => {
+  const s = scratch();
+  try {
+    writeProjectState(s.dir, { tier: 1, mode: 'coach', unlocked: false });
+    const r = run(['init'], s.env, s.dir);
+    assert.match(r.out, /Tier 1, mode coach/);
+    assert.equal(readProjectState(s.dir, s.env).tier, 1);
   } finally { s.cleanup(); }
 });
 

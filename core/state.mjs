@@ -15,7 +15,7 @@ import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 
 export const DEFAULTS = {
-  tier: 1,
+  tier: 2, // R1: Tier 2 is the default for every governed project.
   mode: 'ask', // 'coach' | 'pair' | 'ask'
   t3TimeboxMinutes: 120,
   preambleMinChars: 40,
@@ -24,6 +24,7 @@ export const DEFAULTS = {
   attemptMinChars: 80,
   auditRuns: 3,
   tier1MaxFenceLines: 6,
+  projectNouns: [], // names of the developer's systems; a turn naming one is never a 'short turn'
   messageDisplayRedaction: true,
   tripwireIgnoreGlobs: [
     '**/.pytest_cache/**', '**/__pycache__/**', '**/*.pyc',
@@ -118,7 +119,7 @@ export function readProjectState(repoRoot, env = process.env) {
   const cfg = loadConfig(env);
   const raw = readJson(projectPaths(repoRoot).stateFile, {});
   return {
-    tier: raw.tier === 2 ? 2 : 1,
+    tier: raw.tier === 1 || raw.tier === 2 ? raw.tier : (cfg.tier === 1 ? 1 : 2),
     mode: raw.mode || cfg.mode,
     unlocked: Boolean(raw.unlocked),
     lastUnlock: raw.lastUnlock || null,

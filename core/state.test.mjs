@@ -56,7 +56,7 @@ test('readProjectState returns defaults when no state file exists', () => {
   const s = scratch();
   try {
     const st = readProjectState(s.repo, s.env);
-    assert.equal(st.tier, 1);
+    assert.equal(st.tier, 2); // R1: Tier 2 is the default
     assert.equal(st.unlocked, false);
   } finally { s.cleanup(); }
 });

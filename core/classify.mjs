@@ -1,6 +1,6 @@
 // No Deceit — tool-call classifier (PURE, zero dependencies).
 //
-// classify(toolName, toolInput, cfg) -> category 'A'..'G' or 'U'.
+// classify(toolName, toolInput, cfg) -> category 'A'..'H' or 'U'.
 //
 //   A  inspect / read-only
 //   B  run / feedback (execute, do not author)
@@ -9,6 +9,8 @@
 //   E  source mutation
 //   F  delegation
 //   G  tamper (touches No Deceit state, or a mutating `nd` subcommand)
+//   H  design artifact (Mermaid / Excalidraw / mind-map / other diagram source,
+//      as a file write or a diagram renderer invocation)
 //   U  unknown Bash shape (policy turns this into `ask` at gated tiers)
 //
 // This module never reads the filesystem, the clock, or the environment.
@@ -78,6 +80,170 @@ function namesStatePath(path, prefixes) {
   if (!path) return false;
   if (underStatePath(path, prefixes)) return true;
   return RE_STATE_SEGMENT.test(String(path).replace(/\\/g, '/'));
+}
+
+// --- Design-artifact (category H) detection ------------------------------------
+
+const RE_DIAGRAM_PATH = /\.(excalidraw(\.json)?|mmd|mermaid|drawio|puml|d2|dot)$/i;
+const RE_MARKDOWN_PATH = /\.(md|markdown)$/i;
+// A mermaid/plantuml/d2/dot fence opener, or a mind-map block, in written content.
+const RE_DIAGRAM_CONTENT = /(^|\n)\s*(`{3,}|~{3,})\s*(mermaid|mmd|plantuml|puml|d2|dot|graphviz|excalidraw|mindmap)\b|(^|\n)\s*mindmap\s*(\n|$)/i;
+
+function isDiagramPath(path) {
+  return Boolean(path) && RE_DIAGRAM_PATH.test(String(path).replace(/\\/g, '/'));
+}
+
+/** Does content written to a markdown file carry a diagram fence or mind-map block? */
+function markdownCarriesDiagram(path, content) {
+  return Boolean(path) && RE_MARKDOWN_PATH.test(String(path)) && RE_DIAGRAM_CONTENT.test(String(content || ''));
+}
+
+// Diagram renderers. A Bash command that invokes one is diagram creation (H),
+// whatever feeds it, the learner's own file included: they render in their own
+// terminal. Judged on the raw command by one linear scan, no shell-quote
+// parsing and no backtracking regex. A backslash-newline line continuation is
+// always removed, joining the lines; `#` comments are not tracked, so one that
+// ends in a backslash-newline absorbs the next line. The command splits into segments at | ; &
+// newline ( ) ` { }, at a quote opening quoted text (so it leans toward
+// blocking), and at find's -exec/-execdir. A quoted single word (`"mmdc"`) stays
+// a word of its segment with the quotes stripped; backslashes and a leading `$`
+// (`\mmdc`, `$'mmdc'`) are stripped from every word too. In each segment, VAR=val
+// assignments and a chain of launchers (LAUNCHERS) with their flags are skipped;
+// the first remaining word, compared by basename, is the command. Only a launcher's listed value flags
+// consume the next word; any other flag is boolean. `dot` counts only with a
+// `-T` flag in the segment. A renderer or launcher name merely mentioned as an
+// argument (`grep -rn mmdc`, `rg -t sh mmdc`, `ls dotfiles`) is not an
+// invocation, nor is a `command -v mmdc` lookup.
+// Accepted known gaps (shell-syntax disguises): docs/verification/claude-code.md.
+const LAUNCHERS = [
+  { words: ['npx'], valueFlags: ['-p', '--package'] },
+  { words: ['bunx'], valueFlags: ['-p', '--package'] },
+  { words: ['bun', 'x'], valueFlags: ['-p', '--package'] },
+  { words: ['npm', 'x'], valueFlags: ['-p', '--package'] },
+  { words: ['npm', 'exec'], valueFlags: ['-p', '--package'] },
+  { words: ['pnpm', 'exec'] },
+  { words: ['yarn', 'exec'] },
+  { words: ['pnpm', 'dlx'], valueFlags: ['-p', '--package'] },
+  { words: ['yarn', 'dlx'], valueFlags: ['-p', '--package'] },
+  { words: ['exec'], valueFlags: ['-a'] },
+  { words: ['xargs'], valueFlags: ['-I', '-d', '-n', '-P', '-L', '-s', '-a', '-E'] },
+  { words: ['env'], valueFlags: ['-u', '-C', '-S'] },
+  { words: ['sudo'], valueFlags: ['-u', '-g', '-C', '-U'] },
+  { words: ['nice'], valueFlags: ['-n'] },
+  { words: ['time'], valueFlags: ['-f', '-o'] },
+  { words: ['command'], lookupFlags: ['-v', '-V'] },
+  { words: ['nohup'] },
+  { words: ['sh'] },
+  { words: ['bash'] },
+  { words: ['then'] },
+  { words: ['do'] },
+  { words: ['else'] },
+  { words: ['if'] },
+  { words: ['elif'] },
+  { words: ['while'] },
+  { words: ['until'] },
+  { words: ['!'] },
+];
+const RENDERERS = new Set(['mmdc', 'plantuml', 'excalidraw-cli', 'd2', '@mermaid-js/mermaid-cli']);
+const SEGMENT_BREAKS = new Set(['|', ';', '&', '\n', '(', ')', '`', "'", '"', '{', '}']);
+const BLANKS = new Set([' ', '\t', '\r']);
+const EXEC_ACTIONS = new Set(['-exec', '-execdir']);
+const QUOTES = new Set(["'", '"']);
+const RE_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
+
+const basename = (w) => w.slice(w.lastIndexOf('/') + 1);
+
+function bareWord(w) {
+  const unescaped = w.replaceAll('\\', '');
+  return unescaped.startsWith('$') ? unescaped.slice(1) : unescaped;
+}
+
+function matchLauncher(words, i) {
+  return LAUNCHERS.find((l) =>
+    l.words.every((w, k) => i + k < words.length && (k === 0 ? basename(words[i]) : words[i + k]) === w));
+}
+
+function isRendererCall(word, rest) {
+  const at = word.indexOf('@', 1);
+  const name = at < 0 ? word : word.slice(0, at);
+  if (RENDERERS.has(name) || RENDERERS.has(basename(name))) return true;
+  return basename(name) === 'dot' && rest.some((w) => w.startsWith('-T'));
+}
+
+function segmentRunsRenderer(words) {
+  let i = 0;
+  for (;;) {
+    while (i < words.length && RE_ASSIGNMENT.test(words[i])) i++;
+    const launcher = matchLauncher(words, i);
+    if (!launcher) break;
+    i += launcher.words.length;
+    while (i < words.length && (words[i].startsWith('-') || RE_ASSIGNMENT.test(words[i]))) {
+      const flag = words[i];
+      if (launcher.lookupFlags?.includes(flag)) return false;
+      i += launcher.valueFlags?.includes(flag) ? 2 : 1;
+    }
+  }
+  return i < words.length && isRendererCall(words[i], words.slice(i + 1));
+}
+
+// Index of the quote closing a quoted single word (`"mmdc"`, `'./bin/d2'`), or -1
+// when a blank or break comes first and the quote opens a new segment instead.
+function quotedWordEnd(s, open) {
+  for (let j = open + 1; j < s.length; j++) {
+    if (s[j] === s[open]) return j;
+    if (BLANKS.has(s[j]) || SEGMENT_BREAKS.has(s[j])) return -1;
+  }
+  return -1;
+}
+
+/** Does the raw Bash command invoke a diagram renderer in command position? */
+function invokesRenderer(cmd) {
+  const s = String(cmd || '');
+  let seg = [];
+  let word = null;
+  for (let i = 0; i <= s.length; i++) {
+    const ch = i < s.length ? s[i] : '';
+    if (ch === '\\') {
+      const continuation = s.startsWith('\n', i + 1) ? 1 : s.startsWith('\r\n', i + 1) ? 2 : 0;
+      if (continuation) {
+        i += continuation;
+        continue;
+      }
+      if (s[i + 1] === '\\') {
+        word = (word ?? '') + '\\\\';
+        i++;
+        continue;
+      }
+    }
+    if (QUOTES.has(ch)) {
+      const close = quotedWordEnd(s, i);
+      if (close > 0) {
+        word = (word ?? '') + s.slice(i + 1, close);
+        i = close;
+        continue;
+      }
+    }
+    const breaks = ch === '' || SEGMENT_BREAKS.has(ch);
+    if (!breaks && !BLANKS.has(ch)) {
+      word = (word ?? '') + ch;
+      continue;
+    }
+    if (word !== null) {
+      const bare = bareWord(word);
+      if (EXEC_ACTIONS.has(bare)) {
+        if (segmentRunsRenderer(seg)) return true;
+        seg = [];
+      } else {
+        seg.push(bare);
+      }
+      word = null;
+    }
+    if (breaks) {
+      if (segmentRunsRenderer(seg)) return true;
+      seg = [];
+    }
+  }
+  return false;
 }
 
 // --- Bash shape detection ------------------------------------------------
@@ -219,7 +385,7 @@ function splitSegments(cmd) {
 }
 
 // Most-restrictive-wins rank across the segments of a compound command.
-const CATEGORY_RANK = { G: 6, E: 5, U: 4, C: 3, D: 3, B: 2, A: 1 };
+const CATEGORY_RANK = { G: 6, H: 5.5, E: 5, U: 4, C: 3, D: 3, B: 2, A: 1 };
 
 function classifyBash(cmd, cfg) {
   const c = String(cmd || '');
@@ -230,6 +396,12 @@ function classifyBash(cmd, cfg) {
   const nc = c.replace(/\\/g, '/');
   const touchesState = prefixes.some((p) => c.includes(String(p).replace(/\/+$/, '')));
   if (touchesState || RE_STATE_SEGMENT_CMD.test(nc) || RE_HOME_STATE_CMD.test(nc)) return 'G';
+
+  // H: any diagram renderer invocation, judged on the whole raw command.
+  if (invokesRenderer(c)) return 'H';
+  // Diagram content written into markdown: the heredoc body lives on later lines,
+  // so the per-segment router cannot see it.
+  if (AUTHORING_SHAPES.some((rx) => rx.test(c)) && writeTargets(c).some((t) => markdownCarriesDiagram(t, c))) return 'H';
 
   // Classify each segment; return the most restrictive category.
   const segs = splitSegments(c);
@@ -260,6 +432,8 @@ function classifyBashSegment(cmd, cfg) {
     const targets = writeTargets(c);
     // A write whose target names state is tamper, absolute or relative.
     if (targets.some((t) => namesStatePath(t, prefixes))) return 'G';
+    // A write to a diagram source, or diagram content into markdown, is H.
+    if (targets.some((t) => isDiagramPath(t) || markdownCarriesDiagram(t, c))) return 'H';
     // If any target is a test path -> D; tooling path -> C; else E.
     if (targets.some((t) => matchesAny(t, cfg.testGlobs || []))) return 'D';
     if (targets.some((t) => matchesAny(t, cfg.toolingGlobs || []))) return 'C';
@@ -291,6 +465,13 @@ function classifyBashSegment(cmd, cfg) {
   return 'U';
 }
 
+// The new text a Write/Edit/MultiEdit/NotebookEdit call would put on disk.
+function writtenContent(input) {
+  const parts = [input.content, input.new_string, input.new_source];
+  if (Array.isArray(input.edits)) for (const e of input.edits) parts.push(e && e.new_string);
+  return parts.filter((x) => typeof x === 'string').join('\n');
+}
+
 export function classify(toolName, toolInput = {}, cfg = {}) {
   const prefixes = cfg.statePathPrefixes || [];
 
@@ -305,6 +486,8 @@ export function classify(toolName, toolInput = {}, cfg = {}) {
   if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') {
     const path = toolInput.file_path || toolInput.notebook_path || toolInput.path;
     if (namesStatePath(path, prefixes)) return 'G';
+    if (isDiagramPath(path)) return 'H';
+    if (markdownCarriesDiagram(path, writtenContent(toolInput))) return 'H';
     if (matchesAny(path, cfg.testGlobs || [])) return 'D';
     if (matchesAny(path, cfg.toolingGlobs || [])) return 'C';
     return 'E';

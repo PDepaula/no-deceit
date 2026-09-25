@@ -18,7 +18,8 @@
 // therefore enforced for free at the file layer: with no write path, the only
 // way code reaches the file is the developer's own hands.
 
-import { DEFAULT_MAX_FENCE_LINES, overThresholdFences, redactOverThresholdFences } from './fence.mjs';
+import { DEFAULT_MAX_FENCE_LINES, overThresholdFences, diagramFences, redactGatedFences } from './fence.mjs';
+import { checkTurnEnding, hasHandoverLabel } from './handover.mjs';
 import { checkNarrationFormat } from './narration.mjs';
 
 export { DEFAULT_MAX_FENCE_LINES };
@@ -82,6 +83,41 @@ export const REASONS = {
     'illustrative snippets (a few lines of a general concept, not the ' +
     'solution) are still allowed.',
 
+  T_CHAT_DIAGRAM:
+    'No Deceit: drawing the diagram is the learning. That turn put a diagram ' +
+    '(Mermaid, PlantUML, D2, DOT, mind-map, or Excalidraw JSON) in chat, and at ' +
+    'this tier there is no such thing as an illustrative diagram of the ' +
+    'developer\'s own system, of any size. Retract it. Ask which two elements ' +
+    'of their system they would put on the page first and what the arrow ' +
+    'between them is labelled. If they have drawn something, ask them to ' +
+    'save it.',
+
+  T_QUESTION_ENDING:
+    'No Deceit Tier 1 / locked Tier 2: this turn neither ends with a question ' +
+    'nor carries a `Handing over: <what>` line. At this tier the agent may ' +
+    'not quietly deliver an answer. Either end the turn with one question ' +
+    'that makes the developer compare or judge, or, if you are really ' +
+    'handing something over, say so with a line `Handing over: <one line>`.',
+
+  T_HANDOVER_UNLABELLED:
+    'No Deceit: the developer typed /no-deceit:handover, so you may give the ' +
+    'answer in full this turn — but the turn must still say so with a line ' +
+    '`Handing over: <one line>`, so the transcript shows it. Add the label, ' +
+    'then one question that checks whether it landed.',
+
+  DIAGRAM_FILE:
+    'No Deceit: drawing the diagram is the learning. Do not produce a diagram ' +
+    'of the developer\'s system, in a file or in chat. Ask which two elements ' +
+    'of their system they would put on the page first and what the arrow ' +
+    'between them is labelled. If they have drawn something, ask them to save ' +
+    'it.',
+
+  DIAGRAM_FILE_T2_UNLOCKED:
+    'No Deceit Tier 2 is unlocked: you may show a diagram in chat (a fenced ' +
+    'Mermaid block), but never write one to disk — diagram files stay denied, ' +
+    'and you must not route around that via shell or a diagram renderer. ' +
+    'Show it in chat; the developer redraws it themselves.',
+
   T3_NARRATION:
     'No Deceit Tier 3 (Narrated Velocity) requires a what/why section and a ' +
     '`Divergence from your first instinct:` line (the value `none` is ' +
@@ -114,12 +150,12 @@ export const REASONS = {
  * Resolve raw on-disk state into the effective policy state.
  * Pure: the caller supplies preamblePresent (a file check) and nowMs (the clock).
  *
- *   project  = { tier: 1|2, mode, unlocked? }   from <repo>/.no-deceit/state.json
+ *   project  = { tier: 1|2 (absent => 2), mode, unlocked? }   from <repo>/.no-deceit/state.json
  *   session  = { t3ExpiresAtMs?, unlocked? }     from the session overlay
  */
 export function resolveEffective({ project = {}, session = {}, preamblePresent = false, nowMs = Date.now() } = {}) {
   const notes = [];
-  const baseTier = project.tier === 2 ? 2 : 1; // Tier 3 is only ever a grant.
+  const baseTier = project.tier === 1 ? 1 : 2; // Tier 2 is the default; Tier 3 is only ever a grant.
   const mode = project.mode || 'ask';
 
   // A Tier 3 grant can come from the session overlay (the in-prompt
@@ -154,7 +190,7 @@ export function resolveEffective({ project = {}, session = {}, preamblePresent =
 /**
  * The gate decision. Pure.
  *   effective = output of resolveEffective
- *   event     = { category: 'A'..'G' | 'U' }
+ *   event     = { category: 'A'..'H' | 'U' }
  * returns { decision: 'allow'|'deny'|'ask', reason: string|null }
  */
 export function decide(effective, event) {
@@ -176,6 +212,18 @@ export function decide(effective, event) {
       return { decision: 'deny', reason: t2Unlocked ? REASONS.T2_UNLOCKED : REASONS.T2_LOCKED };
     }
     // tier 3
+    if (!t3PreamblePresent) return { decision: 'deny', reason: REASONS.T3_NO_PREAMBLE };
+    return { decision: 'allow', reason: null };
+  }
+
+  // Design artifact (Mermaid / Excalidraw / mind-map source). Denied at Tier 1
+  // and Tier 2, locked or unlocked: the artifact must pass through the
+  // learner's hands, so an unlock only opens the chat channel.
+  if (category === 'H') {
+    if (tier === 1) return { decision: 'deny', reason: REASONS.DIAGRAM_FILE };
+    if (tier === 2) {
+      return { decision: 'deny', reason: t2Unlocked ? REASONS.DIAGRAM_FILE_T2_UNLOCKED : REASONS.DIAGRAM_FILE };
+    }
     if (!t3PreamblePresent) return { decision: 'deny', reason: REASONS.T3_NO_PREAMBLE };
     return { decision: 'allow', reason: null };
   }
@@ -209,30 +257,58 @@ export function chatTextGated(effective) {
 
 /**
  * Stop-hook decision over the assistant's completed turn. Pure.
- *   event = { text, stopHookActive?, turnEdited?, maxFenceLines? }
- * returns { decision: 'allow'|'block', reason, kind }
+ *   event = { text, stopHookActive?, turnEdited?, maxFenceLines?,
+ *             handoverActive?, projectNouns? }
+ * returns { decision: 'allow'|'block', reason, kind, labelled? }
+ *
+ * Gated tiers (T1 / locked T2), in order:
+ *   1. handoverActive (a user-typed /no-deceit:handover armed this turn):
+ *      fences, diagrams, and the question-ending rule are relaxed, but the
+ *      `Handing over:` label is still required.
+ *   2. a diagram fence of any size is a chat_diagram violation;
+ *   3. a code fence over the threshold is a chat_fence violation;
+ *   4. the turn must end with a question, carry the label, or be a short turn.
+ * The label and question rules block once per turn (stopHookActive lets the
+ * retry through) so a stubborn model cannot wedge the session.
  */
 export function decideTextChannel(effective, event = {}) {
   const text = event.text || '';
   const maxLines = event.maxFenceLines ?? DEFAULT_MAX_FENCE_LINES;
+  const allow = (extra = {}) => ({ decision: 'allow', reason: null, kind: null, ...extra });
 
   if (chatTextGated(effective)) {
+    const labelled = hasHandoverLabel(text);
+
+    if (event.handoverActive) {
+      if (!labelled && !event.stopHookActive) {
+        return { decision: 'block', reason: REASONS.T_HANDOVER_UNLABELLED, kind: 'handover_unlabelled' };
+      }
+      return allow({ labelled });
+    }
+
+    if (diagramFences(text).length > 0) {
+      return { decision: 'block', reason: REASONS.T_CHAT_DIAGRAM, kind: 'chat_diagram' };
+    }
     if (overThresholdFences(text, maxLines).length > 0) {
       return { decision: 'block', reason: REASONS.T1_CHAT_FENCE, kind: 'chat_fence' };
     }
-    return { decision: 'allow', reason: null, kind: null };
+    const ending = checkTurnEnding(text, { projectNouns: event.projectNouns });
+    if (!ending.ok && !event.stopHookActive) {
+      return { decision: 'block', reason: REASONS.T_QUESTION_ENDING, kind: 'question_ending' };
+    }
+    return allow({ labelled: ending.labelled });
   }
 
   // Tier 3: existence/format of narration + divergence, only on turns that
   // actually edited. Block once (respect stop_hook_active).
   if (effective.tier === 3 && effective.t3PreamblePresent && event.turnEdited) {
-    if (event.stopHookActive) return { decision: 'allow', reason: null, kind: null };
+    if (event.stopHookActive) return allow();
     const fmt = checkNarrationFormat(text);
     if (!fmt.ok) {
       return { decision: 'block', reason: REASONS.T3_NARRATION, kind: 'narration_format' };
     }
   }
-  return { decision: 'allow', reason: null, kind: null };
+  return allow();
 }
 
 /**
@@ -244,9 +320,11 @@ export function decideDisplay(effective, event = {}) {
   if (!event.redactionEnabled) return { redact: false, displayContent: null };
   if (!chatTextGated(effective)) return { redact: false, displayContent: null };
   const maxLines = event.maxFenceLines ?? DEFAULT_MAX_FENCE_LINES;
-  const r = redactOverThresholdFences(event.text || '', maxLines);
+  // A handover turn is the one turn where the developer asked for the answer.
+  if (event.handoverActive) return { redact: false, displayContent: null };
+  const r = redactGatedFences(event.text || '', maxLines);
   if (!r.redacted) return { redact: false, displayContent: null };
-  return { redact: true, displayContent: r.text };
+  return { redact: true, displayContent: r.text, kind: r.diagramCount > 0 ? 'chat_diagram' : 'chat_fence' };
 }
 
 /**
