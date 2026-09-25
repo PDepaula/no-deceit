@@ -32,6 +32,8 @@
     {"name": "bun x runs the renderer", "args": ["Bash", {"command": "bun x mmdc -i a.mmd -o a.svg"}], "expect": "H"},
     {"name": "if runs the renderer", "args": ["Bash", {"command": "if mmdc -i a.mmd -o a.svg; then echo ok; fi"}], "expect": "H"},
     {"name": "! runs the renderer", "args": ["Bash", {"command": "! mmdc -i a.mmd"}], "expect": "H"},
+    {"name": "elif runs the renderer", "args": ["Bash", {"command": "elif mmdc -i a"}], "expect": "H"},
+    {"name": "keyword before a non-renderer naming a renderer is not a render", "args": ["Bash", {"command": "if grep -q mmdc notes.txt; then echo ok; fi"}], "expect": "U"},
     {"name": "until runs the renderer", "args": ["Bash", {"command": "until mmdc -i a; do :; done"}], "expect": "H"},
     {"name": "while runs the renderer", "args": ["Bash", {"command": "while mmdc -i a; do :; done"}], "expect": "H"},
     {"name": "yarn exec runs the renderer", "args": ["Bash", {"command": "yarn exec mmdc -i a.mmd -o a.svg"}], "expect": "H"},
