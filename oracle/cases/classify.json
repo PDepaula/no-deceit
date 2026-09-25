@@ -46,6 +46,10 @@
     {"name": "quoted renderer path is diagram", "args": ["Bash", {"command": "\"./node_modules/.bin/mmdc\" -i a.mmd -o a.svg"}], "expect": "H"},
     {"name": "quoted dot with -T is diagram", "args": ["Bash", {"command": "'dot' -Tpng a.dot -o a.png"}], "expect": "H"},
     {"name": "quoted renderer argument is inspect", "args": ["Bash", {"command": "grep \"mmdc\" file"}], "expect": "A"},
+    {"name": "ANSI-C quoted renderer command word is diagram", "args": ["Bash", {"command": "$'mmdc' -i a.mmd -o a.svg"}], "expect": "H"},
+    {"name": "locale quoted renderer command word is diagram", "args": ["Bash", {"command": "$\"mmdc\" -i a.mmd -o a.svg"}], "expect": "H"},
+    {"name": "backslash-escaped renderer command word is diagram", "args": ["Bash", {"command": "\\mmdc -i a.mmd -o a.svg"}], "expect": "H"},
+    {"name": "backslash inside renderer command word is diagram", "args": ["Bash", {"command": "mm\\dc -i a"}], "expect": "H"},
     {"name": "grepping a renderer name is inspect", "args": ["Bash", {"command": "grep -rn mmdc core/"}], "expect": "A"},
     {"name": "reading renderer notes is inspect", "args": ["Bash", {"command": "cat docs/plantuml-notes.md"}], "expect": "A"},
     {"name": "grep dot is inspect", "args": ["Bash", {"command": "grep dot notes.txt"}], "expect": "A"}

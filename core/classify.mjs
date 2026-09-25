@@ -104,7 +104,8 @@ function markdownCarriesDiagram(path, content) {
 // parsing and no backtracking regex. The command splits into segments at | ; &
 // newline ( ) ` { }, at a quote opening quoted text (so it leans toward
 // blocking), and at find's -exec/-execdir. A quoted single word (`"mmdc"`) stays
-// a word of its segment with the quotes stripped. In each segment, VAR=val
+// a word of its segment with the quotes stripped; backslashes and a leading `$`
+// (`\mmdc`, `$'mmdc'`) are stripped from every word too. In each segment, VAR=val
 // assignments and a chain of launchers (LAUNCHERS) with their flags are skipped;
 // the first remaining word, compared by basename, is the command. Only a launcher's listed value flags
 // consume the next word; any other flag is boolean. `dot` counts only with a
@@ -148,6 +149,11 @@ const QUOTES = new Set(["'", '"']);
 const RE_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
 const basename = (w) => w.slice(w.lastIndexOf('/') + 1);
+
+function bareWord(w) {
+  const unescaped = w.replaceAll('\\', '');
+  return unescaped.startsWith('$') ? unescaped.slice(1) : unescaped;
+}
 
 function matchLauncher(words, i) {
   return LAUNCHERS.find((l) =>
@@ -208,11 +214,12 @@ function invokesRenderer(cmd) {
       continue;
     }
     if (word !== null) {
-      if (EXEC_ACTIONS.has(word)) {
+      const bare = bareWord(word);
+      if (EXEC_ACTIONS.has(bare)) {
         if (segmentRunsRenderer(seg)) return true;
         seg = [];
       } else {
-        seg.push(word);
+        seg.push(bare);
       }
       word = null;
     }

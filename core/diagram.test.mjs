@@ -190,10 +190,17 @@ test('a quoted renderer command word still runs the renderer; a quoted argument 
     'echo x | "d2" - a.svg',
     '"$(npm bin)/mmdc" -i a.mmd -o a.svg',
     "rg 'd1|d2' src",
+    "$'mmdc' -i a.mmd -o a.svg",
+    '$"mmdc" -i a.mmd -o a.svg',
+    '\\mmdc -i a.mmd -o a.svg',
+    'mm\\dc -i a',
   ]) {
     assert.equal(classify('Bash', { command }, cfg), 'H', command);
   }
-  for (const command of ['grep "mmdc" file', "grep -rn 'plantuml' docs", 'command -v "mmdc"', 'git commit -m "deny mmdc"']) {
+  for (const command of [
+    'grep "mmdc" file', "grep -rn 'plantuml' docs", 'command -v "mmdc"', 'git commit -m "deny mmdc"',
+    "grep -rn $'mmdc' core/", 'echo \\mmdc', 'echo mmdc',
+  ]) {
     assert.notEqual(classify('Bash', { command }, cfg), 'H', command);
   }
 });
