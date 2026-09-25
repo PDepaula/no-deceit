@@ -121,32 +121,11 @@ Claude-settings hook and this Cursor hook were registered, both would fire;
 
 ## Install (attended session; no firstmate required)
 
-Via the plugin marketplace (this repo is the marketplace; `.cursor-plugin/`
-gives Cursor its own correctly-shaped hook wiring, see above):
-
-```bash
-cursor-agent plugin marketplace add github.com/PDepaula/no-deceit
-# then, interactively: /plugins → install no-deceit
-cd <a project> && nd init
-```
-
-`nd` must still be on `PATH` for the hook command to resolve (a marketplace
-install does not put a `bin/` on `PATH` by itself): put
-`~/.claude/skills/no-deceit/bin` (or wherever `nd` was installed from, e.g.
-the Claude plugin) on `PATH`, or install `no-deceit` from npm and use its
-`bin`.
-
-Fallback (manual, no marketplace involved) — `nd` must be on `PATH` (Claude
-plugin install puts it there; otherwise
-`export PATH="$HOME/.claude/skills/no-deceit/bin:$PATH"`):
-
-```bash
-git clone https://github.com/PDepaula/no-deceit ~/.claude/skills/no-deceit
-# User-level (or copy into a project's .cursor/hooks.json):
-mkdir -p ~/.cursor
-cp ~/.claude/skills/no-deceit/harness/cursor/hooks.json ~/.cursor/hooks.json
-cd <a project> && nd init
-```
+The README's "Install: a home repo, not a package" section owns the install
+steps (`nd bootstrap --cursor`, or the Cursor plugin marketplace route). For
+the marketplace route `nd` must still be on `PATH` for the hook command to
+resolve (a marketplace install does not put a `bin/` on `PATH` by itself): put
+a checkout's `bin/` on `PATH`.
 
 Cursor reads `SKILL.md` natively (including from `~/.claude/skills/`), so the
 teaching layer needs no wrapper. `failClosed: true` is set so a crash or

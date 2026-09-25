@@ -76,7 +76,7 @@ Read it before changing enforcement semantics.
 ## Non-negotiable invariants (do not regress)
 
 - The user-typed `/no-deceit:handover` (UserPromptSubmit only, session flag in
-  XDG state) is the only thing that relaxes the text channel; the model must
+  home/XDG state) is the only thing that relaxes the text channel; the model must
   never be able to issue or forge it. Diagram file writes (category H) stay
   denied at every Tier 1/2 state.
 - The agent must NEVER be able to change its own tier: changes come only from
