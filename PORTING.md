@@ -14,11 +14,27 @@ the Node suite.
 
 ## Order
 
-Pure modules first, smallest dependency surface first:
-`rubric` → `classify` → `policy` → `scope` → `fence` / `narration` /
-`tripwire` → `prefilter` / `grader-parse` / `audit` / `report`.
-The imperative shell (`state`, `control`, `gate`, `grader`, `git-evidence`)
-comes last, and only after the pure core is ported.
+Written step by step as Clojure practice; each step is pure, takes its
+oracle cases from the JS twin, and teaches one new Clojure idea. Namespaces
+are `no-deceit.<name>` as in Layout.
+
+1. `scope` — maps, `some`, destructuring.
+2. `policy` (`decide`) — `case`/`cond`, keyword vs string data, tables in EDN.
+3. `narration`, `fence` — strings, regex, `loop/recur` over lines.
+4. `classify` — data-driven rules, the big table, "most-restrictive wins" as `reduce`.
+5. `tripwire`, `prefilter` — sequences, set ops.
+6. `rubric`, `grader-parse`, `report`, `audit` — reduce/group-by, aggregation, the mechanical verdict.
+7. The new evidence parsers (Excalidraw + its LZ-string decode, Mermaid, mind map)
+   are new code, written straight in Babashka with no JS twin to port.
+8. The imperative shell (`state`, `control`, `gate`, `grader`, `git-evidence`)
+   comes last — that is where the hook flips from node to bb.
+
+Steps 1–3 are small enough to give a first green `bb test` in an afternoon;
+step 4 is the meatiest table.
+
+The only seeded oracle case files today, `classify.json` and `rubric.json`, are
+worked examples of the fixture format, not the places to start. Step 1 starts
+by creating `oracle/cases/scope.json`.
 
 ## Layout
 
