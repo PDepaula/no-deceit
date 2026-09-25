@@ -115,8 +115,8 @@ export const REASONS = {
   DIAGRAM_FILE_T2_UNLOCKED:
     'No Deceit Tier 2 is unlocked: you may show a diagram in chat (a fenced ' +
     'Mermaid block), but never write one to disk — diagram files stay denied, ' +
-    'and you must not route around that via shell or a renderer fed inline ' +
-    'source. Show it in chat; the developer redraws it themselves.',
+    'and you must not route around that via shell or a diagram renderer. ' +
+    'Show it in chat; the developer redraws it themselves.',
 
   T3_NARRATION:
     'No Deceit Tier 3 (Narrated Velocity) requires a what/why section and a ' +

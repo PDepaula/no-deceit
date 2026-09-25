@@ -10,7 +10,7 @@
 //   F  delegation
 //   G  tamper (touches No Deceit state, or a mutating `nd` subcommand)
 //   H  design artifact (Mermaid / Excalidraw / mind-map / other diagram source,
-//      as a file write or an inline-fed renderer)
+//      as a file write or a diagram renderer invocation)
 //   U  unknown Bash shape (policy turns this into `ask` at gated tiers)
 //
 // This module never reads the filesystem, the clock, or the environment.
@@ -98,16 +98,16 @@ function markdownCarriesDiagram(path, content) {
   return Boolean(path) && RE_MARKDOWN_PATH.test(String(path)) && RE_DIAGRAM_CONTENT.test(String(content || ''));
 }
 
-// Diagram renderers. Feeding one inline source (heredoc, here-string, -e, a pipe
-// into it) authors a diagram (H), bare or behind a package runner
-// (`npx -p @mermaid-js/mermaid-cli mmdc`, `npx @mermaid-js/mermaid-cli`,
-// `npm exec -- mmdc`, `bunx d2`, `pnpm dlx`, `pnpm exec`, `yarn dlx`).
-const DIAGRAM_RENDERERS = ['mmdc', 'd2', 'dot', 'plantuml', 'excalidraw-cli', '@mermaid-js/mermaid-cli'];
-const RE_RENDERER_WORD = DIAGRAM_RENDERERS.map((r) => r.replace(/[-]/g, '\\-')).join('|');
-const RE_RENDERER_RUNNER = '(?:(?:npx|bunx|npm\\s+exec|pnpm\\s+(?:dlx|exec)|yarn\\s+dlx)(?:\\s+-[^\\s;&|]+(?:\\s+[^-\\s;&|][^\\s;&|]*)?)*\\s+)?';
-const RE_RENDERER_INLINE = new RegExp(
-  `(^|[;&|(]\\s*)${RE_RENDERER_RUNNER}(?:${RE_RENDERER_WORD})\\b[^;&|]*(?:<<|<<<|\\s-e\\b|\\s--eval\\b)` +
-  `|\\|\\s*${RE_RENDERER_RUNNER}(?:${RE_RENDERER_WORD})\\b`,
+// Diagram renderers. A Bash command that invokes one anywhere is diagram
+// creation (H), whatever feeds it, the learner's own file included: they render
+// in their own terminal. Matched on the raw command, no shell-quote parsing.
+// The distinctive names match on a word boundary; `d2` and `dot` only in
+// command position (start, after a shell operator or a package runner), or
+// `dot -T...`, so `dotfiles` or `grep dot` never match.
+const RE_RENDERER_CMD = new RegExp(
+  '\\b(?:mmdc|plantuml|excalidraw-cli)\\b|@mermaid-js/mermaid-cli' +
+  '|(?:(?:^|[|;&(`\\n])\\s*|\\b(?:npx|bunx|dlx|exec)(?:\\s+-\\S+)*\\s+)(?:d2|dot)(?=\\s|$)' +
+  '|\\bdot\\s+-T',
 );
 
 // --- Bash shape detection ------------------------------------------------
@@ -225,45 +225,22 @@ function writeTargets(cmd) {
   return targets;
 }
 
-// Shell quoting per character: 0 plain, 1 quoted or backslash-escaped, 2 a
-// quote mark or escaping backslash. Nothing escapes inside single quotes.
-function quoting(cmd) {
-  const kind = new Array(cmd.length).fill(0);
+// Split a command into segments on the shell operators && || ; | and newlines,
+// leaving operators that appear inside single/double quotes untouched.
+function splitSegments(cmd) {
+  const segs = [];
+  let cur = '';
   let quote = null;
   for (let i = 0; i < cmd.length; i++) {
     const ch = cmd[i];
-    if (quote === "'") { kind[i] = ch === "'" ? 2 : 1; if (ch === "'") quote = null; continue; }
-    if (ch === '\\') { kind[i] = 2; if (i + 1 < cmd.length) kind[++i] = 1; continue; }
-    if (quote === '"') { kind[i] = ch === '"' ? 2 : 1; if (ch === '"') quote = null; continue; }
-    if (ch === "'" || ch === '"') { kind[i] = 2; quote = ch; }
-  }
-  return kind;
-}
-
-// The command as the shell would parse it: quote marks and escapes dropped,
-// and operators inside quoted or escaped text blanked, so shell syntax inside
-// an argument (a grep alternation, a commit message) is not read as a pipe.
-function blankQuoted(cmd) {
-  const kind = quoting(cmd);
-  let out = '';
-  for (let i = 0; i < cmd.length; i++) {
-    if (kind[i] === 2) continue;
-    out += kind[i] === 1 && /[|;&<>()]/.test(cmd[i]) ? ' ' : cmd[i];
-  }
-  return out;
-}
-
-// Split a command into segments on the shell operators && || ; | and newlines,
-// leaving operators that are quoted or backslash-escaped untouched.
-function splitSegments(cmd) {
-  const segs = [];
-  const kind = quoting(cmd);
-  let cur = '';
-  for (let i = 0; i < cmd.length; i++) {
-    const ch = cmd[i];
-    if (kind[i]) { cur += ch; continue; }
+    if (quote) {
+      cur += ch;
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"') { quote = ch; cur += ch; continue; }
     if (ch === '\n' || ch === ';') { segs.push(cur); cur = ''; continue; }
-    if ((ch === '&' || ch === '|') && cmd[i + 1] === ch && !kind[i + 1]) { segs.push(cur); cur = ''; i++; continue; }
+    if ((ch === '&' || ch === '|') && cmd[i + 1] === ch) { segs.push(cur); cur = ''; i++; continue; }
     if (ch === '|') { segs.push(cur); cur = ''; continue; }
     cur += ch;
   }
@@ -284,9 +261,8 @@ function classifyBash(cmd, cfg) {
   const touchesState = prefixes.some((p) => c.includes(String(p).replace(/\/+$/, '')));
   if (touchesState || RE_STATE_SEGMENT_CMD.test(nc) || RE_HOME_STATE_CMD.test(nc)) return 'G';
 
-  // H: a diagram renderer fed inline source (heredoc / -e / piped in). Judged on
-  // the whole unquoted command because a pipe splits the source from the renderer.
-  if (RE_RENDERER_INLINE.test(blankQuoted(c))) return 'H';
+  // H: any diagram renderer invocation, judged on the whole raw command.
+  if (RE_RENDERER_CMD.test(c)) return 'H';
   // Diagram content written into markdown: the heredoc body lives on later lines,
   // so the per-segment router cannot see it.
   if (AUTHORING_SHAPES.some((rx) => rx.test(c)) && writeTargets(c).some((t) => markdownCarriesDiagram(t, c))) return 'H';

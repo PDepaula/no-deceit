@@ -57,8 +57,10 @@ projects initialised before that default keep their stored tier, and
 
 **Diagrams and handovers** (Tier 1 and locked Tier 2): drawing the diagram is
 the learning, so writing Mermaid / Excalidraw / mind-map / other diagram
-sources is denied (category H) — at Tier 2 even when unlocked, where a
-diagram may be shown in chat and you redraw it — and a diagram fence in chat
+sources, or running a diagram renderer (`mmdc`, `d2`, `dot`, `plantuml`,
+`excalidraw-cli`) even on your own file, is denied (category H) — at Tier 2
+even when unlocked, where a diagram may be shown in chat and you redraw it —
+and a diagram fence in chat
 is blocked at any size on the gated tiers. Every turn there must end with a
 question or carry a `Handing over: <what>` line (a short turn under ~40 words
 passes). Type `/no-deceit:handover [--domain d] [why]` to ask for the answer:

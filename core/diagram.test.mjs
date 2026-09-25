@@ -33,7 +33,7 @@ test('H: Bash writing a diagram path or diagram content into markdown', () => {
   assert.equal(classify('Bash', { command: 'cat > n.md <<EOF\nhello\nEOF' }, cfg), 'E');
 });
 
-test('H: a renderer fed inline source is H, bare or behind a package runner', () => {
+test('H: any renderer invocation is H, bare or behind a package runner', () => {
   assert.equal(classify('Bash', { command: 'echo "a -> b" | dot -Tpng' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'd2 <<EOF\na -> b\nEOF' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'echo "graph TD; A---B" | npx -p @mermaid-js/mermaid-cli mmdc -i - -o docs/arch.svg' }, cfg), 'H');
@@ -48,23 +48,27 @@ test('H: a renderer fed inline source is H, bare or behind a package runner', ()
   assert.equal(classify('Bash', { command: "d2 <<'EOF'\na -> b\nEOF" }, cfg), 'H');
 });
 
-test('a pipe or renderer word inside a quoted argument is not an inline-fed renderer', () => {
-  assert.equal(classify('Bash', { command: 'grep -nE "slash|dot" src/app.js' }, cfg), 'A');
-  assert.equal(classify('Bash', { command: "rg 'd1|d2' src" }, cfg), 'A');
-  assert.notEqual(classify('Bash', { command: 'git commit -m "fix: use d2 | dot renderer"' }, cfg), 'H');
-  assert.equal(classify('Bash', { command: 'grep -nE slash\\|dot src/app.js' }, cfg), 'A');
-});
-
-test('an escaped quote does not hide a real pipe into a renderer', () => {
+test('quoting never hides a renderer (escapes, ANSI-C quotes, a comment apostrophe)', () => {
   assert.equal(classify('Bash', { command: "echo graph\\'TD | mmdc -i - -o docs/a.svg" }, cfg), 'H');
   assert.equal(classify('Bash', { command: "echo 'graph TD; A[User'\\''s app]---B' | mmdc -i - -o docs/a.svg" }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'echo "graph \\"TD\\"" | mmdc -i - -o docs/a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: "echo $'graph TD\\nA[User\\'s app]---B' | mmdc -i - -o docs/a.svg" }, cfg), 'H');
+  assert.equal(classify('Bash', { command: "echo $'a -- b\\nc: it\\'s' | d2 - docs/a.svg" }, cfg), 'H');
+  assert.equal(classify('Bash', { command: "# render the team's diagram\necho 'graph TD; A---B' | mmdc -i - -o docs/a.svg" }, cfg), 'H');
 });
 
-test('renderers on a file keep their ordinary handling; a redirected diagram source is H', () => {
-  assert.equal(classify('Bash', { command: 'mmdc -i flow.mmd -o flow.png' }, cfg), 'U');
-  assert.equal(classify('Bash', { command: 'dot -Tpng in.dot > out.png' }, cfg), 'E');
+test('rendering a file the learner drew is H too; a redirected diagram source is H', () => {
+  assert.equal(classify('Bash', { command: 'mmdc -i flow.mmd -o flow.png' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'dot -Tpng in.dot > out.png' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'd2 docs/arch.d2 docs/arch.svg' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'dot -Tcanon theirs.dot > docs/arch.dot' }, cfg), 'H');
+});
+
+test('dot and d2 as plain words are not renderer invocations', () => {
+  assert.equal(classify('Bash', { command: 'ls ~/dotfiles' }, cfg), 'A');
+  assert.equal(classify('Bash', { command: 'grep dot src/app.js' }, cfg), 'A');
+  assert.equal(classify('Bash', { command: 'grep -nE "slash|dot" src/app.js' }, cfg), 'A');
+  assert.equal(classify('Bash', { command: "rg 'd1|d2' src" }, cfg), 'A');
 });
 
 test('G still wins over H (a diagram in the state dir is tamper)', () => {
