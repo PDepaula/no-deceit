@@ -102,13 +102,14 @@ function markdownCarriesDiagram(path, content) {
 // whatever feeds it, the learner's own file included: they render in their own
 // terminal. Matched on the raw command, no shell-quote parsing, and only in
 // command position: at the start, after a shell operator, `(`, `$(`, a backtick,
-// `{` or an opening quote (so quoted text leans toward blocking), or after a
-// launcher word and its flags and VAR=val assignments. Only a launcher's own
-// value-taking flags consume the next word (`npx -p pkg`, `sudo -u me`); any
-// other flag is boolean, so `sudo -E grep mmdc` is not an invocation. `dot`
-// counts only with a `-T` flag somewhere among its arguments. A renderer name
-// merely mentioned as an argument (`grep -rn mmdc`, `cat plantuml-notes.md`,
-// `ls dotfiles`) is not an invocation.
+// `{`, an opening quote (so quoted text leans toward blocking) or find's
+// `-exec`/`-execdir`; then any VAR=val assignments and a chain of launchers,
+// each itself in command position. Only a launcher's own value-taking flags
+// consume the next word (`npx -p pkg`, `sudo -u me`); any other flag is boolean,
+// so `sudo -E grep mmdc` is not an invocation. `dot` counts only with a `-T`
+// flag somewhere among its arguments. A renderer or launcher name merely
+// mentioned as an argument (`grep -rn mmdc`, `rg -t sh mmdc`, `ls dotfiles`) is
+// not an invocation.
 const LAUNCHER_VALUE_FLAGS = [
   ['npx|bunx|dlx|exec', '-p|--package'],
   ['xargs', '-[IdnPLsaE]'],
@@ -118,16 +119,18 @@ const LAUNCHER_VALUE_FLAGS = [
   ['time', '-[fo]'],
   ['command|nohup|sh|bash|then|do|else', null],
 ];
-const launcherPrefix = ([words, valueFlags]) =>
-  `\\b(?:${words})(?:\\s+(?:` +
-  (valueFlags ? `(?:${valueFlags})\\s+[^\\s|;&-][^\\s|;&]*|` : '') +
-  '-[^\\s|;&]+|[A-Za-z_]\\w*=[^\\s|;&]*))*\\s+';
-const RE_RENDERER_CMD = new RegExp(
-  '(?:(?:^|[|;&\\n(`\'"{])\\s*(?:[A-Za-z_]\\w*=\\S*\\s+)*' +
-  LAUNCHER_VALUE_FLAGS.map((l) => '|' + launcherPrefix(l)).join('') + ')' +
-  '(?:[^\\s\'"|;&]*/)?' +
-  '(?:(?:mmdc|plantuml|excalidraw-cli|d2|@mermaid-js/mermaid-cli)(?=[\\s;|&)@]|$)|dot\\s(?:[^|;&\\n]*?\\s)?-T)',
-);
+const WORD = '[^\\s|;&]';
+const PATH_PREFIX = `(?:[^\\s'"|;&]*/)?`;
+const CMD_START = '(?:^|[|;&\\n(`\'"{]|\\s-exec(?:dir)?(?=\\s))\\s*';
+const ASSIGNS = `(?:[A-Za-z_]\\w*=${WORD}*\\s+)*`;
+const launcher = ([words, valueFlags]) =>
+  `${PATH_PREFIX}(?:${words})(?:\\s+(?:` +
+  (valueFlags ? `(?:${valueFlags})\\s+[^\\s|;&-]${WORD}*|` : '') +
+  `-${WORD}+|[A-Za-z_]\\w*=${WORD}*))*\\s+`;
+const LAUNCHER_CHAIN = `(?:(?:(?:npm|pnpm|yarn)\\s+)?(?:${LAUNCHER_VALUE_FLAGS.map(launcher).join('|')}))*`;
+const RENDERER =
+  '(?:(?:mmdc|plantuml|excalidraw-cli|d2|@mermaid-js/mermaid-cli)(?=[\\s;|&)@]|$)|dot\\s(?:[^|;&\\n]*?\\s)?-T)';
+const RE_RENDERER_CMD = new RegExp(CMD_START + ASSIGNS + LAUNCHER_CHAIN + PATH_PREFIX + RENDERER);
 
 // --- Bash shape detection ------------------------------------------------
 

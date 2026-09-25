@@ -81,6 +81,9 @@ test('a renderer behind a launcher, a path, or an assignment is still an invocat
   assert.equal(classify('Bash', { command: 'sudo -E -u me env -i FOO=1 mmdc -i a.mmd -o a.svg' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'time -f %e plantuml a.puml' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'find . -name "*.mmd" -exec mmdc -i {} \\;' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'find . -name "*.mmd" -execdir mmdc -i {} \\;' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: '/usr/bin/env FOO=1 mmdc -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'for f in *.mmd; do mmdc -i "$f"; done' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'out=$(plantuml -tsvg a.puml)' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'echo `d2 a.d2 a.svg`' }, cfg), 'H');
   assert.equal(classify('Bash', { command: './node_modules/.bin/mmdc -i a.mmd -o a.svg' }, cfg), 'H');
@@ -120,6 +123,23 @@ test('a boolean launcher flag never turns a renderer-named argument into an invo
   }
   assert.notEqual(classify('Bash', { command: "bash -c 'grep -rn mmdc core/'" }, cfg), 'H');
   assert.notEqual(classify('Bash', { command: 'sh -c "grep -rn mmdc core/"' }, cfg), 'H');
+});
+
+test('a launcher word used as an ordinary argument never puts a renderer in command position', () => {
+  for (const command of [
+    'grep -r env docs mmdc',
+    'echo time mmdc',
+    'cat sh mmdc.txt',
+    'rg -t sh mmdc core/',
+    'rg --type sh plantuml',
+    'fd -e sh plantuml',
+    'fd -e sh mmdc',
+    'git grep -n exec mmdc',
+    'grep -rn -e sudo mmdc',
+    'which env mmdc',
+  ]) {
+    assert.notEqual(classify('Bash', { command }, cfg), 'H', command);
+  }
 });
 
 test('dot and d2 as plain words are not renderer invocations', () => {

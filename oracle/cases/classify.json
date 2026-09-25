@@ -22,6 +22,13 @@
     {"name": "sudo boolean flag then cat is inspect", "args": ["Bash", {"command": "sudo -n cat plantuml.txt"}], "expect": "A"},
     {"name": "env boolean flag then grep is inspect", "args": ["Bash", {"command": "env -i grep -rn mmdc core/"}], "expect": "A"},
     {"name": "time boolean flag then grep is inspect", "args": ["Bash", {"command": "time -p grep -rn mmdc core/"}], "expect": "A"},
+    {"name": "chained launchers each in command position run the renderer", "args": ["Bash", {"command": "sudo -E -u me env -i FOO=1 mmdc -i a.mmd -o a.svg"}], "expect": "H"},
+    {"name": "pnpm dlx runs the renderer", "args": ["Bash", {"command": "echo 'a -- b' | pnpm dlx d2 - a.svg"}], "expect": "H"},
+    {"name": "find -exec runs the renderer", "args": ["Bash", {"command": "find . -name '*.mmd' -exec mmdc -i {} ;"}], "expect": "H"},
+    {"name": "launcher word as a grep pattern is not a launcher", "args": ["Bash", {"command": "grep -r env docs mmdc"}], "expect": "A"},
+    {"name": "launcher word as a type filter is not a launcher", "args": ["Bash", {"command": "rg -t sh mmdc core/"}], "expect": "A"},
+    {"name": "launcher word as an extension filter is not a launcher", "args": ["Bash", {"command": "fd -e sh plantuml"}], "expect": "U"},
+    {"name": "which env mmdc is inspect", "args": ["Bash", {"command": "which env mmdc"}], "expect": "A"},
     {"name": "grepping a renderer name is inspect", "args": ["Bash", {"command": "grep -rn mmdc core/"}], "expect": "A"},
     {"name": "reading renderer notes is inspect", "args": ["Bash", {"command": "cat docs/plantuml-notes.md"}], "expect": "A"},
     {"name": "grep dot is inspect", "args": ["Bash", {"command": "grep dot notes.txt"}], "expect": "A"}
