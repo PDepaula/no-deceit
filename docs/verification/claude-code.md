@@ -63,6 +63,27 @@ which drives the real hook shim and CLI as subprocesses with piped payloads:
   - MessageDisplay returns `displayContent` with the over-threshold body
     replaced when the redaction flag is on; flag-off and ungoverned are no-ops
   - worker/headless exemption and opt-in scope still hold on the new events
+- **Design-artifact gate** (`core/diagram.test.mjs`, `oracle/cases/classify.json`):
+  - diagram file writes and renderer commands (`mmdc`, `plantuml`,
+    `excalidraw-cli`, `d2`, `@mermaid-js/mermaid-cli`, `dot -T…`) in command
+    position are category H, denied at every Tier 1/2 state, including through
+    launchers (`npx`, `sudo`, `xargs`, `env`, shell keywords, …) and quoted
+    command words; a renderer named only as an argument (`grep -rn mmdc`,
+    `command -v mmdc`) is not
+  - the scan is linear on adversarial input
+
+### Known gaps of the renderer rule (accepted)
+
+The rule catches renderer commands written the ordinary way. Commands disguised
+with shell syntax are best effort, not a guarantee: No Deceit flags handovers,
+it does not try to stop a determined adversary. Accepted gaps:
+
+- `$'..'` / `$".."` quoting of the command word and backslash-escaped names
+  (`\mmdc`, `mm\dc`): normalised today, but other escape and expansion forms
+  of the same kind are not tracked.
+- Comment continuations (`# note \<newline> mmdc -i a.mmd`): `#` comments are
+  not tracked and a backslash-newline is always joined, so the next line is
+  read as part of the comment and not caught.
 
 ## To do a live end-to-end check by hand
 

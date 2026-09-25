@@ -114,6 +114,7 @@ function markdownCarriesDiagram(path, content) {
 // `-T` flag in the segment. A renderer or launcher name merely mentioned as an
 // argument (`grep -rn mmdc`, `rg -t sh mmdc`, `ls dotfiles`) is not an
 // invocation, nor is a `command -v mmdc` lookup.
+// Accepted known gaps (shell-syntax disguises): docs/verification/claude-code.md.
 const LAUNCHERS = [
   { words: ['npx'], valueFlags: ['-p', '--package'] },
   { words: ['bunx'], valueFlags: ['-p', '--package'] },
