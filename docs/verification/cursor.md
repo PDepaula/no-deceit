@@ -27,10 +27,9 @@ The merged file and the relocated manifest were not re-run against a live
 Coming from the plugin-marketplace route? Remove it **before**
 `nd bootstrap --cursor`, or the plugin's `nd --cursor` hook and the merged
 `<home>/bin/nd --cursor` entry both fire on every `preToolUse` (bootstrap does
-not inspect Cursor's plugin store): uninstall the No Deceit plugin in Cursor (Settings → Plugins → No Deceit →
-  Uninstall), then drop the marketplace with
-  `cursor-agent plugin marketplace remove github.com/PDepaula/no-deceit`.
-
+not inspect Cursor's plugin store): uninstall the No Deceit plugin in Cursor
+(Settings → Plugins → No Deceit → Uninstall), then drop the marketplace with
+`cursor-agent plugin marketplace remove github.com/PDepaula/no-deceit`.
 
 ## Live-verified (2026-09-18) and marketplace manifest (Phase 6)
 
