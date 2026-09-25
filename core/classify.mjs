@@ -103,14 +103,16 @@ function markdownCarriesDiagram(path, content) {
 // terminal. Matched on the raw command, no shell-quote parsing, and only in
 // command position: at the start, after a shell operator, `(`, `$(`, a backtick,
 // `{` or an opening quote (so quoted text leans toward blocking), or after a
-// launcher word and its flags. `dot` counts only with a `-T` flag. A renderer
-// name merely mentioned as an argument (`grep -rn mmdc`, `cat plantuml-notes.md`,
+// launcher word and its flags, flag values and VAR=val assignments. `dot` counts
+// only with a `-T` flag somewhere among its arguments. A renderer name merely
+// mentioned as an argument (`grep -rn mmdc`, `cat plantuml-notes.md`,
 // `ls dotfiles`) is not an invocation.
 const RE_RENDERER_CMD = new RegExp(
   '(?:(?:^|[|;&\\n(`\'"{])\\s*(?:[A-Za-z_]\\w*=\\S*\\s+)*' +
-  '|\\b(?:npx|bunx|dlx|exec|xargs|env|command|time|nice|nohup|sudo|sh|bash|then|do|else)(?:\\s+-\\S+)*\\s+)' +
+  '|\\b(?:npx|bunx|dlx|exec|xargs|env|command|time|nice|nohup|sudo|sh|bash|then|do|else)' +
+  '(?:\\s+(?:-(?:[A-Za-z]|-[\\w-]+)\\s+[^\\s|;&-][^\\s|;&]*|-[^\\s|;&]+|[A-Za-z_]\\w*=[^\\s|;&]*))*\\s+)' +
   '(?:[^\\s\'"|;&]*/)?' +
-  '(?:(?:mmdc|plantuml|excalidraw-cli|d2|@mermaid-js/mermaid-cli)(?=[\\s;|&)@]|$)|dot\\s+-T)',
+  '(?:(?:mmdc|plantuml|excalidraw-cli|d2|@mermaid-js/mermaid-cli)(?=[\\s;|&)@]|$)|dot\\s(?:[^|;&\\n]*?\\s)?-T)',
 );
 
 // --- Bash shape detection ------------------------------------------------

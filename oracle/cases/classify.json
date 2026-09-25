@@ -10,6 +10,12 @@
     {"name": "piped renderer is diagram", "args": ["Bash", {"command": "echo 'graph TD' | mmdc -i - -o a.svg"}], "expect": "H"},
     {"name": "renderer behind a runner is diagram", "args": ["Bash", {"command": "npx -y mmdc -i a.mmd -o a.svg"}], "expect": "H"},
     {"name": "dot -T is diagram", "args": ["Bash", {"command": "dot -Tpng in.dot > out.png"}], "expect": "H"},
+    {"name": "renderer after a launcher assignment is diagram", "args": ["Bash", {"command": "env FOO=1 mmdc -i a.mmd -o a.svg"}], "expect": "H"},
+    {"name": "renderer after launcher flag values is diagram", "args": ["Bash", {"command": "npx -y -p pkg mmdc -i a.mmd -o a.svg"}], "expect": "H"},
+    {"name": "xargs with a flag value runs the renderer", "args": ["Bash", {"command": "ls *.mmd | xargs -n 1 mmdc -i"}], "expect": "H"},
+    {"name": "sudo with a user runs the renderer", "args": ["Bash", {"command": "sudo -u me mmdc -i a.mmd -o a.svg"}], "expect": "H"},
+    {"name": "dot with -T after other args is diagram", "args": ["Bash", {"command": "dot -Kneato -Tsvg a.dot -o a.svg"}], "expect": "H"},
+    {"name": "dot with -T after the input is diagram", "args": ["Bash", {"command": "dot a.dot -Tsvg -o a.svg"}], "expect": "H"},
     {"name": "grepping a renderer name is inspect", "args": ["Bash", {"command": "grep -rn mmdc core/"}], "expect": "A"},
     {"name": "reading renderer notes is inspect", "args": ["Bash", {"command": "cat docs/plantuml-notes.md"}], "expect": "A"},
     {"name": "grep dot is inspect", "args": ["Bash", {"command": "grep dot notes.txt"}], "expect": "A"}

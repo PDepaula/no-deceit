@@ -69,12 +69,22 @@ test('a renderer behind a launcher, a path, or an assignment is still an invocat
   assert.equal(classify('Bash', { command: 'bash -c plantuml docs/a.puml' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'ls *.mmd | xargs -n1 mmdc -i' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'sudo env PATH=/x time nice excalidraw-cli a.json' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'env FOO=1 mmdc -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'ls *.mmd | xargs -n 1 mmdc -i' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'xargs -I {} mmdc -i {} -o {}.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'sudo -u me mmdc -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'nice -n 10 mmdc -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'npx -p @mermaid-js/mermaid-cli mmdc -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'npx -y -p pkg mmdc -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'npx --package pkg mmdc -i a.mmd -o a.svg' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'out=$(plantuml -tsvg a.puml)' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'echo `d2 a.d2 a.svg`' }, cfg), 'H');
   assert.equal(classify('Bash', { command: './node_modules/.bin/mmdc -i a.mmd -o a.svg' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'PUPPETEER_X=1 mmdc -i a.mmd -o a.svg' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'npx @mermaid-js/mermaid-cli@10 -i a.mmd -o a.svg' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'make && /usr/bin/dot -Tsvg a.dot -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'dot a.dot -Tsvg -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'dot -Kneato -Tsvg a.dot -o a.svg' }, cfg), 'H');
 });
 
 test('a renderer name mentioned as an argument is not an invocation', () => {
@@ -84,6 +94,8 @@ test('a renderer name mentioned as an argument is not an invocation', () => {
   assert.equal(classify('Bash', { command: 'which mmdc' }, cfg), 'A');
   assert.equal(classify('Bash', { command: 'ls dotfiles' }, cfg), 'A');
   assert.equal(classify('Bash', { command: 'grep dot notes.txt' }, cfg), 'A');
+  assert.equal(classify('Bash', { command: 'grep dot notes.txt | cat -T' }, cfg), 'A');
+  assert.equal(classify('Bash', { command: 'dot -V; ls -T' }, cfg), 'U');
   assert.equal(classify('Bash', { command: 'npm install @mermaid-js/mermaid-cli' }, cfg), 'C');
 });
 
