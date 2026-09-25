@@ -176,9 +176,9 @@ any harness link bootstrap would create: if `~/.config/opencode/plugins/no-decei
 or `~/.pi/agent/extensions/no-deceit.ts` already points elsewhere, or
 `~/.cursor/hooks.json` is not valid JSON, bootstrap stops and prints the step.
 
-Bootstrap does not look inside Pi's or OpenCode's own package stores, so remove
-a package install yourself **before** running `nd bootstrap`, or both copies
-load:
+Bootstrap does not look inside Pi's, OpenCode's or Cursor's own package
+stores, so remove a package install yourself **before** running `nd bootstrap`,
+or both copies load:
 
 - Pi (`pi install git:github.com/PDepaula/no-deceit@<tag>`): `pi list` shows the
   exact source; remove it with `pi remove git:github.com/PDepaula/no-deceit@<tag>`
@@ -186,6 +186,10 @@ load:
 - OpenCode (`opencode plugin no-deceit`, deprecated npm route): delete
   `"no-deceit"` from the `plugin` array in `~/.config/opencode/opencode.json`
   (or the project's `.opencode/opencode.json`), then use `nd bootstrap --opencode`.
+- Cursor (plugin marketplace): uninstall the No Deceit plugin in Cursor (Settings → Plugins → No Deceit →
+  Uninstall), then drop the marketplace with
+  `cursor-agent plugin marketplace remove github.com/PDepaula/no-deceit`,
+  then use `nd bootstrap --cursor`.
 
 **Marketplace, Pi and Cursor package routes still work** for people who just
 want the gate without a home: `claude plugin marketplace add PDepaula/no-deceit`,
@@ -221,8 +225,9 @@ nd update    # fetch, fast-forward only, print the release notes since your last
 `nd update` never merges, stashes, resets or forces, and never touches
 `projects/ data/ state/ config/`. It refuses if your checkout has diverged.
 After a successful update it prints the new `docs/releases/` entries in order,
-then `reread: yes|no` (`AGENTS.md`/`skills/`/`agents/` changed: a running tutor
-has them frozen, restart the harness) and `rebootstrap: yes|no` (a harness
+then `reread: yes|no` (`AGENTS.md`/`skills/`/`agents/`, a `hooks.json`, or
+`core/`/`harness/` changed: a running session read them at launch, restart the
+harness) and `rebootstrap: yes|no` (a harness
 entry file was added, removed or renamed: run `nd bootstrap` again). Each
 release note says what changed, why, and what you should notice.
 

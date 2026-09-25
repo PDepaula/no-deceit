@@ -92,7 +92,9 @@ export function pathHint(binDir) {
 
 /**
  * Classify `git diff --name-status old new` lines for `nd update`.
- * reread: a running tutor froze AGENTS.md / skills / agents at launch.
+ * reread: something a running session read at launch changed: AGENTS.md /
+ * skills / agents (the tutor), a hooks.json (Claude Code's hook table), or
+ * core/ and harness/ (loaded in-process once by the OpenCode and Pi adapters).
  * rebootstrap: a harness entry file was added, removed or renamed (symlinks
  * survive content edits, not a renamed target). bbBump: bb.edn changed.
  */
@@ -103,7 +105,7 @@ export function classifyChanges(nameStatus) {
   });
   const touched = (re) => rows.some((r) => r.paths.some((p) => re.test(p)));
   return {
-    reread: touched(/^(AGENTS\.md|CLAUDE\.md|skills\/|agents\/)/),
+    reread: touched(/^(AGENTS\.md|CLAUDE\.md|skills\/|agents\/|hooks\/hooks\.json$|core\/|harness\/)/),
     rebootstrap: rows.some((r) => 'ADR'.includes(r.status) && r.paths.some((p) => /^harness\/[^/]+\/[^/]+$/.test(p) || /^\.(claude|cursor)-plugin\//.test(p))),
     bbBump: touched(/^bb\.edn$/),
     releaseFiles: rows.filter((r) => 'AMR'.includes(r.status)).map((r) => r.paths[r.paths.length - 1]).filter((p) => /^docs\/releases\/[^/]+\.md$/.test(p)).sort(versionCompare),

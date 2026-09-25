@@ -263,7 +263,7 @@ export function update({ home }) {
     say('No new release notes between these commits.');
   }
   say('');
-  say(`reread: ${c.reread ? 'yes' : 'no'}${c.reread ? '  (AGENTS.md / skills / agents changed — restart your harness session)' : ''}`);
+  say(`reread: ${c.reread ? 'yes' : 'no'}${c.reread ? '  (AGENTS.md / skills / agents, a hooks.json, or core/ / harness/ changed — restart your harness session)' : ''}`);
   say(`rebootstrap: ${c.rebootstrap ? 'yes' : 'no'}${c.rebootstrap ? '  (a harness entry file was added/removed/renamed — re-run `nd bootstrap`)' : ''}`);
   if (c.bbBump) say('bb.edn changed: check `bb --version` against :min-bb-version and update bb if needed.');
   return out;
