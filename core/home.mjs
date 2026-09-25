@@ -131,23 +131,28 @@ export function bootstrap({ home, userHome = homedir(), env, only = [], dryRun =
     cursor: join(userHome, '.cursor'),
   };
 
-  // Claude preflight: a marketplace install or an older skills-dir entry would
-  // keep firing its own hooks against XDG state beside this home's. Stop before
-  // anything is written; re-running after the uninstall completes the bootstrap.
+  // Claude preflight, whatever harnesses were asked for: a marketplace install
+  // or an older skills-dir entry would keep firing its own hooks against XDG
+  // state beside this home's. Stop before anything is written; re-running
+  // after the uninstall completes the bootstrap.
   const links = [];
-  if (want('claude') && (only.includes('claude') || existsSync(dirs.claude))) {
-    const linkPath = join(dirs.claude, 'skills', 'no-deceit');
-    const target = join(home, 'harness', 'claude-code');
-    const blockers = [];
-    const found = marketplaceInstalls(readJson(join(dirs.claude, 'plugins', 'installed_plugins.json')), readJson(join(dirs.claude, 'settings.json')));
-    if (found.length) blockers.push(`No Deceit is already installed as a marketplace plugin (${found.join(', ')}). Uninstall it:  claude plugin uninstall no-deceit`);
-    const a = linkAction(target, linkPath);
-    if (a.kind === 'conflict') blockers.push(`${linkPath} ${a.note.split(';')[0]} (an older install). Move it aside:  mv ${linkPath} ${linkPath}.old`);
-    if (blockers.length) {
-      throw new Error(`bootstrap stopped, nothing changed. Both installs would fire the hooks on every call and keep separate state.\n  ${blockers.join('\n  ')}\nThen re-run \`nd bootstrap\`.`);
-    }
-    links.push(['claude', target, linkPath]);
+  const claudeLink = join(dirs.claude, 'skills', 'no-deceit');
+  const claudeTarget = join(home, 'harness', 'claude-code');
+  const blockers = [];
+  const found = marketplaceInstalls(readJson(join(dirs.claude, 'plugins', 'installed_plugins.json')), readJson(join(dirs.claude, 'settings.json')));
+  if (found.length) blockers.push(`No Deceit is already installed as a marketplace plugin (${found.join(', ')}). Uninstall it:  claude plugin uninstall no-deceit`);
+  const a = linkAction(claudeTarget, claudeLink);
+  if (a.kind === 'conflict') {
+    let isHome = false;
+    try { isHome = realpathSync(claudeLink) === realpathSync(home); } catch { /* dangling */ }
+    blockers.push(isHome
+      ? `this home is ${claudeLink}, inside the skills dir Claude Code scans. Move the checkout out, then run bootstrap from its new location:  mv ${claudeLink} ${join(userHome, 'no-deceit')} && ${join(userHome, 'no-deceit', 'bin', 'nd')} bootstrap`
+      : `${claudeLink} ${a.note.split(';')[0]} (an older install). Move it out of the skills dir:  mv ${claudeLink} ${join(userHome, 'no-deceit.old')}`);
   }
+  if (blockers.length) {
+    throw new Error(`bootstrap stopped, nothing changed. Both installs would fire the hooks on every call and keep separate state.\n  ${blockers.join('\n  ')}\nThen re-run \`nd bootstrap\`.`);
+  }
+  if (want('claude') && (only.includes('claude') || existsSync(dirs.claude))) links.push(['claude', claudeTarget, claudeLink]);
 
   say(`No Deceit home: ${home}${dryRun ? ' (dry run — nothing written)' : ''}`);
   if (!dryRun) {
