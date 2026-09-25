@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, lstatSync, readlinkSync, symlinkSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, lstatSync, readlinkSync, symlinkSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -67,6 +67,23 @@ test('projectAdd adopts a local dir in place, registers it in projects.edn, opts
     assert.match(readFileSync(join(home, 'data', 'projects.edn'), 'utf8'), /:name "app" :path ".*app" :summary "the app"/);
     assert.throws(() => projectAdd({ home, env: { ND_HOME: '' }, source: app }), /already in/);
     assert.throws(() => projectAdd({ home, env: { ND_HOME: '' }, source: join(s.dir, 'missing') }), /not a directory/);
+  } finally { s.cleanup(); }
+});
+
+test('projectAdd refuses a subdirectory of a git repo, naming the top level, and changes nothing', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home);
+    mkdirSync(join(s.dir, 'mono', 'pkg'), { recursive: true });
+    const mono = realpathSync(join(s.dir, 'mono'));
+    g(mono, 'init', '-q');
+    assert.throws(() => projectAdd({ home, env: { ND_HOME: '' }, source: join(mono, 'pkg'), name: 'pkg' }),
+      (e) => e.message.includes(`nd project add ${mono}`));
+    assert.ok(!existsSync(join(mono, 'pkg', '.no-deceit')));
+    assert.ok(!existsSync(join(home, 'data', 'projects.edn')));
+    const r = projectAdd({ home, env: { ND_HOME: '' }, source: mono });
+    assert.equal(r.path, mono);
+    assert.ok(existsSync(join(mono, '.no-deceit', 'state.json')));
   } finally { s.cleanup(); }
 });
 

@@ -13,7 +13,7 @@ import {
 import { join, resolve, dirname, basename } from 'node:path';
 import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
-import { projectPaths, loadConfig, readProjectState, homePaths, dataPaths } from './state.mjs';
+import { projectPaths, loadConfig, readProjectState, homePaths, dataPaths, gitToplevel } from './state.mjs';
 import {
   PRIVATE_DIRS, addManifestEntry, manifestHasProject, projectNameFrom, isRemoteSource,
   marketplaceInstalls, mergeCursorHooks, pathHint, classifyChanges,
@@ -55,7 +55,7 @@ export function ensureHome(home) {
 /**
  * `nd project add <git-url|path> [--name n] [--summary s] [--path]`.
  * A remote is cloned into projects/<name>; an existing local directory is
- * governed in place (never moved). Registers it in the project manifest the
+ * governed in place (never moved), and must be its git repo's top level. Registers it in the project manifest the
  * grader reads (the first existing projects.{edn,json,md} in the data home,
  * else projects.edn) and runs the equivalent of `nd init` inside it.
  */
@@ -67,6 +67,8 @@ export function projectAdd({ home, env, source, name, summary = '' }) {
     const abs = resolve(source);
     if (!existsSync(abs) || !lstatSync(abs).isDirectory()) throw new Error(`${source} is not a directory or a git URL`);
     target = realpathSync(abs);
+    const top = realpathSync(gitToplevel(target));
+    if (top !== target) throw new Error(`${source} is inside the git repo ${top}; sessions there resolve to that repo, so run: nd project add ${top}`);
   }
   const projName = name || (remote ? projectNameFrom(source) : basename(target));
   if (!/^[A-Za-z0-9][\w.-]*$/.test(projName)) throw new Error(`invalid project name "${projName}" (use --name)`);
