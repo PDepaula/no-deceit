@@ -100,10 +100,11 @@ function markdownCarriesDiagram(path, content) {
 
 // Diagram renderers. Feeding one inline source (heredoc, here-string, -e, a pipe
 // into it) authors a diagram (H), bare or behind a package runner
-// (`npx -p @mermaid-js/mermaid-cli mmdc`, `bunx d2`, `pnpm dlx`, `yarn dlx`).
-const DIAGRAM_RENDERERS = ['mmdc', 'd2', 'dot', 'plantuml', 'excalidraw-cli'];
+// (`npx -p @mermaid-js/mermaid-cli mmdc`, `npx @mermaid-js/mermaid-cli`,
+// `npm exec -- mmdc`, `bunx d2`, `pnpm dlx`, `pnpm exec`, `yarn dlx`).
+const DIAGRAM_RENDERERS = ['mmdc', 'd2', 'dot', 'plantuml', 'excalidraw-cli', '@mermaid-js/mermaid-cli'];
 const RE_RENDERER_WORD = DIAGRAM_RENDERERS.map((r) => r.replace(/[-]/g, '\\-')).join('|');
-const RE_RENDERER_RUNNER = '(?:(?:npx|bunx|pnpm\\s+dlx|yarn\\s+dlx)(?:\\s+-[^\\s;&|]+(?:\\s+[^-\\s;&|][^\\s;&|]*)?)*\\s+)?';
+const RE_RENDERER_RUNNER = '(?:(?:npx|bunx|npm\\s+exec|pnpm\\s+(?:dlx|exec)|yarn\\s+dlx)(?:\\s+-[^\\s;&|]+(?:\\s+[^-\\s;&|][^\\s;&|]*)?)*\\s+)?';
 const RE_RENDERER_INLINE = new RegExp(
   `(^|[;&|(]\\s*)${RE_RENDERER_RUNNER}(?:${RE_RENDERER_WORD})\\b[^;&|]*(?:<<|<<<|\\s-e\\b|\\s--eval\\b)` +
   `|\\|\\s*${RE_RENDERER_RUNNER}(?:${RE_RENDERER_WORD})\\b`,
@@ -224,6 +225,22 @@ function writeTargets(cmd) {
   return targets;
 }
 
+// The command with quoted string contents removed, so shell syntax inside an
+// argument (a grep alternation, a commit message) is not read as a pipe.
+function blankQuoted(cmd) {
+  let out = '';
+  let quote = null;
+  for (const ch of cmd) {
+    if (quote) {
+      if (ch === quote) { quote = null; out += ch; }
+      continue;
+    }
+    if (ch === "'" || ch === '"') quote = ch;
+    out += ch;
+  }
+  return out;
+}
+
 // Split a command into segments on the shell operators && || ; | and newlines,
 // leaving operators that appear inside single/double quotes untouched.
 function splitSegments(cmd) {
@@ -261,8 +278,8 @@ function classifyBash(cmd, cfg) {
   if (touchesState || RE_STATE_SEGMENT_CMD.test(nc) || RE_HOME_STATE_CMD.test(nc)) return 'G';
 
   // H: a diagram renderer fed inline source (heredoc / -e / piped in). Judged on
-  // the whole command because a pipe splits the source from the renderer.
-  if (RE_RENDERER_INLINE.test(c)) return 'H';
+  // the whole unquoted command because a pipe splits the source from the renderer.
+  if (RE_RENDERER_INLINE.test(blankQuoted(c))) return 'H';
   // Diagram content written into markdown: the heredoc body lives on later lines,
   // so the per-segment router cannot see it.
   if (AUTHORING_SHAPES.some((rx) => rx.test(c)) && writeTargets(c).some((t) => markdownCarriesDiagram(t, c))) return 'H';

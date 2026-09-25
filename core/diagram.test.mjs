@@ -41,6 +41,17 @@ test('H: a renderer fed inline source is H, bare or behind a package runner', ()
   assert.equal(classify('Bash', { command: 'echo "a -- b" | pnpm dlx d2 - docs/arch.svg' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'echo "a -- b" | yarn dlx --quiet d2 - docs/arch.svg' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'npx -y mmdc <<EOF\ngraph TD\nEOF' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'echo "graph TD" | npx @mermaid-js/mermaid-cli -i - -o docs/a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'echo "graph TD" | npx -y @mermaid-js/mermaid-cli -i - -o docs/a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'echo "graph TD" | npm exec -- mmdc -i - -o docs/a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'echo "graph TD" | pnpm exec mmdc -i - -o docs/a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: "d2 <<'EOF'\na -> b\nEOF" }, cfg), 'H');
+});
+
+test('a pipe or renderer word inside a quoted argument is not an inline-fed renderer', () => {
+  assert.equal(classify('Bash', { command: 'grep -nE "slash|dot" src/app.js' }, cfg), 'A');
+  assert.equal(classify('Bash', { command: "rg 'd1|d2' src" }, cfg), 'A');
+  assert.notEqual(classify('Bash', { command: 'git commit -m "fix: use d2 | dot renderer"' }, cfg), 'H');
 });
 
 test('renderers on a file keep their ordinary handling; a redirected diagram source is H', () => {
