@@ -222,6 +222,18 @@ test('a backslash-newline continuation keeps one command in one segment', () => 
   }
 });
 
+test('a backslash-newline ending a comment is not a continuation', () => {
+  for (const command of [
+    '# note \\\n mmdc -i a.mmd',
+    '# render \\\nmmdc -i a.mmd -o a.svg',
+    'ls # \\\ndot -Tpng a.dot -o a.png',
+    'echo ok # done \\\nnpx mmdc -i a',
+  ]) {
+    assert.equal(classify('Bash', { command }, cfg), 'H', JSON.stringify(command));
+  }
+  assert.notEqual(classify('Bash', { command: '# render \\\necho ok' }, cfg), 'H');
+});
+
 test('dot and d2 as plain words are not renderer invocations', () => {
   assert.equal(classify('Bash', { command: 'ls ~/dotfiles' }, cfg), 'A');
   assert.equal(classify('Bash', { command: 'grep dot src/app.js' }, cfg), 'A');
