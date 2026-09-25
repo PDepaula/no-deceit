@@ -26,9 +26,11 @@ based on [Keep a Changelog](https://keepachangelog.com/).
 - **Added:** classifier category **H** (design artifact): writes to diagram
   sources, diagram content written into markdown, and any Bash command that
   runs a diagram renderer (`mmdc`, `d2`, `dot`, `plantuml`, `excalidraw-cli`,
-  bare or via a package runner), the learner's own file included: they
-  render it in their own terminal. Only an invocation in command position
-  counts; a renderer name passed as an argument (`grep -rn mmdc`) does not. Denied at Tier 1 and Tier 2 locked *and* unlocked; a diagram
+  bare or via a package runner or launcher such as `npx`, `xargs`, `env`,
+  `sudo`), the learner's own file included: they render it in their own
+  terminal. Only an invocation in command position counts; a renderer name
+  passed as an argument (`grep -rn mmdc`, `command -v mmdc`) does not.
+  Denied at Tier 1 and Tier 2 locked *and* unlocked; a diagram
   fence of any size in chat is a `chat_diagram` violation on the gated tiers,
   and `MessageDisplay` redacts it.
 - **Added:** the `Handing over: <what>` label and the question-ending rule at
