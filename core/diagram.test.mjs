@@ -77,6 +77,10 @@ test('a renderer behind a launcher, a path, or an assignment is still an invocat
   assert.equal(classify('Bash', { command: 'npx -p @mermaid-js/mermaid-cli mmdc -i a.mmd -o a.svg' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'npx -y -p pkg mmdc -i a.mmd -o a.svg' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'npx --package pkg mmdc -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'npx -y mmdc -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'sudo -E -u me env -i FOO=1 mmdc -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'time -f %e plantuml a.puml' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'find . -name "*.mmd" -exec mmdc -i {} \\;' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'out=$(plantuml -tsvg a.puml)' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'echo `d2 a.d2 a.svg`' }, cfg), 'H');
   assert.equal(classify('Bash', { command: './node_modules/.bin/mmdc -i a.mmd -o a.svg' }, cfg), 'H');
@@ -97,6 +101,25 @@ test('a renderer name mentioned as an argument is not an invocation', () => {
   assert.equal(classify('Bash', { command: 'grep dot notes.txt | cat -T' }, cfg), 'A');
   assert.equal(classify('Bash', { command: 'dot -V; ls -T' }, cfg), 'U');
   assert.equal(classify('Bash', { command: 'npm install @mermaid-js/mermaid-cli' }, cfg), 'C');
+});
+
+test('a boolean launcher flag never turns a renderer-named argument into an invocation', () => {
+  for (const command of [
+    "find . -name '*.md' | xargs -r grep -l plantuml",
+    'find . -name mmdc',
+    'xargs -r grep mmdc',
+    'sudo -E grep -rn mmdc core/',
+    'sudo -n cat plantuml.txt',
+    'sudo -n grep -rn mmdc core/',
+    'time -p grep -rn mmdc core/',
+    'env -i grep -rn mmdc core/',
+    'nice -19 grep mmdc notes.txt',
+    'npx -y grep-cli mmdc',
+  ]) {
+    assert.notEqual(classify('Bash', { command }, cfg), 'H', command);
+  }
+  assert.notEqual(classify('Bash', { command: "bash -c 'grep -rn mmdc core/'" }, cfg), 'H');
+  assert.notEqual(classify('Bash', { command: 'sh -c "grep -rn mmdc core/"' }, cfg), 'H');
 });
 
 test('dot and d2 as plain words are not renderer invocations', () => {
