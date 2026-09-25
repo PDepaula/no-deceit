@@ -1,0 +1,10 @@
+{:min-bb-version "1.3.190"
+ :paths ["src" "test"]
+ :tasks
+ {test {:doc "Run the Clojure port's tests, incl. oracle vs. JS cases (passes with 0 namespaces ported)"
+        :requires ([clojure.test :as t] [no-deceit.oracle-test] [no-deceit.purity-test])
+        :task (let [{:keys [fail error]} (t/run-tests 'no-deceit.oracle-test 'no-deceit.purity-test)]
+                (System/exit (if (pos? (+ fail error)) 1 0)))}
+  lint {:doc "Purity rule: core namespaces may not touch fs/process/env/clock"
+        :requires ([no-deceit.purity :as p])
+        :task (System/exit (p/lint "src"))}}}

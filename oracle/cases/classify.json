@@ -1,0 +1,11 @@
+{
+  "module": "classify",
+  "js": {"file": "core/classify.mjs", "fn": "classify"},
+  "bb": {"ns": "no-deceit.classify", "fn": "classify"},
+  "cases": [
+    {"name": "read is inspect", "args": ["Read", {"file_path": "a.js"}], "expect": "A"},
+    {"name": "write is source mutation", "args": ["Write", {"file_path": "src/a.js"}], "expect": "E"},
+    {"name": "ls is inspect", "args": ["Bash", {"command": "ls"}], "expect": "A"},
+    {"name": "nd tier is tamper", "args": ["Bash", {"command": "nd tier 3"}], "expect": "G"}
+  ]
+}

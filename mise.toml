@@ -1,0 +1,4 @@
+# Project-local toolchain pin. `mise install` provides bb for the Clojure port
+# (see PORTING.md). Node stays the runtime for the shipped plugin.
+[tools]
+babashka = "1.13.224"
