@@ -11,6 +11,30 @@ re-prove settled primitives.
   rendering is Claude-Code-only and is not exercised in CI; the core functions
   and the hook shim's JSON I/O are.
 
+## Home-repo install (v0.8.0)
+
+`nd bootstrap` symlinks `~/.claude/skills/no-deceit` → `<home>/harness/claude-code`,
+a skills-dir plugin (`.claude-plugin/plugin.json`, `hooks/hooks.json`, and
+`skills/` + `agents/` symlinks into the repo root). Its hook commands run
+`hooks/run.mjs`, a two-line forwarder to `hooks/nd-hook.mjs`; a
+`${CLAUDE_PLUGIN_ROOT}/../..` hop was rejected because Node collapses `..`
+lexically, so it breaks when the root is the symlink path.
+
+- **Verified (offline):** `node <symlink>/hooks/run.mjs SessionStart` runs the
+  real shim through the symlink; `harness/packaging.test.mjs` guards the
+  manifest, the hook-event parity with the root `hooks/hooks.json`, and the
+  symlinks.
+- **Not live-verified in Claude Code:** that a *symlinked* skills-dir plugin
+  loads its hooks and resolves `${CLAUDE_PLUGIN_ROOT}` (redesign report §5.4,
+  Phase 0 spike). If it does not, the fallback is a `~/.claude/settings.json`
+  hook block with absolute paths to `hooks/nd-hook.mjs`.
+- The marketplace route keeps `source: "./"` in the root
+  `.claude-plugin/marketplace.json`: a marketplace install caches only the
+  `source` directory, and `harness/claude-code` cannot reach `../../core` from
+  a cache copy. The root `.claude-plugin/plugin.json` + `hooks/hooks.json` stay
+  for that route and for older skills-dir clones.
+
+
 ## Already confirmed by the design scout (report §2.6), not re-proven here
 
 - A `PreToolUse` hook returning `permissionDecision: "deny"` blocks the tool

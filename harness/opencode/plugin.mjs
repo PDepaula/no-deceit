@@ -2,6 +2,7 @@
 // call this with an env seam so they do not need OpenCode installed.
 
 import { FAIL_CLOSED_REASON } from '../../core/gate.mjs';
+import { defaultEnv } from '../../core/state.mjs';
 import { evaluateHarnessCall } from '../run.mjs';
 import { applyOpenCode } from '../apply.mjs';
 
@@ -20,7 +21,7 @@ export function createOpenCodePlugin(deps = {}) {
             toolName: input && input.tool,
             toolInput: (output && output.args) || {},
             cwd,
-            env: env || process.env,
+            env: env || defaultEnv(),
             sessionId: (input && (input.sessionID || input.sessionId)) || undefined,
           });
         } catch {

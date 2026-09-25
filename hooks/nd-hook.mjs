@@ -10,7 +10,7 @@
 
 import { evaluate, evaluateStop, evaluateDisplay, evaluatePostToolUse } from '../core/gate.mjs';
 import { decide, REASONS } from '../core/policy.mjs';
-import { appendLedger, gitToplevel, isGoverned, readProjectState, writeProjectState, writeSession } from '../core/state.mjs';
+import { defaultEnv, appendLedger, gitToplevel, isGoverned, readProjectState, writeProjectState, writeSession } from '../core/state.mjs';
 import { parseCommand, setTier, setMode, renderStatus, renderStatusShort, startHandover, armHandoverForPrompt, topicContext } from '../core/control.mjs';
 import { parseTierArgs } from '../core/curriculum.mjs';
 import { parseUnlockArgs, parseCheckArgs, parseGradeArgs } from '../core/unlock-args.mjs';
@@ -78,7 +78,7 @@ async function main() {
   const raw = await readStdin();
   let input = {};
   try { input = raw ? JSON.parse(raw) : {}; } catch { input = {}; }
-  const env = process.env;
+  const env = defaultEnv();
 
   if (event === 'PreToolUse') {
     let result;

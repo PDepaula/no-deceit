@@ -12,6 +12,22 @@ re-prove settled primitives.
   ran a real `opencode run` session (below) to validate the npm-packaging
   entry point, with a mixed result recorded as a known gap.
 
+## Home-repo install (v0.8.0)
+
+The npm route is gone: `package.json` is private with no `main`, and
+`no-deceit@0.7.2` on npm is a deprecation tombstone. The install is now
+`nd bootstrap --opencode`, which symlinks
+`~/.config/opencode/plugins/no-deceit.ts` → `<home>/harness/opencode/no-deceit.ts`.
+The sections below that mention `main` / `opencode plugin <module>` are the
+historical record of the retired route.
+
+**Not live-verified:** that OpenCode resolves the plugin's relative import
+(`./plugin.mjs`) from the symlink *target*. The older manual fallback
+(symlinking the same file) was described the same way but is not among the
+recorded live runs. Check with `nd doctor` and a Tier 1 `write` after the first
+bootstrap; the cwd gap for non-git projects (issue #7) is unchanged.
+
+
 ## npm packaging (Phase 6)
 
 `opencode plugin <module>` ("install plugin and update config") requires the
@@ -19,7 +35,7 @@ target to "expose plugin entrypoints in package.json": `exports["./tui"]`,
 `exports["./server"]`, or a bare `main` (detected as the server target).
 Confirmed live: `opencode plugin <path-with-no-main>` fails with *"does not
 expose plugin entrypoints in package.json"*; adding
-`"main": "adapters/opencode/no-deceit.ts"` to `package.json` makes the same
+`"main": "harness/opencode/no-deceit.ts"` to `package.json` makes the same
 command report *"Detected server target"* and write the module path into
 `plugin` in `.opencode/opencode.json` (or the global config with `-g`).
 Re-verified against the actual npm tarball (`npm pack`, extract, `opencode
@@ -32,7 +48,7 @@ gate (`governed:true`, category A, allow) — the plugin loads and receives
 real `tool.execute.before` events. It did **not** reliably block a forced
 `write` call in this session, and instrumentation traced the cause to the
 plugin's own `({directory, worktree}) => cwd = worktree || directory`
-fallback (`adapters/opencode/plugin.mjs`): in a project directory that is
+fallback (`harness/opencode/plugin.mjs`): in a project directory that is
 not itself a git repository, this OpenCode build reports `worktree: "/"`
 (not empty/undefined), so the adapter resolves `cwd` to `/` instead of the
 real project directory and `core/state.mjs`'s `isGoverned()` then looks for
@@ -48,16 +64,16 @@ logic changes).
 
 The adapter is verified by `node --test` with OpenCode **not** required:
 
-- **`adapters/opencode.test.mjs`** — `createOpenCodePlugin` with a fake
+- **`harness/opencode.test.mjs`** — `createOpenCodePlugin` with a fake
   `{directory, worktree}`:
   - `write` of source at Tier 1 throws the core Tier 1 reason
   - `read` does not throw
   - `bash` source redirect at Tier 1 throws
   - `FM_TASK_ID` is a pass-through (no throw)
-- **`adapters/parity.test.mjs`** — the same fixture (`write` / `filePath`)
+- **`harness/parity.test.mjs`** — the same fixture (`write` / `filePath`)
   yields the same `evaluate()` decision as Claude-shaped `Write` /
   `file_path`. The shared core is not forked.
-- **`adapters/map-tool.test.mjs`**, **`adapters/apply.test.mjs`** — OpenCode
+- **`harness/map-tool.test.mjs`**, **`harness/apply.test.mjs`** — OpenCode
   names map onto the classifier, and deny/ask become `throw new Error(reason)`.
 
 ## Known parity gaps (stated plainly)
@@ -74,7 +90,7 @@ The adapter is verified by `node --test` with OpenCode **not** required:
   That is stricter than Claude Code's permission prompt, not a silent allow.
 - **`worktree`-vs-`directory` cwd fallback misresolves for a governed,
   non-git project.** See "npm packaging" above — a real fix belongs in
-  `adapters/opencode/plugin.mjs`'s cwd resolution, out of scope for this
+  `harness/opencode/plugin.mjs`'s cwd resolution, out of scope for this
   packaging pass.
 
 ## Install (attended session; no firstmate required)
@@ -93,7 +109,7 @@ relative imports resolve:
 ```bash
 git clone https://github.com/PDepaula/no-deceit ~/.claude/skills/no-deceit
 # Point OpenCode at the plugin file inside that clone, e.g. in opencode.json:
-#   { "plugin": ["~/.claude/skills/no-deceit/adapters/opencode/no-deceit.ts"] }
+#   { "plugin": ["~/.claude/skills/no-deceit/harness/opencode/no-deceit.ts"] }
 # or symlink that file into ~/.config/opencode/plugins/ (do not copy it).
 cd <a project> && nd init
 ```
