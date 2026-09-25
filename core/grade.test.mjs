@@ -245,6 +245,26 @@ test('runGrade: a summary file plugs in through summaryPath, and curriculumPath 
   } finally { s.cleanup(); }
 });
 
+test('runGrade: an unreadable or all-unparsed summary is no summary: no summaryPath, G1–G5 unknown', async () => {
+  const unmet = { ...PASS, structure: { G1: 'unmet', G2: 'unmet', G3: 'unmet', G4: 'unmet' } };
+  for (const envelope of ['{not json', JSON.stringify({ version: 1, diagrams: [{ kind: 'mermaid', diagram_type: 'erDiagram', parsed: false }] })]) {
+    const s = scratch();
+    try {
+      withManifest(s);
+      const src = join(s.dir, 'schema.mmd');
+      writeFileSync(src, 'erDiagram\n  ORDER ||--o{ LINE : has\n  LINE }o--|| PRODUCT : for\n');
+      const { path } = addEvidenceFile({ env: s.env, topic: 'etl', filePath: src, nowMs: NOW });
+      writeFileSync(summaryPathFor(path), envelope);
+      let seen;
+      await runGrade({ env: s.env, topic: 'etl', invoke: async (ctx) => { seen = ctx.job; return unmet; } });
+      assert.equal('summaryPath' in seen, false);
+      const dir = dataPaths(s.env).verdictsDir('etl');
+      const [vf] = readdirSync(dir).filter((n) => !n.includes('.job.'));
+      assert.ok(Object.values(JSON.parse(readFileSync(join(dir, vf), 'utf8')).structure).every((x) => x === 'unknown'));
+    } finally { s.cleanup(); }
+  }
+});
+
 test('runGrade: prefilter reject (source_paste) is not_yet with no model call; not_yet leaves the tutor a question', async () => {
   const s = scratch();
   try {

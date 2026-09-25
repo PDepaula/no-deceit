@@ -212,9 +212,17 @@ export function proseOf(text) {
   return String(text ?? '').replace(/(^|\n)\s*(`{3,}|~{3,})[^\n]*\n[\s\S]*?(\n\s*\2[^\n]*|$)/g, '$1').trim();
 }
 
-/** Nodes across the parsed diagrams; null when none was parsed (an unparsed entry is no summary). */
+/**
+ * The parsed diagrams of a summary envelope. An unreadable envelope or one whose
+ * entries are all `parsed: false` yields [], which every consumer treats as no summary.
+ */
+export function parsedDiagrams(summary) {
+  return (summary && Array.isArray(summary.diagrams) ? summary.diagrams : []).filter((d) => d && d.parsed !== false);
+}
+
+/** Nodes across the parsed diagrams; null when none was parsed. */
 function nodeCount(summary) {
-  const ds = (summary && Array.isArray(summary.diagrams) ? summary.diagrams : []).filter((d) => d && d.parsed !== false);
+  const ds = parsedDiagrams(summary);
   if (ds.length === 0) return null;
   return ds.reduce((n, d) => n + (Array.isArray(d && d.nodes) ? d.nodes.length : 0), 0);
 }

@@ -10,7 +10,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, mkdtempSy
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { prefilterMentalModel, prefilterCommitHistory, prefilterTransfer, DEFAULT_MIN_CHARS } from './prefilter.mjs';
+import { prefilterMentalModel, prefilterCommitHistory, prefilterTransfer, parsedDiagrams, DEFAULT_MIN_CHARS } from './prefilter.mjs';
 import {
   MENTAL_RUBRIC, COMMIT_RUBRIC, TRANSFER_RUBRIC, PREFILTER_NEXT_QUESTION, TRANSFER_PREFILTER_NEXT_QUESTION,
   finalizeUnlockVerdict, finalizeTransferVerdict,
@@ -616,7 +616,7 @@ function writeTransferFixtures(dir, item) {
     out.curriculumPath = join(dir, 'curriculum.md');
     writeFileSync(out.curriculumPath, item.curriculum);
   }
-  if (item.summary) {
+  if (parsedDiagrams(item.summary).length) {
     out.summaryPath = summaryPathFor(evidencePath);
     writeFileSync(out.summaryPath, JSON.stringify(item.summary));
   }
@@ -642,8 +642,9 @@ function notYetTransfer(source, extra = {}) {
 
 /**
  * Grade one principle-transfer teach-back. `invoke(ctx)` is the mockable LLM
- * seam. `summaryPath`/`summary` are the optional parsed-diagram seam: when
- * absent the grader reads the raw source and G1–G5 come back `unknown`.
+ * seam. `summary` (read from `summaryPath`) is the optional parsed-diagram seam:
+ * when it has no parsed diagram the job omits `summaryPath`, the grader reads the
+ * raw source, and G1–G5 come back `unknown`.
  */
 export async function gradeTransferAttempt({
   evidenceText = '',
@@ -669,7 +670,7 @@ export async function gradeTransferAttempt({
       next_smaller_question: TRANSFER_PREFILTER_NEXT_QUESTION[pre.reason],
     });
   }
-  const hasSummary = Boolean(summary || summaryPath);
+  const hasSummary = parsedDiagrams(summary).length > 0;
   const job = buildGraderJob({
     kind: 'transfer', evidencePath, curriculumPath, projectsPath,
     summaryPath: hasSummary ? (summaryPath || summaryPathFor(evidencePath)) : null,
