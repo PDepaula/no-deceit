@@ -52,7 +52,8 @@ Read it before changing enforcement semantics.
   log in. Model is `graderModel` (default `haiku`).
 - `gold/transfer-gold.jsonl` — transfer gold set (source of truth; `nd audit`
   runs both sets). Evidence lives in the data home (`dataPaths` in
-  `core/state.mjs`), category G. Diagram parsing is NOT in Node: the Babashka
+  `core/state.mjs`); writes and shell refs there are category G, reads are
+  not hook-enforced (the skill tells the tutor not to read). Diagram parsing is NOT in Node: the Babashka
   parsers' contract is `PORTING.md` step 7, fixtures in `fixtures/evidence/`.
 - `gold/unlock-gold.mjs` — adversarial gold set; `nd audit` release gate is
   `graded_up = 0` before accepting a grader-prompt change.
