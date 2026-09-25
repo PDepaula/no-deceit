@@ -8,9 +8,11 @@
 // subcommand or touches the state paths (category G).
 
 import { basename } from 'node:path';
-import { isGoverned, readProjectState, writeProjectState, readSession, writeSession, appendLedger, loadConfig, readLedger, readAllLedger } from './state.mjs';
+import { dataPaths, isGoverned, readProjectState, writeProjectState, readSession, writeSession, appendLedger, loadConfig, readLedger, readAllLedger } from './state.mjs';
 import { resolveEffective, chatTextGated } from './policy.mjs';
 import { preamblePresent } from './state.mjs';
+import { readCurriculum } from './curriculum-io.mjs';
+import { curriculumReady, tier1Refusal, curriculumContext, isReviewed } from './curriculum.mjs';
 import { suggestModesByDomain, domainOf, DEFAULT_WINDOW_MS } from './report.mjs';
 import { unlockOverride as applyUnlockOverride } from './grader.mjs';
 
@@ -34,10 +36,22 @@ export function parseCommand(promptText) {
   return { name: m[1], arg: m[2].trim(), body };
 }
 
-export function setTier({ repoRoot, env, sessionId, tier, nowMs = Date.now() }) {
+/**
+ * Set the tier. `topic` (Tier 1 or 2) records the active topic, which makes the
+ * Tier 2 unlock apply per topic; Tier 1 with a topic needs a ready curriculum
+ * (R2) and otherwise refuses with the two ways to get one. `clearTopic` drops
+ * the active topic. Neither given: the topic is left as it was.
+ */
+export function setTier({ repoRoot, env, sessionId, tier, topic = null, clearTopic = false, nowMs = Date.now() }) {
   const n = Number(tier);
   if (![1, 2, 3].includes(n)) throw new Error(`invalid tier: ${tier}`);
   const before = readProjectState(repoRoot, env);
+  if (n === 3 && (topic || clearTopic)) throw new Error('a topic applies to Tier 1 or Tier 2, not to a Tier 3 grant');
+  if (n === 1 && topic) {
+    const cur = readCurriculum(env, topic);
+    const ready = curriculumReady({ ...cur, minChars: loadConfig(env).curriculumMinChars });
+    if (!ready.ok) throw new Error(tier1Refusal(topic, ready.missing));
+  }
 
   if (n === 3) {
     // Tier 3 is a grant that expires, never a project setting (D2). When a
@@ -54,10 +68,15 @@ export function setTier({ repoRoot, env, sessionId, tier, nowMs = Date.now() }) 
 
   // Tier 1 / 2 are project settings. Clear any active Tier 3 grant.
   const { t3ExpiresAtMs, ...rest } = before;
-  writeProjectState(repoRoot, { ...rest, tier: n });
+  const nextTopic = clearTopic ? null : (topic || before.topic || null);
+  writeProjectState(repoRoot, { ...rest, tier: n, topic: nextTopic });
   if (sessionId) writeSession(env, sessionId, { t3ExpiresAtMs: null });
-  appendLedger(env, { event: 'tier_change', from: before.tier, to: n, sessionId: sessionId || null });
-  return `Tier set to ${n}.`;
+  appendLedger(env, {
+    event: 'tier_change', from: before.tier, to: n, sessionId: sessionId || null,
+    ...(nextTopic !== before.topic ? { topic: nextTopic } : {}),
+  });
+  const scoped = nextTopic ? ` for topic ${nextTopic}${n === 2 ? ' (its Tier 2 unlock is per topic)' : ''}` : '';
+  return `Tier set to ${n}${scoped}.`;
 }
 
 export function setMode({ repoRoot, env, mode, sessionId, nowMs = Date.now() }) {
@@ -85,6 +104,30 @@ export function renderStatusShort({ repoRoot, env, sessionId, nowMs = Date.now()
   return `[ND T${e.tier}·${e.mode}${lock}]`;
 }
 
+function curriculumNote(env, topic) {
+  const cur = readCurriculum(env, topic);
+  const ready = curriculumReady({ ...cur, minChars: loadConfig(env).curriculumMinChars });
+  if (!ready.ok) return ' — no ready curriculum';
+  return isReviewed(cur.open) ? ' — curriculum reviewed' : ' — curriculum unreviewed (review mission, sources and outline: `nd curriculum review ' + topic + '`)';
+}
+
+/** Curriculum paths and rules for the active topic, for SessionStart / prompt context. '' when none. */
+export function topicContext({ repoRoot, env, sessionId, nowMs = Date.now() }) {
+  const e = effectiveNow({ repoRoot, env, sessionId, nowMs });
+  if (!e.topic) return '';
+  const dp = dataPaths(env);
+  const cur = readCurriculum(env, e.topic);
+  const ready = curriculumReady({ ...cur, minChars: loadConfig(env).curriculumMinChars }).ok;
+  return curriculumContext({
+    topic: e.topic,
+    openPath: dp.curriculumOpen(e.topic),
+    sealedPath: dp.curriculumSealed(e.topic),
+    tier: e.tier,
+    ready,
+    reviewed: ready && isReviewed(cur.open),
+  });
+}
+
 export function renderStatus({ repoRoot, env, sessionId, nowMs = Date.now() }) {
   if (!isGoverned(repoRoot)) {
     return `No Deceit: this project is not governed (no .no-deceit directory). Run \`nd init\` to opt in.`;
@@ -95,7 +138,8 @@ export function renderStatus({ repoRoot, env, sessionId, nowMs = Date.now() }) {
     `  Tier:  ${e.tier}${e.tier === 3 ? ' (Narrated Velocity, granted)' : e.tier === 2 ? ' (Guided)' : ' (Tutor)'}`,
     `  Mode:  ${e.mode}`,
   ];
-  if (e.tier === 2) lines.push(`  Unlock: ${e.t2Unlocked ? 'unlocked' : 'locked'}`);
+  if (e.topic) lines.push(`  Topic: ${e.topic}${curriculumNote(env, e.topic)}`);
+  if (e.tier === 2) lines.push(`  Unlock: ${e.t2Unlocked ? 'unlocked' : 'locked'}${e.topic ? ` (for ${e.topic})` : ''}`);
   const project = readProjectState(repoRoot, env);
   if (project.lastDiagnosis && project.lastDiagnosis.error_class) {
     lines.push(`  Last error_class: ${project.lastDiagnosis.error_class}`);

@@ -175,11 +175,19 @@ export function resolveEffective({ project = {}, session = {}, preamblePresent =
     }
   }
 
-  const t2Unlocked = Boolean(project.unlocked) || Boolean(session.unlocked);
+  // Topic-scoped unlock: with an active topic (the session's, else the project's),
+  // the Tier 2 unlock applies to that topic only, so a pass for another topic does
+  // not open this one. With no active topic, the project-level flag decides.
+  const topic = session.topic || project.topic || null;
+  const passed = [...(project.unlockedTopics || []), ...(session.unlockedTopics || [])];
+  const t2Unlocked = topic
+    ? passed.includes(topic)
+    : Boolean(project.unlocked) || Boolean(session.unlocked);
 
   return {
     tier,
     mode,
+    topic,
     t2Unlocked,
     t3Active,
     t3PreamblePresent: Boolean(preamblePresent),

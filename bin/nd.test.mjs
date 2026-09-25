@@ -318,3 +318,51 @@ test('nd audit gates both gold sets: an inflated transfer grade is an upgrade to
     assert.match(bad.out, /upgraded ids: .*recall-perfect-01/);
   } finally { s.cleanup(); }
 });
+
+// --- Phase 3: curriculum ---
+
+import { readFileSync } from 'node:fs';
+const CUR_FIX = join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'curriculum');
+
+test('nd tier 1 --topic refuses without a curriculum (exit 1, two ways named) and succeeds with one', () => {
+  const s = scratch();
+  try {
+    s.env.ND_DATA_DIR = join(s.dir, 'data');
+    run(['init'], s.env, s.dir);
+    const r = run(['tier', '1', '--topic', 'etl-basics'], s.env, s.dir, true);
+    assert.equal(r.code, 1);
+    assert.match(r.out, /nd curriculum build etl-basics/);
+    assert.match(r.out, /write open\.md and sealed\.md yourself/);
+    assert.equal(readProjectState(s.dir, s.env).tier, 2);
+    const d = join(s.dir, 'data', 'curricula', 'etl-basics');
+    mkdirSync(d, { recursive: true });
+    writeFileSync(join(d, 'open.md'), readFileSync(join(CUR_FIX, 'open.md')));
+    writeFileSync(join(d, 'sealed.md'), readFileSync(join(CUR_FIX, 'sealed.md')));
+    assert.match(run(['tier', '1', '--topic', 'etl-basics'], s.env, s.dir).out, /Tier set to 1 for topic etl-basics/);
+    assert.match(run(['status'], s.env, s.dir).out, /Topic: etl-basics — curriculum unreviewed/);
+    assert.match(run(['curriculum', 'review', 'etl-basics'], s.env, s.dir).out, /Mission:/);
+    assert.match(run(['curriculum', 'check', 'etl-basics'], s.env, s.dir).out, /format ok/);
+    run(['curriculum', 'reviewed', 'etl-basics'], s.env, s.dir);
+    assert.match(run(['status'], s.env, s.dir).out, /curriculum reviewed/);
+  } finally { s.cleanup(); }
+});
+
+test('nd curriculum build runs the scout seam (mock), and refuses inside an agent shell', () => {
+  const s = scratch();
+  try {
+    s.env.ND_DATA_DIR = join(s.dir, 'data');
+    const open = readFileSync(join(CUR_FIX, 'open.md'), 'utf8');
+    const sealed = readFileSync(join(CUR_FIX, 'sealed.md'), 'utf8');
+    const mock = join(s.dir, 'mock.txt');
+    writeFileSync(mock, `<<<ND-FILE open.md>>>\n${open}\n<<<ND-END>>>\n<<<ND-FILE sealed.md>>>\n${sealed}\n<<<ND-END>>>\n`);
+    const args = ['curriculum', 'build', 'etl-basics', '--goal', 'place each join', '--mission', 'own my pipeline', '--from', join(CUR_FIX, 'open.md')];
+    const denied = run(args, { ...s.env, CLAUDECODE: '1', ND_SCOUT_MOCK_FILE: mock }, s.dir, true);
+    assert.equal(denied.code, 1);
+    assert.match(denied.out, /agent shell/);
+    assert.ok(!existsSync(join(s.dir, 'data', 'curricula', 'etl-basics', 'open.md')));
+    const ok = run(args, { ...s.env, ND_SCOUT_MOCK_FILE: mock }, s.dir);
+    assert.match(ok.out, /2 concepts, 7 keywords/);
+    assert.ok(existsSync(join(s.dir, 'data', 'curricula', 'etl-basics', 'sealed.md')));
+    assert.match(run(['curriculum', 'build', 'etl-basics', '--from', 'x'], { ...s.env, ND_SCOUT_MOCK_FILE: mock }, s.dir, true).out, /--goal/);
+  } finally { s.cleanup(); }
+});

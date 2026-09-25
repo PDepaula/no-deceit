@@ -11,7 +11,8 @@
 import { evaluate, evaluateStop, evaluateDisplay, evaluatePostToolUse } from '../core/gate.mjs';
 import { decide, REASONS } from '../core/policy.mjs';
 import { appendLedger, gitToplevel, isGoverned, readProjectState, writeProjectState, writeSession } from '../core/state.mjs';
-import { parseCommand, setTier, setMode, renderStatus, renderStatusShort, startHandover, armHandoverForPrompt } from '../core/control.mjs';
+import { parseCommand, setTier, setMode, renderStatus, renderStatusShort, startHandover, armHandoverForPrompt, topicContext } from '../core/control.mjs';
+import { parseTierArgs } from '../core/curriculum.mjs';
 import { parseUnlockArgs, parseCheckArgs, parseGradeArgs } from '../core/unlock-args.mjs';
 import { runUnlock, runCheck, runGrade } from '../core/grader.mjs';
 import { captureTeach } from '../core/evidence-io.mjs';
@@ -44,13 +45,16 @@ function contextFacts(repoRoot, env, sessionId, { consumeNote = false } = {}) {
       extra += `\nGrader diagnosis: ${project.lastDiagnosis.error_class}; misconceptions: ${(project.lastDiagnosis.misconceptions || []).join('; ') || '(none)'}.`;
     }
   }
+  let topic = '';
+  try { topic = topicContext({ repoRoot, env, sessionId }); } catch { /* never wedge a prompt on curriculum I/O */ }
   return (
     `No Deceit is active in this project. ${badge}\n` +
     `${status}\n` +
     `Your tier is stored outside this conversation and you cannot change it — ` +
     `tier and mode change only through the developer's own /no-deceit: prompt ` +
     `commands or their own \`nd\` shell CLI. A denied tool call is the system ` +
-    `working as intended; do not route around it. You never spawn the grader.` +
+    `working as intended; do not route around it. You never spawn the grader or the curriculum scout.` +
+    (topic ? `\n${topic}` : '') +
     extra
   );
 }
@@ -124,7 +128,9 @@ async function main() {
       let message;
       try {
         if (cmd.name === 'tier') {
-          message = setTier({ repoRoot, env, sessionId: input.session_id, tier: cmd.arg });
+          const t = parseTierArgs(cmd.arg);
+          if (t.error) throw new Error(t.error);
+          message = setTier({ repoRoot, env, sessionId: input.session_id, tier: t.tier, topic: t.topic, clearTopic: t.clearTopic });
         } else if (cmd.name === 'mode') {
           message = setMode({ repoRoot, env, sessionId: input.session_id, mode: cmd.arg });
         } else if (cmd.name === 'unlock') {

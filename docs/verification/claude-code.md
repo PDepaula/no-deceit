@@ -71,6 +71,23 @@ which drives the real hook shim and CLI as subprocesses with piped payloads:
     `UserPromptSubmit` payload shape for `/no-deceit:teach`, and a live-model
     transfer grade or gold audit (CI never calls a model). The hook shim is
     driven with the documented payload; treat the first real use as the check.
+- **Curriculum and the Tier 1 gate (redesign phase 3)** (`core/curriculum.test.mjs`,
+  `core/curriculum-flow.test.mjs`, `hooks/nd-hook.test.mjs`, `bin/nd.test.mjs`,
+  `oracle/cases/curriculum-*.json`):
+  - `/no-deceit:tier 1 <topic>` piped to the hook is refused with the two ways to
+    get a curriculum when either file is missing or trivial, and succeeds with
+    both; `SessionStart` then injects both paths and the never-quote rule
+  - the Tier 2 unlock is per topic with an active topic (`resolveEffective`, and the
+    gate denies a write for a topic that has not passed), project-level without
+  - the scout is exercised through its spawn plan (read/fetch tools only, not
+    `--bare`, `ND_SCOUT_CHILD`) and a mocked stdout; format-invalid output is
+    rejected with nothing written; the keyword list is regenerated from the sealed map
+  - `nd curriculum build` / `reviewed` classify as category G and refuse in an
+    agent shell; `check` / `review` are reads and `review` prints no sealed content
+  - **Not verified live:** a real scout run (CI never calls a model), so the
+    scout prompt's output discipline is unproven against `claude -p`; a live
+    Claude Code check that the tutor honours the never-quote rule (there is no
+    read block, by design: instruction plus an offline audit later)
 - **Phase 3 text channel** (`core/fence.test.mjs`, `core/narration.test.mjs`,
   `core/text-channel.test.mjs`, `core/tripwire.test.mjs`, `core/gate.test.mjs`,
   `hooks/nd-hook.test.mjs`):

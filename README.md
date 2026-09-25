@@ -39,6 +39,9 @@ projects initialised before that default keep their stored tier, and
   turn that dumps a worked solution as fenced chat text above a small snippet
   threshold. On Claude Code, `MessageDisplay` redacts that code on screen. The
   agent responds with Socratic questions that redirect you back to the problem.
+  For a *topic*, `nd tier 1 --topic <t>` (or `/no-deceit:tier 1 <t>`) makes it
+  curriculum-bound: it succeeds only when the topic has a curriculum (below), and
+  the tutor then never reveals a concept before you have attempted it.
 - **Tier 2 — Guided.** Unlocks once you show real engagement. Write your mental
   model to `.no-deceit/attempts/<task>.md` (or keep a commit history of
   meaningfully different attempts) and run `nd unlock`. A **blind grader** in a
@@ -87,12 +90,28 @@ the repo you run the command in: that project must be listed with a `path` to
 its governed repo in `projects.edn` (`[{:name "gd-integrations" :path
 "/abs/or/relative/to/data" :summary "…"}]`) or `projects.json` (the same fields
 as an array of objects). Otherwise the pass is recorded and nothing unlocks.
-The unlock is project-wide for now; topics become session state in a later
-phase. The data home is `ND_DATA_DIR`, else `$ND_HOME/data`, else
+With an active topic (`nd tier <1|2> --topic <t>`) the Tier 2 unlock is per
+topic: a pass for one topic does not open another. With no active topic the
+unlock stays project-wide, as before. The data home is `ND_DATA_DIR`, else `$ND_HOME/data`, else
 `~/.local/share/no-deceit`; you create `projects.{edn,json,md}` there (one entry
 per project; `projects.md` is free text for the grader and carries no paths). Diagram parsing into a scene summary is a later step; until a
 summary exists the grader reads the raw source and reports diagram-structure
 signals as `unknown`.
+
+**Curricula and Tier 1.** A curriculum is two files under the data home,
+`curricula/<topic>/open.md` (yours: mission, sources with sections and access,
+reading sessions, one flat alphabetical keyword list with no grouping,
+emphasis or definitions, so *you* do the grouping) and `sealed.md` (the tutor's
+and grader's: concept map, one testable claim per concept, traps, transfer
+prompts with their criteria). `nd curriculum build <topic> --goal "<what you
+must be able to do>" --mission "<why>" --from <path|url> …` has a scout agent
+(a fresh `claude -p`, never the tutor) draft both from sources you supply,
+working backward from your goal; write them by hand instead if you prefer. Review
+only the mission, sources and outline (`nd curriculum review <topic>`) so the
+topic is not spoiled, then `nd curriculum reviewed <topic>`; `reviewed:` is
+advisory and Tier 1 never requires it. The tutor may read `sealed.md` but is told
+never to quote or recite it (instruction plus the offline audit, not a read
+block). Format and keyword rules: `docs/curriculum-format.md`.
 
 **Domain mode** (crosses all tiers): **Coach** for domains you don't have solid
 footing in (the agent corrects your mental model with reasoning, from named
@@ -162,7 +181,7 @@ and for Cursor's `nd --cursor` hook). Then, in a project you want governed:
 nd init        # opt this project in (creates .no-deceit/)
 nd status      # show the current tier and mode (and any Coach/Pair suggestion)
 nd report      # weekly-style ledger summary (default last 7 days)
-nd tier 1      # or 2 / 3
+nd tier 1      # or 2 / 3; `nd tier 1 --topic <t>` needs a curriculum
 nd mode coach  # or pair / ask
 nd unlock      # grade .no-deceit/attempts/default.md
 nd evidence add <topic> <file>   # capture a note or diagram as evidence

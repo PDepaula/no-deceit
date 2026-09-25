@@ -22,6 +22,9 @@ export const DEFAULTS = {
   graderModel: 'haiku',
   graderTimeoutMs: 120_000,
   attemptMinChars: 80,
+  curriculumMinChars: 300, // Tier 1 precondition: each curriculum file at least this long
+  curriculumModel: 'sonnet', // the scout structures a chapter; haiku is too weak for it
+  scoutTimeoutMs: 600_000,
   auditRuns: 3,
   tier1MaxFenceLines: 6,
   projectNouns: [], // names of the developer's systems; a turn naming one is never a 'short turn'
@@ -73,7 +76,7 @@ export function homePaths(env = process.env) {
  * the XDG fallback `$XDG_DATA_HOME/no-deceit` (~/.local/share/no-deceit). This
  * only computes paths; it never creates a directory or a git repo. Layout per
  * the redesign report §5.2: evidence/<topic>/, verdicts/<topic>/,
- * curricula/<topic>/curriculum.md, refs/<topic>/, projects.{edn,json,md}.
+ * curricula/<topic>/{open,sealed}.md, refs/<topic>/, projects.{edn,json,md}.
  */
 export function dataPaths(env = process.env) {
   const dataDir = env.ND_DATA_DIR
@@ -82,6 +85,10 @@ export function dataPaths(env = process.env) {
     dataDir,
     evidenceDir: (topic) => join(dataDir, 'evidence', topic),
     verdictsDir: (topic) => join(dataDir, 'verdicts', topic),
+    curriculumDir: (topic) => join(dataDir, 'curricula', topic),
+    curriculumOpen: (topic) => join(dataDir, 'curricula', topic, 'open.md'),
+    curriculumSealed: (topic) => join(dataDir, 'curricula', topic, 'sealed.md'),
+    // Legacy single-file curriculum (phase 2); the grader still reads it when there is no sealed.md.
     curriculumFile: (topic) => join(dataDir, 'curricula', topic, 'curriculum.md'),
     refsDir: (topic) => join(dataDir, 'refs', topic),
     projectsManifests: ['projects.edn', 'projects.json', 'projects.md'].map((n) => join(dataDir, n)),
@@ -148,6 +155,7 @@ export function readProjectState(repoRoot, env = process.env) {
     lastDiagnosis: raw.lastDiagnosis || null,
     pendingTutorNote: raw.pendingTutorNote || null,
     unlockedTopics: Array.isArray(raw.unlockedTopics) ? raw.unlockedTopics : [],
+    topic: typeof raw.topic === 'string' && raw.topic ? raw.topic : null,
     ...(raw.t3ExpiresAtMs != null ? { t3ExpiresAtMs: raw.t3ExpiresAtMs } : {}),
   };
 }

@@ -68,3 +68,22 @@ export function parseEvidenceArgs(input) {
 export function parseGradeArgs(input) {
   return { topic: tokenize(input).find((t) => !t.startsWith('-')) ?? null };
 }
+
+/** `nd curriculum build <topic> --goal .. --mission .. --from x [--from y] [--projects a,b] [--force] [--model m]`. Pure. */
+export function parseCurriculumBuildArgs(input) {
+  const tokens = tokenize(input);
+  const out = { topic: null, goal: null, mission: null, from: [], projects: [], force: false, model: null };
+  const value = (t, name, i) => (t === `--${name}` ? [tokens[i + 1] ?? null, 1] : t.startsWith(`--${name}=`) ? [t.slice(name.length + 3), 0] : null);
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    let v;
+    if (t === '--force') out.force = true;
+    else if ((v = value(t, 'goal', i))) { out.goal = v[0]; i += v[1]; }
+    else if ((v = value(t, 'mission', i))) { out.mission = v[0]; i += v[1]; }
+    else if ((v = value(t, 'from', i))) { if (v[0]) out.from.push(v[0]); i += v[1]; }
+    else if ((v = value(t, 'projects', i))) { out.projects = String(v[0] ?? '').split(',').map((x) => x.trim()).filter(Boolean); i += v[1]; }
+    else if ((v = value(t, 'model', i))) { out.model = v[0]; i += v[1]; }
+    else if (!t.startsWith('-') && out.topic === null) out.topic = t;
+  }
+  return out;
+}

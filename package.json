@@ -33,6 +33,7 @@
     "gold",
     "hooks",
     "docs/config.example.json",
+    "docs/curriculum-format.md",
     "!**/*.test.mjs"
   ],
   "pi": {

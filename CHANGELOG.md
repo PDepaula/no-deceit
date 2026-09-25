@@ -17,6 +17,53 @@ based on [Keep a Changelog](https://keepachangelog.com/).
 - **Changed:** `ND_GRADER_CHILD` is honoured as a worker marker, so the
   gate treats the grader child as a pass-through session.
 
+## [Unreleased] — Redesign phase 3: curriculum and the Tier 1 gate
+
+- **Added:** curricula are two files under `<data>/curricula/<topic>/`:
+  `open.md` for the learner (frontmatter `mission:`, structured `sources:` with
+  `sections`, `verified`, `access`, `answer_keys_do_not_quote`; Mission, Sources,
+  reading sessions with plain Read / Practice / Unlocks lines, one flat keyword
+  list) and `sealed.md` for the tutor and grader (concept map; per concept a
+  claim, kind concept/procedure/fact, threshold flag, optional `Unlocks` against a
+  `steps:` list, mechanism, keywords, contrast set, misconception traps with a
+  `(from: ...)` origin tag, boundary, and transfer prompts written with their
+  criteria). Format and keyword rules: `docs/curriculum-format.md`. Keyword list:
+  alphabetical, one flat list, no headings, emphasis or definitions, not grouped;
+  a keyword that names a rule is a hint, allowed only when no neutral term exists
+  and declared with its reason. The list is regenerated from the sealed map.
+  The single-file `curriculum.md` is still read by the grader when no `sealed.md`
+  exists.
+- **Added:** `nd curriculum build <topic> --goal --mission --from <path|url>`,
+  `check`, `review` (mission, sources and outline only, so review does not spoil
+  the topic) and `reviewed`. The builder is `agents/nd-scout.md`, a fresh
+  `claude -p` with `Read` and `WebFetch` only (`curriculumModel`, default
+  `sonnet`; `scoutTimeoutMs`); it prints both files, the shell validates them
+  against the format, regenerates the keyword list, stamps `built:` and
+  `reviewed: no`, and writes them, or rejects the whole build. `ND_SCOUT_MOCK_FILE`
+  is the test seam. `nd curriculum build` / `reviewed` are category G and refuse in
+  an agent shell; `ND_SCOUT_CHILD` is a worker marker.
+- **Added (Tier 1):** `nd tier 1 --topic <t>` and `/no-deceit:tier 1 <t>` succeed
+  only when both files exist and are non-trivial (`curriculumMinChars`, a mission,
+  at least one concept); otherwise they refuse and name the two ways to get one.
+  `nd status` notes an unreviewed curriculum (`reviewed:` stays advisory).
+  SessionStart and prompt context inject the curriculum paths for the active topic
+  with the rule that the tutor may read `sealed.md` but never quote it. `SKILL.md`
+  gains a curriculum-bound tutoring section (never reveal a concept before it is
+  attempted; ask why a differing grouping was chosen). Enforcement is instruction
+  plus the offline audit, not a read block.
+- **Changed:** the Tier 2 unlock is per topic when a topic is active (`--topic`,
+  recorded in project state; `--no-topic` clears it): a pass or override for one
+  topic does not unlock another. With no active topic the project-level unlock
+  behaves as before.
+- **Port:** oracle cases for `parseTierArgs`, `curriculumReady`,
+  `checkKeywordList`, `keywordsFromSealed` and the topic-scoped `resolveEffective`
+  (`oracle/cases/curriculum-*.json`, `policy-resolve-topic.json`); none are
+  ported yet, so `bb test` skips them.
+- **Follow-ups (not in this change):** per-topic `rubric_emphasis`, a per-concept
+  `Illustration` slot, `Boundary` split into conceptual and project constraint as
+  required fields, command-output evidence, Bash for the scout on procedural
+  topics, and step-unlock reporting in `nd status`.
+
 ## [Unreleased] — Redesign phase 2: evidence capture and the transfer grader
 
 - **Added:** multi-line `/no-deceit:teach <topic> --project <p>`. `parseCommand`
