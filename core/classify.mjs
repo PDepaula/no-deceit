@@ -100,37 +100,108 @@ function markdownCarriesDiagram(path, content) {
 
 // Diagram renderers. A Bash command that invokes one is diagram creation (H),
 // whatever feeds it, the learner's own file included: they render in their own
-// terminal. Matched on the raw command, no shell-quote parsing, and only in
-// command position: at the start, after a shell operator, `(`, `$(`, a backtick,
-// `{`, an opening quote (so quoted text leans toward blocking) or find's
-// `-exec`/`-execdir`; then any VAR=val assignments and a chain of launchers,
-// each itself in command position. Only a launcher's own value-taking flags
-// consume the next word (`npx -p pkg`, `sudo -u me`); any other flag is boolean,
-// so `sudo -E grep mmdc` is not an invocation. `dot` counts only with a `-T`
-// flag somewhere among its arguments. A renderer or launcher name merely
-// mentioned as an argument (`grep -rn mmdc`, `rg -t sh mmdc`, `ls dotfiles`) is
-// not an invocation.
-const LAUNCHER_VALUE_FLAGS = [
-  ['npx|bunx|dlx|exec', '-p|--package'],
-  ['xargs', '-[IdnPLsaE]'],
-  ['env', '-[uCS]'],
-  ['sudo', '-[ugCU]'],
-  ['nice', '-n'],
-  ['time', '-[fo]'],
-  ['command|nohup|sh|bash|then|do|else', null],
+// terminal. Judged on the raw command by one linear scan, no shell-quote
+// parsing and no backtracking regex. The command splits into segments at | ; &
+// newline ( ) ` { } and either quote (so quoted text leans toward blocking), and
+// at find's -exec/-execdir. In each segment, VAR=val assignments and a chain of
+// launchers (LAUNCHERS) with their flags are skipped; the first remaining word,
+// compared by basename, is the command. Only a launcher's listed value flags
+// consume the next word; any other flag is boolean. `dot` counts only with a
+// `-T` flag in the segment. A renderer or launcher name merely mentioned as an
+// argument (`grep -rn mmdc`, `rg -t sh mmdc`, `ls dotfiles`) is not an
+// invocation, nor is a `command -v mmdc` lookup.
+const LAUNCHERS = [
+  { words: ['npx'], valueFlags: ['-p', '--package'] },
+  { words: ['bunx'], valueFlags: ['-p', '--package'] },
+  { words: ['bun', 'x'], valueFlags: ['-p', '--package'] },
+  { words: ['npm', 'x'], valueFlags: ['-p', '--package'] },
+  { words: ['npm', 'exec'], valueFlags: ['-p', '--package'] },
+  { words: ['pnpm', 'exec'] },
+  { words: ['pnpm', 'dlx'], valueFlags: ['-p', '--package'] },
+  { words: ['yarn', 'dlx'], valueFlags: ['-p', '--package'] },
+  { words: ['exec'], valueFlags: ['-a'] },
+  { words: ['xargs'], valueFlags: ['-I', '-d', '-n', '-P', '-L', '-s', '-a', '-E'] },
+  { words: ['env'], valueFlags: ['-u', '-C', '-S'] },
+  { words: ['sudo'], valueFlags: ['-u', '-g', '-C', '-U'] },
+  { words: ['nice'], valueFlags: ['-n'] },
+  { words: ['time'], valueFlags: ['-f', '-o'] },
+  { words: ['command'], lookupFlags: ['-v', '-V'] },
+  { words: ['nohup'] },
+  { words: ['sh'] },
+  { words: ['bash'] },
+  { words: ['then'] },
+  { words: ['do'] },
+  { words: ['else'] },
 ];
-const WORD = '[^\\s|;&]';
-const PATH_PREFIX = `(?:[^\\s'"|;&]*/)?`;
-const CMD_START = '(?:^|[|;&\\n(`\'"{]|\\s-exec(?:dir)?(?=\\s))\\s*';
-const ASSIGNS = `(?:[A-Za-z_]\\w*=${WORD}*\\s+)*`;
-const launcher = ([words, valueFlags]) =>
-  `${PATH_PREFIX}(?:${words})(?:\\s+(?:` +
-  (valueFlags ? `(?:${valueFlags})\\s+[^\\s|;&-]${WORD}*|` : '') +
-  `-${WORD}+|[A-Za-z_]\\w*=${WORD}*))*\\s+`;
-const LAUNCHER_CHAIN = `(?:(?:(?:npm|pnpm|yarn)\\s+)?(?:${LAUNCHER_VALUE_FLAGS.map(launcher).join('|')}))*`;
-const RENDERER =
-  '(?:(?:mmdc|plantuml|excalidraw-cli|d2|@mermaid-js/mermaid-cli)(?=[\\s;|&)@]|$)|dot\\s(?:[^|;&\\n]*?\\s)?-T)';
-const RE_RENDERER_CMD = new RegExp(CMD_START + ASSIGNS + LAUNCHER_CHAIN + PATH_PREFIX + RENDERER);
+const RENDERERS = new Set(['mmdc', 'plantuml', 'excalidraw-cli', 'd2', '@mermaid-js/mermaid-cli']);
+const SEGMENT_BREAKS = new Set(['|', ';', '&', '\n', '(', ')', '`', "'", '"', '{', '}']);
+const BLANKS = new Set([' ', '\t', '\r']);
+const EXEC_ACTIONS = new Set(['-exec', '-execdir']);
+// A renderer name only runs when it ends at a blank, an operator or the end;
+// `rg 'd1|d2'` ends `d2` at a quote.
+const COMMAND_WORD_ENDS = new Set([' ', '\t', '\r', '\n', ';', '|', '&', ')', '']);
+const RE_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
+
+const basename = (w) => w.slice(w.lastIndexOf('/') + 1);
+
+function matchLauncher(words, i) {
+  return LAUNCHERS.find((l) =>
+    l.words.every((w, k) => i + k < words.length && (k === 0 ? basename(words[i].text) : words[i + k].text) === w));
+}
+
+function isRendererCall(word, rest) {
+  if (!COMMAND_WORD_ENDS.has(word.term)) return false;
+  const at = word.text.indexOf('@', 1);
+  const name = at < 0 ? word.text : word.text.slice(0, at);
+  if (RENDERERS.has(name) || RENDERERS.has(basename(name))) return true;
+  return basename(name) === 'dot' && rest.some((w) => w.text.startsWith('-T'));
+}
+
+function segmentRunsRenderer(words) {
+  let i = 0;
+  for (;;) {
+    while (i < words.length && RE_ASSIGNMENT.test(words[i].text)) i++;
+    const launcher = matchLauncher(words, i);
+    if (!launcher) break;
+    i += launcher.words.length;
+    while (i < words.length && (words[i].text.startsWith('-') || RE_ASSIGNMENT.test(words[i].text))) {
+      const flag = words[i].text;
+      if (launcher.lookupFlags?.includes(flag)) return false;
+      i += launcher.valueFlags?.includes(flag) ? 2 : 1;
+    }
+  }
+  return i < words.length && isRendererCall(words[i], words.slice(i + 1));
+}
+
+/** Does the raw Bash command invoke a diagram renderer in command position? */
+function invokesRenderer(cmd) {
+  const s = String(cmd || '');
+  let seg = [];
+  let start = -1;
+  for (let i = 0; i <= s.length; i++) {
+    const ch = i < s.length ? s[i] : '';
+    const breaks = ch === '' || SEGMENT_BREAKS.has(ch);
+    if (!breaks && !BLANKS.has(ch)) {
+      if (start < 0) start = i;
+      continue;
+    }
+    if (start >= 0) {
+      const text = s.slice(start, i);
+      start = -1;
+      if (EXEC_ACTIONS.has(text)) {
+        if (segmentRunsRenderer(seg)) return true;
+        seg = [];
+      } else {
+        seg.push({ text, term: ch });
+      }
+    }
+    if (breaks) {
+      if (segmentRunsRenderer(seg)) return true;
+      seg = [];
+    }
+  }
+  return false;
+}
 
 // --- Bash shape detection ------------------------------------------------
 
@@ -284,7 +355,7 @@ function classifyBash(cmd, cfg) {
   if (touchesState || RE_STATE_SEGMENT_CMD.test(nc) || RE_HOME_STATE_CMD.test(nc)) return 'G';
 
   // H: any diagram renderer invocation, judged on the whole raw command.
-  if (RE_RENDERER_CMD.test(c)) return 'H';
+  if (invokesRenderer(c)) return 'H';
   // Diagram content written into markdown: the heredoc body lives on later lines,
   // so the per-segment router cannot see it.
   if (AUTHORING_SHAPES.some((rx) => rx.test(c)) && writeTargets(c).some((t) => markdownCarriesDiagram(t, c))) return 'H';

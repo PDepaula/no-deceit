@@ -142,6 +142,30 @@ test('a launcher word used as an ordinary argument never puts a renderer in comm
   }
 });
 
+test('bun x and npm x run the renderer; command runs it unless it is a -v/-V lookup', () => {
+  assert.equal(classify('Bash', { command: 'bun x mmdc -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'npm x mmdc -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'command mmdc -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'command -p mmdc -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.notEqual(classify('Bash', { command: 'command -v mmdc' }, cfg), 'H');
+  assert.notEqual(classify('Bash', { command: 'command -V plantuml' }, cfg), 'H');
+  assert.notEqual(classify('Bash', { command: 'command -v mmdc >/dev/null && echo ok' }, cfg), 'H');
+});
+
+test('renderer detection is linear on long adversarial launcher chains', () => {
+  for (const command of [
+    'xargs -n '.repeat(5000) + 'x',
+    'echo "' + 'xargs -n '.repeat(5000) + '"; cat > src/app.js <<EOF\nx\nEOF',
+    'sudo -u '.repeat(5000) + 'grep mmdc',
+    'npx -p npx '.repeat(5000) + 'x',
+  ]) {
+    const t0 = performance.now();
+    classify('Bash', { command }, cfg);
+    assert.ok(performance.now() - t0 < 50, command.slice(0, 20));
+  }
+  assert.equal(classify('Bash', { command: 'xargs -n '.repeat(5000) + ' 1 mmdc' }, cfg), 'H');
+});
+
 test('dot and d2 as plain words are not renderer invocations', () => {
   assert.equal(classify('Bash', { command: 'ls ~/dotfiles' }, cfg), 'A');
   assert.equal(classify('Bash', { command: 'grep dot src/app.js' }, cfg), 'A');
