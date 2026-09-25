@@ -128,7 +128,7 @@ no-deceit/                  the home. `git clone` once, `nd update` forever
 ├── projects/               GITIGNORED  governed projects (flat clones, each with its own .no-deceit/)
 ├── data/                   GITIGNORED  its own nested private git repo: curricula, refs, evidence,
 │                                       verdicts, projects.edn (the manifest the grader checks P2 against)
-├── state/                  GITIGNORED  ledger.jsonl, sessions
+├── state/                  GITIGNORED  ledger.jsonl, sessions, migrated-from-xdg (the one-shot XDG copy record)
 └── config/                 GITIGNORED  config.json (overrides of the defaults)
 ```
 
