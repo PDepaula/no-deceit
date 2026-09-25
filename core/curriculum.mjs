@@ -23,23 +23,26 @@ export const DEFAULT_MIN_CHARS = 300;
 /**
  * Parse the arguments of `nd tier` / `/no-deceit:tier`: `<tier> [<topic>]`,
  * `--topic <t>`, `--no-topic`. Pure. `tier` is returned as the
- * raw token (setTier validates it); only the topic can produce `error` here.
+ * raw token (setTier validates it); an unknown option or a bad topic produces
+ * `error` here.
  */
 export function parseTierArgs(input) {
   const tokens = Array.isArray(input) ? input.filter((t) => t !== '') : String(input ?? '').trim().split(/\s+/).filter(Boolean);
   let tier = null;
   let topic = null;
   let clearTopic = false;
+  let unknown = null;
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
     if (t === '--topic') topic = tokens[++i] ?? null;
     else if (t === '--no-topic') clearTopic = true;
-    else if (t.startsWith('-')) continue;
+    else if (t.startsWith('-')) unknown ??= t;
     else if (tier === null) tier = t;
     else if (topic === null) topic = t;
   }
   let error = null;
-  if (topic !== null && clearTopic) error = 'pass either a topic or --no-topic, not both';
+  if (unknown !== null) error = `unknown option ${unknown}; use --topic <t> or --no-topic`;
+  else if (topic !== null && clearTopic) error = 'pass either a topic or --no-topic, not both';
   else if (topic !== null && !isSlug(topic)) error = `topic "${topic}" must be a slug (lowercase letters, digits, . _ -)`;
   else if (tier === '3' && (topic !== null || clearTopic)) error = 'a topic applies to Tier 1 or Tier 2, not to a Tier 3 grant';
   return { tier, topic, clearTopic, error };

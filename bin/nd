@@ -136,7 +136,8 @@ switch (sub) {
     if (action === 'build' || action === 'reviewed') guardAgentShell('curriculum');
     try {
       if (action === 'build') {
-        const a = parseCurriculumBuildArgs(args);
+        const { error, ...a } = parseCurriculumBuildArgs(args);
+        if (error) throw new Error(error);
         if (!a.goal && process.stdin.isTTY) a.goal = await ask('What must you be able to do when you are done? ');
         if (!a.mission && process.stdin.isTTY) a.mission = await ask('Why are you learning this (your mission)? ');
         say(await runCurriculumBuild({ env, sessionId, cwd, ...a }));

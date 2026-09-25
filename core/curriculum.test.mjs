@@ -21,6 +21,8 @@ test('parseTierArgs: positional topic, --topic, --no-topic, and errors', () => {
   assert.match(parseTierArgs('1 ../x').error, /must be a slug/);
   assert.match(parseTierArgs('3 etl').error, /not to a Tier 3/);
   assert.match(parseTierArgs('1 etl --no-topic').error, /not both/);
+  assert.equal(parseTierArgs('1 --topic=etl').error, 'unknown option --topic=etl; use --topic <t> or --no-topic');
+  assert.equal(parseTierArgs('1 -x').error, 'unknown option -x; use --topic <t> or --no-topic');
 });
 
 test('curriculumReady: both files, non-trivial, mission and a concept', () => {

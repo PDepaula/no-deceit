@@ -12,6 +12,8 @@
     {"name":"path traversal topic","args":["1 ../etc"],"expect":{"tier":"1","topic":"../etc","clearTopic":false,"error":"topic \"../etc\" must be a slug (lowercase letters, digits, . _ -)"}},
     {"name":"uppercase topic","args":["1 Etl"],"expect":{"tier":"1","topic":"Etl","clearTopic":false,"error":"topic \"Etl\" must be a slug (lowercase letters, digits, . _ -)"}},
     {"name":"tier 3 with a topic","args":["3 etl"],"expect":{"tier":"3","topic":"etl","clearTopic":false,"error":"a topic applies to Tier 1 or Tier 2, not to a Tier 3 grant"}},
+    {"name":"--topic= is not a spelling","args":["1 --topic=etl"],"expect":{"tier":"1","topic":null,"clearTopic":false,"error":"unknown option --topic=etl; use --topic <t> or --no-topic"}},
+    {"name":"unknown flag","args":["2 --force etl"],"expect":{"tier":"2","topic":"etl","clearTopic":false,"error":"unknown option --force; use --topic <t> or --no-topic"}},
     {"name":"topic and --no-topic","args":["1 etl --no-topic"],"expect":{"tier":"1","topic":"etl","clearTopic":true,"error":"pass either a topic or --no-topic, not both"}}
   ]
 }

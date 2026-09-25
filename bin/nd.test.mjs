@@ -334,6 +334,9 @@ test('nd tier 1 --topic refuses without a curriculum (exit 1, two ways named) an
     assert.match(r.out, /nd curriculum build etl-basics/);
     assert.match(r.out, /write open\.md and sealed\.md yourself/);
     assert.doesNotMatch(r.out, /No Deceit: No Deceit/);
+    const eq = run(['tier', '1', '--topic=etl-basics'], s.env, s.dir, true);
+    assert.equal(eq.code, 1);
+    assert.match(eq.out, /unknown option --topic=etl-basics/);
     assert.equal(readProjectState(s.dir, s.env).tier, 2);
     const d = join(s.dir, 'data', 'curricula', 'etl-basics');
     mkdirSync(d, { recursive: true });
@@ -357,6 +360,10 @@ test('nd curriculum build runs the scout seam (mock), and refuses inside an agen
     const mock = join(s.dir, 'mock.txt');
     writeFileSync(mock, `<<<ND-FILE open.md>>>\n${open}\n<<<ND-END>>>\n<<<ND-FILE sealed.md>>>\n${sealed}\n<<<ND-END>>>\n`);
     const args = ['curriculum', 'build', 'etl-basics', '--goal', 'place each join', '--mission', 'own my pipeline', '--from', join(CUR_FIX, 'open.md')];
+    const unknown = run([...args, '--model', 'opus'], { ...s.env, ND_SCOUT_MOCK_FILE: mock }, s.dir, true);
+    assert.equal(unknown.code, 1);
+    assert.match(unknown.out, /unknown option --model/);
+    assert.ok(!existsSync(join(s.dir, 'data', 'curricula', 'etl-basics', 'open.md')));
     const denied = run(args, { ...s.env, CLAUDECODE: '1', ND_SCOUT_MOCK_FILE: mock }, s.dir, true);
     assert.equal(denied.code, 1);
     assert.match(denied.out, /agent shell/);
