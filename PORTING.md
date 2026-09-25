@@ -217,7 +217,9 @@ and Excalidraw JSON; find fences in markdown, take the whole file for `.mmd` /
 `.excalidraw`). Nothing calls your parsers yet. When `bin/nd` or the hook can
 call `bb`, writing this envelope right after `evidence_captured` is the only
 change: `runGrade` (`core/grader.mjs`) already passes the file to the grader as
-the job's `summaryPath` when it exists, and the transfer pre-filter and the
-grader's G1–G5 field use it. Until then `summaryPath` is absent, the grader
+the job's `summaryPath` when it holds at least one entry without
+`"parsed": false`, and the transfer pre-filter and the grader's G1–G5 field use
+it (`parsedDiagrams` in `core/prefilter.mjs`; an unreadable or all-unparsed
+envelope counts as no summary). Until then `summaryPath` is absent, the grader
 reads the raw source, and every G is `unknown`; nothing fails for a missing
 summary.
