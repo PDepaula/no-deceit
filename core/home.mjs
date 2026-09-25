@@ -59,7 +59,7 @@ export function ensureHome(home) {
  * grader reads (the first existing projects.{edn,json,md} in the data home,
  * else projects.edn) and runs the equivalent of `nd init` inside it.
  */
-export function projectAdd({ home, env, source, name, summary = '' }) {
+export function projectAdd({ home, userHome = homedir(), env, source, name, summary = '' }) {
   if (!source) throw new Error('usage: nd project add <git-url|path> [--name n] [--summary "…"]');
   const remote = isRemoteSource(source);
   let target = null;
@@ -68,7 +68,12 @@ export function projectAdd({ home, env, source, name, summary = '' }) {
     if (!existsSync(abs) || !lstatSync(abs).isDirectory()) throw new Error(`${source} is not a directory or a git URL`);
     target = realpathSync(abs);
     const top = realpathSync(gitToplevel(target));
-    if (top !== target) throw new Error(`${source} is inside the git repo ${top}, so sessions there would resolve to that repo; make it its own project first: git init ${target} && nd project add ${target}`);
+    if (top !== target) {
+      const personal = [home, userHome].some((d) => { try { return realpathSync(d) === top; } catch { return false; } });
+      throw new Error(`${source} is inside the git repo ${top}, so sessions there would resolve to that repo; ` + (personal
+        ? `make it its own project first (or move it out): git init ${target} && nd project add ${target}`
+        : `govern that whole repository instead: nd project add ${top}`));
+    }
   }
   const projName = name || (remote ? projectNameFrom(source) : basename(target));
   if (!/^[A-Za-z0-9][\w.-]*$/.test(projName)) throw new Error(`invalid project name "${projName}" (use --name)`);

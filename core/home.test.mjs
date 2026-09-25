@@ -70,7 +70,7 @@ test('projectAdd adopts a local dir in place, registers it in projects.edn, opts
   } finally { s.cleanup(); }
 });
 
-test('projectAdd refuses a subdirectory of a git repo, naming the top level and advising git init, and changes nothing', () => {
+test('projectAdd refuses a subdirectory of a git repo, advising to add the top level, and changes nothing', () => {
   const s = scratch();
   try {
     const home = join(s.dir, 'home'); mkdirSync(home);
@@ -78,7 +78,7 @@ test('projectAdd refuses a subdirectory of a git repo, naming the top level and 
     const mono = realpathSync(join(s.dir, 'mono'));
     g(mono, 'init', '-q');
     assert.throws(() => projectAdd({ home, env: { ND_HOME: '' }, source: join(mono, 'pkg'), name: 'pkg' }),
-      (e) => e.message.includes(mono) && e.message.includes(`git init ${join(mono, 'pkg')} && nd project add ${join(mono, 'pkg')}`));
+      (e) => e.message.includes(`nd project add ${mono}`) && !e.message.includes('git init'));
     assert.ok(!existsSync(join(mono, 'pkg', '.no-deceit')));
     assert.ok(!existsSync(join(home, 'data', 'projects.edn')));
     const r = projectAdd({ home, env: { ND_HOME: '' }, source: mono });
@@ -102,6 +102,22 @@ test('projectAdd refuses a scratch dir under the home\'s projects/ and advises g
     g(scratchDir, 'init', '-q');
     assert.equal(projectAdd({ home, env: { ND_HOME: '' }, source: scratchDir }).path, scratchDir);
     assert.ok(existsSync(join(scratchDir, '.no-deceit', 'state.json')));
+  } finally { s.cleanup(); }
+});
+
+test('projectAdd refuses a dir under a git-managed $HOME and advises git init, never governing $HOME', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home);
+    mkdirSync(join(s.dir, 'user', 'code', 'app'), { recursive: true });
+    const userHome = realpathSync(join(s.dir, 'user'));
+    g(userHome, 'init', '-q');
+    const app = join(userHome, 'code', 'app');
+    assert.throws(() => projectAdd({ home, userHome, env: { ND_HOME: '' }, source: app }), (e) =>
+      e.message.includes(`git init ${app} && nd project add ${app}`)
+      && [...e.message.matchAll(/nd project add (\S+)/g)].every((m) => m[1] === app));
+    assert.ok(!existsSync(join(app, '.no-deceit')));
+    assert.ok(!existsSync(join(userHome, '.no-deceit')));
   } finally { s.cleanup(); }
 });
 
