@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { prefilterMentalModel, prefilterCommitHistory, DEFAULT_MIN_CHARS } from './prefilter.mjs';
 import { MENTAL_RUBRIC, COMMIT_RUBRIC, PREFILTER_NEXT_QUESTION, finalizeUnlockVerdict } from './rubric.mjs';
 import { parseGraderOutput } from './grader-parse.mjs';
-import { buildGraderJob, assertJobBlind, graderSpawnPlan, defaultGraderModel } from './grader-job.mjs';
+import { buildGraderJob, assertJobBlind, graderSpawnPlan, defaultGraderModel, isGraderAuthFailure } from './grader-job.mjs';
 import { collectGitEvidence, commitsToEvidenceText } from './git-evidence.mjs';
 import { scoreRun, aggregateRuns, formatAuditReport } from './audit.mjs';
 import {
@@ -57,21 +57,42 @@ function notYet(source, extra = {}) {
 
 export function executeSpawnPlan(plan, { env = process.env, spawnImpl = spawn } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawnImpl(plan.command, plan.args, {
-      env: { ...env, ...plan.envExtra },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    // Blind child: run in an empty scratch dir so no project files or
+    // CLAUDE.md are discoverable from its cwd.
+    const scratch = plan.scratchCwd ? mkdtempSync(join(tmpdir(), 'nd-grader-')) : null;
+    const cleanup = () => { if (scratch) rmSync(scratch, { recursive: true, force: true }); };
+    let child;
+    try {
+      child = spawnImpl(plan.command, plan.args, {
+        env: { ...env, ...plan.envExtra },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        ...(scratch ? { cwd: scratch } : {}),
+      });
+    } catch (e) {
+      cleanup();
+      reject(Object.assign(e, { code: 'GRADER_FAILURE' }));
+      return;
+    }
     let out = '';
     let err = '';
     if (child.stdout) child.stdout.on('data', (d) => { out += d; });
     if (child.stderr) child.stderr.on('data', (d) => { err += d; });
     const t = setTimeout(() => {
       try { child.kill('SIGKILL'); } catch { /* already gone */ }
+      cleanup();
       reject(Object.assign(new Error('grader timeout'), { code: 'TIMEOUT' }));
     }, plan.timeoutMs || 120_000);
-    child.on('error', (e) => { clearTimeout(t); reject(Object.assign(e, { code: 'GRADER_FAILURE' })); });
+    child.on('error', (e) => { clearTimeout(t); cleanup(); reject(Object.assign(e, { code: 'GRADER_FAILURE' })); });
     child.on('close', (code) => {
       clearTimeout(t);
+      cleanup();
+      if (isGraderAuthFailure(out) || isGraderAuthFailure(err)) {
+        reject(Object.assign(
+          new Error('grader cannot authenticate (Not logged in): run `claude /login` or set ANTHROPIC_API_KEY'),
+          { code: 'GRADER_AUTH' },
+        ));
+        return;
+      }
       if (code !== 0 && !String(out).trim()) {
         reject(Object.assign(new Error(err.trim() || `grader exit ${code}`), { code: 'GRADER_FAILURE' }));
         return;
@@ -79,6 +100,32 @@ export function executeSpawnPlan(plan, { env = process.env, spawnImpl = spawn } 
       resolve(out);
     });
   });
+}
+
+/**
+ * `nd doctor` probe: run a minimal grader child (same isolation flags, trivial
+ * prompt) and report whether it can authenticate. Never grades anything.
+ */
+export async function probeGraderAuth({ env = process.env, spawnImpl, model, timeoutMs = 60_000 } = {}) {
+  const plan = graderSpawnPlan({
+    pluginRoot: pluginRoot(),
+    model: model || defaultGraderModel(),
+    jobPath: '(probe)',
+    timeoutMs,
+    probe: true,
+  });
+  try {
+    await executeSpawnPlan(plan, { env, spawnImpl });
+    return { ok: true, message: 'grader can authenticate (minimal child answered)' };
+  } catch (e) {
+    if (e && e.code === 'GRADER_AUTH') {
+      return { ok: false, code: 'GRADER_AUTH', message: 'grader cannot authenticate: the child printed "Not logged in". Run `claude /login` (or set ANTHROPIC_API_KEY); until then every unlock rounds down.' };
+    }
+    if (e && e.code === 'ENOENT') {
+      return { ok: false, code: 'GRADER_FAILURE', message: 'grader cannot run: `claude` not found on PATH' };
+    }
+    return { ok: false, code: (e && e.code) || 'GRADER_FAILURE', message: `grader probe failed: ${(e && e.message) || e}` };
+  }
 }
 
 export function liveInvoke({ env, pluginRoot: root, model, timeoutMs, jobPath }) {
