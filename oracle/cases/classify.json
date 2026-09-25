@@ -50,6 +50,10 @@
     {"name": "locale quoted renderer command word is diagram", "args": ["Bash", {"command": "$\"mmdc\" -i a.mmd -o a.svg"}], "expect": "H"},
     {"name": "backslash-escaped renderer command word is diagram", "args": ["Bash", {"command": "\\mmdc -i a.mmd -o a.svg"}], "expect": "H"},
     {"name": "backslash inside renderer command word is diagram", "args": ["Bash", {"command": "mm\\dc -i a"}], "expect": "H"},
+    {"name": "line continuation keeps npx with its renderer", "args": ["Bash", {"command": "npx \\\n mmdc -i a.mmd"}], "expect": "H"},
+    {"name": "line continuation keeps dot with its -T flag", "args": ["Bash", {"command": "dot \\\n -Tpng a.dot"}], "expect": "H"},
+    {"name": "CRLF line continuation keeps dot with its -T flag", "args": ["Bash", {"command": "dot \\\r\n -Tpng a.dot"}], "expect": "H"},
+    {"name": "line continuation before a renderer argument is not a render", "args": ["Bash", {"command": "grep -r \\\n mmdc core/"}], "expect": "U"},
     {"name": "grepping a renderer name is inspect", "args": ["Bash", {"command": "grep -rn mmdc core/"}], "expect": "A"},
     {"name": "reading renderer notes is inspect", "args": ["Bash", {"command": "cat docs/plantuml-notes.md"}], "expect": "A"},
     {"name": "grep dot is inspect", "args": ["Bash", {"command": "grep dot notes.txt"}], "expect": "A"}

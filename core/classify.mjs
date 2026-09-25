@@ -101,7 +101,8 @@ function markdownCarriesDiagram(path, content) {
 // Diagram renderers. A Bash command that invokes one is diagram creation (H),
 // whatever feeds it, the learner's own file included: they render in their own
 // terminal. Judged on the raw command by one linear scan, no shell-quote
-// parsing and no backtracking regex. The command splits into segments at | ; &
+// parsing and no backtracking regex. A backslash-newline line continuation is
+// removed, joining the lines. The command splits into segments at | ; &
 // newline ( ) ` { }, at a quote opening quoted text (so it leans toward
 // blocking), and at find's -exec/-execdir. A quoted single word (`"mmdc"`) stays
 // a word of its segment with the quotes stripped; backslashes and a leading `$`
@@ -200,6 +201,18 @@ function invokesRenderer(cmd) {
   let word = null;
   for (let i = 0; i <= s.length; i++) {
     const ch = i < s.length ? s[i] : '';
+    if (ch === '\\') {
+      const continuation = s.startsWith('\n', i + 1) ? 1 : s.startsWith('\r\n', i + 1) ? 2 : 0;
+      if (continuation) {
+        i += continuation;
+        continue;
+      }
+      if (s[i + 1] === '\\') {
+        word = (word ?? '') + '\\\\';
+        i++;
+        continue;
+      }
+    }
     if (QUOTES.has(ch)) {
       const close = quotedWordEnd(s, i);
       if (close > 0) {

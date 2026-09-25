@@ -205,6 +205,23 @@ test('a quoted renderer command word still runs the renderer; a quoted argument 
   }
 });
 
+test('a backslash-newline continuation keeps one command in one segment', () => {
+  for (const command of [
+    'npx \\\n mmdc -i a.mmd',
+    'dot \\\n -Tpng a.dot',
+    'dot \\\r\n -Tpng a.dot',
+    'dot -Tsvg a.dot \\\n -o a.svg',
+    'sudo \\\n -u me mmdc -i a',
+    'npx \\\n -p @mermaid-js/mermaid-cli mmdc -i a',
+    'echo \\\\\nmmdc -i a',
+  ]) {
+    assert.equal(classify('Bash', { command }, cfg), 'H', JSON.stringify(command));
+  }
+  for (const command of ['grep -r \\\n mmdc core/', 'rg -n \\\n plantuml docs/', 'echo x \\\n mmdc']) {
+    assert.notEqual(classify('Bash', { command }, cfg), 'H', JSON.stringify(command));
+  }
+});
+
 test('dot and d2 as plain words are not renderer invocations', () => {
   assert.equal(classify('Bash', { command: 'ls ~/dotfiles' }, cfg), 'A');
   assert.equal(classify('Bash', { command: 'grep dot src/app.js' }, cfg), 'A');
