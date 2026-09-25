@@ -125,6 +125,7 @@ nd tier 1      # or 2 / 3
 nd mode coach  # or pair / ask
 nd unlock      # grade .no-deceit/attempts/default.md
 nd audit       # gold-set release gate (graded_up = 0)
+nd doctor --grader-probe  # check the grader can log in (subscription or ANTHROPIC_API_KEY)
 ```
 
 Only projects with a `.no-deceit/` directory are governed — every other repo is
