@@ -67,7 +67,10 @@ test('classifyChanges: release notes in version order, reread, rebootstrap, bb b
   const c = classifyChanges(ns);
   assert.deepEqual(c.releaseFiles, ['docs/releases/v0.2.0.md', 'docs/releases/v0.9.1.md', 'docs/releases/v0.10.0.md']);
   assert.deepEqual([c.reread, c.rebootstrap, c.bbBump], [true, true, true]);
-  const quiet = classifyChanges('M\tcore/gate.mjs\nM\tharness/pi/extension.mjs');
+  for (const p of ['hooks/hooks.json', 'harness/claude-code/hooks/hooks.json', 'core/gate.mjs', 'harness/pi/extension.mjs']) {
+    assert.equal(classifyChanges(`M\t${p}`).reread, true, `${p} is read at launch or in-process`);
+  }
+  const quiet = classifyChanges('M\tREADME.md\nM\tbin/nd.test.mjs');
   assert.deepEqual([quiet.reread, quiet.rebootstrap, quiet.bbBump, quiet.releaseFiles], [false, false, false, []]);
   assert.equal(classifyChanges('').rebootstrap, false);
 });
