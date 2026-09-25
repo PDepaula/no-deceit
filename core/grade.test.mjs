@@ -169,6 +169,19 @@ test('runGrade: a pass for another topic than the target project\'s active one s
   } finally { s.cleanup(); }
 });
 
+test('runGrade: a pass for another topic says nothing about an active topic that is already unlocked', async () => {
+  const s = scratch();
+  try {
+    withManifest(s);
+    writeProjectState(s.repo, { ...readProjectState(s.repo, s.env), topic: 'caching', unlocked: true, unlockedTopics: ['caching'] });
+    captureTeach({ env: s.env, arg: 'etl --project gd-integrations', body: TEACH, nowMs: NOW });
+    const out = await runGrade({ repoRoot: s.repo, env: s.env, invoke: async () => PASS });
+    assert.match(out, new RegExp(`Tier 2 is unlocked for topic etl in gd-integrations \\(${s.repo}\\)\\.$`));
+    assert.doesNotMatch(out, /stays locked/);
+    assert.equal(resolveEffective({ project: readProjectState(s.repo, s.env) }).t2Unlocked, true);
+  } finally { s.cleanup(); }
+});
+
 test('runGrade: a pass whose project does not resolve to a governed repo is recorded but unlocks nothing', async () => {
   const cases = [
     ['etl', [1, JSON.stringify([])], /Not unlocked: the evidence names no project/],
