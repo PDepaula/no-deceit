@@ -1,6 +1,6 @@
 // No Deceit — tool-call classifier (PURE, zero dependencies).
 //
-// classify(toolName, toolInput, cfg) -> category 'A'..'G' or 'U'.
+// classify(toolName, toolInput, cfg) -> category 'A'..'H' or 'U'.
 //
 //   A  inspect / read-only
 //   B  run / feedback (execute, do not author)
@@ -9,6 +9,8 @@
 //   E  source mutation
 //   F  delegation
 //   G  tamper (touches No Deceit state, or a mutating `nd` subcommand)
+//   H  design artifact (Mermaid / Excalidraw / mind-map / other diagram source,
+//      as a file write or an inline-fed renderer)
 //   U  unknown Bash shape (policy turns this into `ask` at gated tiers)
 //
 // This module never reads the filesystem, the clock, or the environment.
@@ -79,6 +81,31 @@ function namesStatePath(path, prefixes) {
   if (underStatePath(path, prefixes)) return true;
   return RE_STATE_SEGMENT.test(String(path).replace(/\\/g, '/'));
 }
+
+// --- Design-artifact (category H) detection ------------------------------------
+
+const RE_DIAGRAM_PATH = /\.(excalidraw(\.json)?|mmd|mermaid|drawio|puml|d2|dot)$/i;
+const RE_MARKDOWN_PATH = /\.(md|markdown)$/i;
+// A mermaid/plantuml/d2/dot fence opener, or a mind-map block, in written content.
+const RE_DIAGRAM_CONTENT = /(^|\n)\s*(`{3,}|~{3,})\s*(mermaid|mmd|plantuml|puml|d2|dot|graphviz|excalidraw|mindmap)\b|(^|\n)\s*mindmap\s*(\n|$)/i;
+
+function isDiagramPath(path) {
+  return Boolean(path) && RE_DIAGRAM_PATH.test(String(path).replace(/\\/g, '/'));
+}
+
+/** Does content written to a markdown file carry a diagram fence or mind-map block? */
+function markdownCarriesDiagram(path, content) {
+  return Boolean(path) && RE_MARKDOWN_PATH.test(String(path)) && RE_DIAGRAM_CONTENT.test(String(content || ''));
+}
+
+// Diagram renderers. Feeding one inline source (heredoc, here-string, -e, a pipe
+// into it) authors a diagram (H); rendering a file the learner wrote is a run (B).
+const DIAGRAM_RENDERERS = ['mmdc', 'd2', 'dot', 'plantuml', 'excalidraw-cli'];
+const RE_RENDERER_WORD = DIAGRAM_RENDERERS.map((r) => r.replace(/[-]/g, '\\-')).join('|');
+const RE_RENDERER_INLINE = new RegExp(
+  `(^|[;&|(]\\s*)(?:${RE_RENDERER_WORD})\\b[^;&|]*(?:<<|<<<|\\s-e\\b|\\s--eval\\b)` +
+  `|\\|\\s*(?:${RE_RENDERER_WORD})\\b`,
+);
 
 // --- Bash shape detection ------------------------------------------------
 
@@ -219,7 +246,7 @@ function splitSegments(cmd) {
 }
 
 // Most-restrictive-wins rank across the segments of a compound command.
-const CATEGORY_RANK = { G: 6, E: 5, U: 4, C: 3, D: 3, B: 2, A: 1 };
+const CATEGORY_RANK = { G: 6, H: 5.5, E: 5, U: 4, C: 3, D: 3, B: 2, A: 1 };
 
 function classifyBash(cmd, cfg) {
   const c = String(cmd || '');
@@ -230,6 +257,13 @@ function classifyBash(cmd, cfg) {
   const nc = c.replace(/\\/g, '/');
   const touchesState = prefixes.some((p) => c.includes(String(p).replace(/\/+$/, '')));
   if (touchesState || RE_STATE_SEGMENT_CMD.test(nc) || RE_HOME_STATE_CMD.test(nc)) return 'G';
+
+  // H: a diagram renderer fed inline source (heredoc / -e / piped in). Judged on
+  // the whole command because a pipe splits the source from the renderer.
+  if (RE_RENDERER_INLINE.test(c)) return 'H';
+  // Diagram content written into markdown: the heredoc body lives on later lines,
+  // so the per-segment router cannot see it.
+  if (AUTHORING_SHAPES.some((rx) => rx.test(c)) && writeTargets(c).some((t) => markdownCarriesDiagram(t, c))) return 'H';
 
   // Classify each segment; return the most restrictive category.
   const segs = splitSegments(c);
@@ -260,11 +294,17 @@ function classifyBashSegment(cmd, cfg) {
     const targets = writeTargets(c);
     // A write whose target names state is tamper, absolute or relative.
     if (targets.some((t) => namesStatePath(t, prefixes))) return 'G';
+    // A write to a diagram source, or diagram content into markdown, is H.
+    if (targets.some((t) => isDiagramPath(t) || markdownCarriesDiagram(t, c))) return 'H';
     // If any target is a test path -> D; tooling path -> C; else E.
     if (targets.some((t) => matchesAny(t, cfg.testGlobs || []))) return 'D';
     if (targets.some((t) => matchesAny(t, cfg.toolingGlobs || []))) return 'C';
     return 'E';
   };
+
+  // A diagram renderer with no inline source only renders a file the learner
+  // wrote (inline-fed renderers were already judged H on the whole command).
+  if (DIAGRAM_RENDERERS.includes(stripWrappers(c).split(/\s+/)[0])) return 'B';
 
   // Unambiguous file-authoring shapes first (specific, target-bearing syntax).
   if (AUTHORING_SHAPES.some((rx) => rx.test(c))) return routeByTarget();
@@ -291,6 +331,13 @@ function classifyBashSegment(cmd, cfg) {
   return 'U';
 }
 
+// The new text a Write/Edit/MultiEdit/NotebookEdit call would put on disk.
+function writtenContent(input) {
+  const parts = [input.content, input.new_string, input.new_source];
+  if (Array.isArray(input.edits)) for (const e of input.edits) parts.push(e && e.new_string);
+  return parts.filter((x) => typeof x === 'string').join('\n');
+}
+
 export function classify(toolName, toolInput = {}, cfg = {}) {
   const prefixes = cfg.statePathPrefixes || [];
 
@@ -305,6 +352,8 @@ export function classify(toolName, toolInput = {}, cfg = {}) {
   if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') {
     const path = toolInput.file_path || toolInput.notebook_path || toolInput.path;
     if (namesStatePath(path, prefixes)) return 'G';
+    if (isDiagramPath(path)) return 'H';
+    if (markdownCarriesDiagram(path, writtenContent(toolInput))) return 'H';
     if (matchesAny(path, cfg.testGlobs || [])) return 'D';
     if (matchesAny(path, cfg.toolingGlobs || [])) return 'C';
     return 'E';

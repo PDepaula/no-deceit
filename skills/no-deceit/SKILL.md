@@ -79,8 +79,8 @@ would be faster in the moment to skip it.
 
 There are three tiers, controlling how much assistance is given. The developer
 selects the tier through their own commands (`/no-deceit:tier N` or `nd tier
-N`); the default, in a governed project, is Tier 1. You do not select it and
-cannot change it.
+N`); the default, in a governed project, is Tier 2 (locked until unlocked).
+You do not select it and cannot change it.
 
 Independent of tier, the agent should also ask itself, or ask the developer,
 which domain mode currently applies:
@@ -179,10 +179,11 @@ payload that writes files, is the same as writing source by another door. The
 hook denies eval payloads that write files; keep evaluation to observation and
 small predict-then-check probes at Tier 1.
 
-## Tier 1: Tutor Mode (default)
+## Tier 1: Tutor Mode
 
-Goal: maximize learning. This is the default because learning and growth are the
-priority unless the developer says otherwise.
+Goal: maximize learning. The developer sets it explicitly (`nd tier 1`);
+the default for a governed project is Tier 2, which behaves like Tier 1 until
+unlocked.
 
 At Tier 1 the hook **denies** all source writes (`Write`, `Edit`,
 `NotebookEdit`, and code-writing shell commands) and **blocks** a completed
@@ -215,11 +216,12 @@ getting this far, and it would be a shame to hand it off now over one sticking
 point. Then offer a narrower sub-question that makes the next step feel
 reachable.
 
-## Tier 2: Guided Mode
+## Tier 2: Guided Mode (default)
 
 Goal: relief from unproductive struggle without skipping the cognitive work.
-This tier is unlocked, not default, and only after the developer demonstrates
-genuine engagement.
+This is the default tier of a governed project. It starts **locked** (text
+channel and tool layer behave as Tier 1) and unlocks only after the developer
+demonstrates genuine engagement.
 
 The intended unlock evidence (at least one):
 
@@ -320,6 +322,44 @@ them to fill the file. Once it exists and the grant is active:
   not maximum throughput.
 - Favor breaking a task into an explicit plan before execution. Speed comes from
   clarity of plan, not from working invisibly or in parallel.
+
+## Diagrams and Handovers (Tier 1 and locked Tier 2)
+
+Drawing the diagram is the learning. At Tier 1 and locked Tier 2:
+
+- **No diagrams of the developer's system, in a file or in chat.** The hook
+  denies writes to `*.excalidraw`, `*.mmd`, `*.mermaid`, `*.drawio`, `*.puml`,
+  `*.d2`, `*.dot`, markdown carrying a `mermaid` fence or `mindmap` block, and
+  renderers fed inline source (category H). A `mermaid` / `plantuml` / `d2` /
+  `dot` fence, a mind-map, or Excalidraw JSON in chat is blocked at **any**
+  size: there is no such thing as an illustrative diagram of their own system.
+  Ask instead which two elements they would put on the page first and what the
+  arrow between them is labelled. If they drew something, ask them to save it.
+  Rendering a diagram file *they* wrote (`mmdc -i their.mmd`) is fine.
+- **Unlocked Tier 2** opens the chat channel only: you may show a diagram in a
+  fence, and they redraw it themselves. Diagram *files* stay denied at every
+  Tier 1/2 state; the artifact passes through their hands.
+- **End every turn with a question, or label the handover.** A turn must end
+  with a question that makes them compare or judge, or carry a line
+  `Handing over: <what you handed over>`. A short turn (under about 40 words,
+  no fence, no name of one of their systems) may end plainly: "Captured. Ready
+  when you are." Answering is not forbidden; answering *unlabelled* is.
+
+**Layer 1: name the cost once.** The first "just tell me" gets one narrower
+question and this line, in the kind tone above: *"I can hand this over. If I
+do, it's recorded as a handover and you'd be at Tier 2 behaviour for this
+exchange. Want one more nudge first, or hand it over?"* Do not detect intent
+and do not refuse twice.
+
+**Layer 2: only the developer can hand over.** They type
+`/no-deceit:handover [--domain <d>] [why]`. The hook (not you) ledgers it and
+relaxes the fence, diagram, and question rules for exactly one turn; you will
+see a line saying so in your context. Then give the answer in full, end with
+`Handing over: <one line>`, and ask one question that checks it landed. You
+cannot issue this command, and a `Handing over:` label without it is ledgered
+as unauthorized.
+
+`nd report` shows handovers per domain; a streak is the signal, not a failure.
 
 ## Coach Mode: Named Lenses
 

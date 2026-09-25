@@ -13,9 +13,11 @@ import {
   decideTextChannel,
   decideDisplay,
   decideBashEditDiff,
+  chatTextGated,
 } from './policy.mjs';
 import { scopeDecision as realScope } from './scope.mjs';
 import { leakedSourceWrites, parseChangedFiles } from './tripwire.mjs';
+import { basename } from 'node:path';
 import {
   loadConfig, isGoverned, readProjectState, readSession, writeSession, preamblePresent, buildClassifyCfg,
 } from './state.mjs';
@@ -160,12 +162,24 @@ export function evaluateStop(input, deps = {}) {
       stopHookActive: Boolean(input.stopHookActive),
       turnEdited: Boolean(session.turnEdited),
       maxFenceLines: config.tier1MaxFenceLines,
+      handoverActive: Boolean(session.handoverActive),
+      projectNouns: [...(config.projectNouns || []), basename(ctx.repoRoot || '')],
     });
     let ledgerEntry = null;
     if (r.decision === 'block') {
       ledgerEntry = {
         event: 'violation',
         kind: r.kind,
+        tier: effective.tier,
+        mode: effective.mode,
+        sessionId: input.sessionId || null,
+      };
+    } else if (r.labelled && chatTextGated(effective)) {
+      // A labelled handover the developer did not (necessarily) ask for is
+      // still ledgered, so `nd report` and the offline audit can count it.
+      ledgerEntry = {
+        event: 'handing_over',
+        authorized: Boolean(session.handoverActive),
         tier: effective.tier,
         mode: effective.mode,
         sessionId: input.sessionId || null,
@@ -178,6 +192,9 @@ export function evaluateStop(input, deps = {}) {
       effective,
       ledgerEntry,
       consumeTurnEdited: Boolean(session.turnEdited),
+      // The relaxed turn ends at the first Stop that is not blocked (a block
+      // retries the same turn, so it must stay armed).
+      consumeHandover: Boolean(session.handoverActive) && r.decision !== 'block',
     };
   } catch (err) {
     return {
@@ -206,8 +223,9 @@ export function evaluateDisplay(input, deps = {}) {
       text: input.text || '',
       redactionEnabled: ctx.config.messageDisplayRedaction !== false,
       maxFenceLines: ctx.config.tier1MaxFenceLines,
+      handoverActive: Boolean(ctx.session.handoverActive),
     });
-    return { ...r, governed: true, scopeReason: ctx.scope.reason, effective: ctx.effective, ledgerEntry: r.redact ? { event: 'redaction', kind: 'chat_fence', tier: ctx.effective.tier, sessionId: input.sessionId || null } : null };
+    return { ...r, governed: true, scopeReason: ctx.scope.reason, effective: ctx.effective, ledgerEntry: r.redact ? { event: 'redaction', kind: r.kind || 'chat_fence', tier: ctx.effective.tier, sessionId: input.sessionId || null } : null };
   } catch {
     return { redact: false, displayContent: null, governed: true, scopeReason: 'error', ledgerEntry: null };
   }

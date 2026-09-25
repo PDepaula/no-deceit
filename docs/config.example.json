@@ -11,6 +11,8 @@
 
   "tier1MaxFenceLines": 6,
   "messageDisplayRedaction": true,
+  "handoverTurns": 1,
+  "projectNouns": ["bondly", "gd-integrations"],
 
   "testGlobs": ["test/**", "tests/**", "**/*_test.*", "**/*.test.*", "**/*.spec.*", "**/conftest.py"],
   "toolingGlobs": ["**/deps.edn", "**/package.json", "**/pyproject.toml", "**/Dockerfile", "**/Makefile", "**/.github/**", "**/*.lock"]

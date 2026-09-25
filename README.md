@@ -30,7 +30,7 @@ that ability, even when it's slower in the moment.
 
 Two independent axes.
 
-**Tier** (you select it; default in a governed project is Tier 1):
+**Tier** (you select it; default in a governed project is Tier 2, locked):
 
 - **Tier 1 — Tutor.** No working code, ever. The hook denies `Write`/`Edit`/
   `NotebookEdit` and code-writing shell commands, and a `Stop` hook blocks a
@@ -52,6 +52,16 @@ Two independent axes.
   full tooling but must narrate (a what/why section plus
   `Divergence from your first instinct:`, format-checked) and flag divergence
   from your approach. Subagents require confirmation.
+
+**Diagrams and handovers** (Tier 1 and locked Tier 2): drawing the diagram is
+the learning, so writing Mermaid / Excalidraw / mind-map / other diagram
+sources is denied (category H) — at Tier 2 even when unlocked, where a
+diagram may be shown in chat and you redraw it — and a diagram fence in chat
+is blocked at any size on the gated tiers. Every turn there must end with a
+question or carry a `Handing over: <what>` line (a short turn under ~40 words
+passes). Type `/no-deceit:handover [--domain d] [why]` to ask for the answer:
+the hook ledgers it and relaxes those rules for one turn, and `nd report`
+counts handovers per domain.
 
 **Domain mode** (crosses all tiers): **Coach** for domains you don't have solid
 footing in (the agent corrects your mental model with reasoning, from named
@@ -146,6 +156,7 @@ agent never sees them as something it can forge:
 /no-deceit:status
 /no-deceit:tier 2
 /no-deceit:mode coach
+/no-deceit:handover --domain data-modeling stuck on where the join goes
 /no-deceit:unlock
 /no-deceit:unlock --override "deadline; I know the approach"
 /no-deceit:check parser

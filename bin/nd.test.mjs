@@ -36,6 +36,15 @@ test('nd init opts the project in and nd tier persists', () => {
   } finally { s.cleanup(); }
 });
 
+test('nd init defaults the project to Tier 2 (R1)', () => {
+  const s = scratch();
+  try {
+    const r = run(['init'], s.env, s.dir);
+    assert.match(r.out, /Tier 2, mode ask/);
+    assert.equal(readProjectState(s.dir, s.env).tier, 2);
+  } finally { s.cleanup(); }
+});
+
 test('nd refuses a mutating subcommand inside an agent shell (CLAUDECODE)', () => {
   const s = scratch();
   try {

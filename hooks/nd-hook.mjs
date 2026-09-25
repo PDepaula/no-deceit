@@ -11,7 +11,7 @@
 import { evaluate, evaluateStop, evaluateDisplay, evaluatePostToolUse } from '../core/gate.mjs';
 import { decide, REASONS } from '../core/policy.mjs';
 import { appendLedger, gitToplevel, isGoverned, readProjectState, writeProjectState, writeSession } from '../core/state.mjs';
-import { parseCommand, setTier, setMode, renderStatus, renderStatusShort } from '../core/control.mjs';
+import { parseCommand, setTier, setMode, renderStatus, renderStatusShort, startHandover, armHandoverForPrompt } from '../core/control.mjs';
 import { parseUnlockArgs, parseCheckArgs } from '../core/unlock-args.mjs';
 import { runUnlock, runCheck } from '../core/grader.mjs';
 
@@ -132,10 +132,12 @@ async function main() {
         } else if (cmd.name === 'check') {
           const args = parseCheckArgs(cmd.arg);
           message = await runCheck({ repoRoot, env, sessionId: input.session_id, task: args.task });
+        } else if (cmd.name === 'handover') {
+          message = startHandover({ repoRoot, env, sessionId: input.session_id, arg: cmd.arg });
         } else if (cmd.name === 'status') {
           message = renderStatus({ repoRoot, env, sessionId: input.session_id });
         } else {
-          message = `Unknown No Deceit command: ${cmd.name}. Try tier, mode, unlock, check, or status.`;
+          message = `Unknown No Deceit command: ${cmd.name}. Try tier, mode, unlock, check, handover, or status.`;
         }
       } catch (err) {
         message = `No Deceit: ${String((err && err.message) || err)}`;
@@ -147,7 +149,9 @@ async function main() {
     }
     // Not a command: inject the current tier/mode as context, when governed.
     if (isGoverned(repoRoot)) {
-      emit({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: contextFacts(repoRoot, env, input.session_id, { consumeNote: true }) } });
+      let handover = null;
+      try { handover = armHandoverForPrompt({ env, sessionId: input.session_id }); } catch { /* never wedge a prompt on session I/O */ }
+      emit({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: contextFacts(repoRoot, env, input.session_id, { consumeNote: true }) + (handover ? `\n${handover}` : '') } });
     }
     return;
   }
@@ -166,8 +170,13 @@ async function main() {
     } catch (err) {
       result = { decision: 'block', reason: `No Deceit gate error (fail-closed): ${String((err && err.message) || err)}`, ledgerEntry: { event: 'gate_error', error: String(err) } };
     }
-    if (result.consumeTurnEdited && input.session_id) {
-      try { writeSession(env, input.session_id, { turnEdited: false }); } catch { /* never fail the gate on session I/O */ }
+    if ((result.consumeTurnEdited || result.consumeHandover) && input.session_id) {
+      try {
+        writeSession(env, input.session_id, {
+          ...(result.consumeTurnEdited ? { turnEdited: false } : {}),
+          ...(result.consumeHandover ? { handoverActive: false } : {}),
+        });
+      } catch { /* never fail the gate on session I/O */ }
     }
     if (result.ledgerEntry) { try { appendLedger(env, result.ledgerEntry); } catch { /* never fail the gate on a ledger write */ } }
     if (result.decision === 'block') {

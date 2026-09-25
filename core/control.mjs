@@ -7,10 +7,11 @@
 // PreToolUse gate denies any tool call that invokes a mutating `nd`
 // subcommand or touches the state paths (category G).
 
-import { isGoverned, readProjectState, writeProjectState, readSession, writeSession, appendLedger, loadConfig, readLedger } from './state.mjs';
-import { resolveEffective } from './policy.mjs';
+import { basename } from 'node:path';
+import { isGoverned, readProjectState, writeProjectState, readSession, writeSession, appendLedger, loadConfig, readLedger, readAllLedger } from './state.mjs';
+import { resolveEffective, chatTextGated } from './policy.mjs';
 import { preamblePresent } from './state.mjs';
-import { suggestModesByDomain } from './report.mjs';
+import { suggestModesByDomain, domainOf, DEFAULT_WINDOW_MS } from './report.mjs';
 import { unlockOverride as applyUnlockOverride } from './grader.mjs';
 
 const MODES = ['coach', 'pair', 'ask'];
@@ -105,4 +106,70 @@ export function renderStatus({ repoRoot, env, sessionId, nowMs = Date.now() }) {
   if (e.tier === 3) lines.push(`  Preamble: ${e.t3PreamblePresent ? 'present' : 'MISSING (source writes blocked until filled)'}`);
   for (const n of e.notes) lines.push(`  Note:  ${n}`);
   return lines.join('\n');
+}
+
+/**
+ * Parse `/no-deceit:handover [--domain <d>] [why...]`. Pure.
+ */
+export function parseHandoverArgs(arg) {
+  let rest = String(arg || '').trim();
+  let domain = null;
+  const m = /^--domain[=\s]+(\S+)\s*(.*)$/.exec(rest);
+  if (m) { domain = m[1]; rest = m[2].trim(); }
+  return { domain, reason: rest || null };
+}
+
+/**
+ * The developer's own act: ask for the answer. Ledgers a `handover` and arms
+ * the text-channel relaxation for the next `handoverTurns` turns. Rides the
+ * UserPromptSubmit channel only, so the model cannot issue it.
+ */
+export function startHandover({ repoRoot, env, sessionId, arg, nowMs = Date.now() }) {
+  if (!isGoverned(repoRoot)) return 'No Deceit: this project is not governed, so there is nothing to hand over.';
+  if (!sessionId) return 'No Deceit: handover needs a session, and none was provided. Nothing recorded.';
+  const cfg = loadConfig(env);
+  const e = effectiveNow({ repoRoot, env, sessionId, nowMs });
+  if (!chatTextGated(e)) {
+    return `The text channel is already open at Tier ${e.tier}${e.tier === 2 ? ' (unlocked)' : ''}; nothing to relax, nothing recorded.`;
+  }
+  const { domain, reason } = parseHandoverArgs(arg);
+  const turns = Math.max(1, Number(cfg.handoverTurns) || 1);
+  appendLedger(env, {
+    event: 'handover',
+    ...(domain ? { domain } : {}),
+    project: basename(repoRoot),
+    tier: e.tier,
+    reason,
+    sessionId,
+  });
+  writeSession(env, sessionId, { handoverTurns: turns, handoverActive: false });
+  const label = domain || 'unscoped';
+  const n = readAllLedger(env).filter((x) => x.event === 'handover'
+    && (domainOf(x) || 'unscoped') === label
+    && Date.parse(x.ts) >= nowMs - DEFAULT_WINDOW_MS).length;
+  return `Handover recorded for ${label} (${n} in the last 7 days). Next turn: the agent may answer in full, ` +
+    `and must say so with a \`Handing over:\` line. Nothing else changes; Tier ${e.tier} ` +
+    `${e.tier === 2 ? '(locked) ' : ''}applies again after that.`;
+}
+
+export const HANDOVER_CONTEXT =
+  'The developer has explicitly asked for the answer and this is recorded (their own ' +
+  '/no-deceit:handover). Give it, in full, and end with `Handing over: <one line>`. ' +
+  'Then one question that checks whether it landed.';
+
+/**
+ * Called on every non-command prompt. Arms a pending handover for this turn
+ * (returns the context to inject) or clears a stale armed flag. Returns null
+ * when nothing is armed.
+ */
+export function armHandoverForPrompt({ env, sessionId }) {
+  if (!sessionId) return null;
+  const sess = readSession(env, sessionId);
+  const turns = Number(sess.handoverTurns) || 0;
+  if (turns > 0) {
+    writeSession(env, sessionId, { handoverTurns: turns - 1, handoverActive: true });
+    return HANDOVER_CONTEXT;
+  }
+  if (sess.handoverActive) writeSession(env, sessionId, { handoverActive: false });
+  return null;
 }
