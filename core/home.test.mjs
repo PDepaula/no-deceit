@@ -70,7 +70,7 @@ test('projectAdd adopts a local dir in place, registers it in projects.edn, opts
   } finally { s.cleanup(); }
 });
 
-test('projectAdd refuses a subdirectory of a git repo, naming the top level, and changes nothing', () => {
+test('projectAdd refuses a subdirectory of a git repo, naming the top level and advising git init, and changes nothing', () => {
   const s = scratch();
   try {
     const home = join(s.dir, 'home'); mkdirSync(home);
@@ -78,12 +78,30 @@ test('projectAdd refuses a subdirectory of a git repo, naming the top level, and
     const mono = realpathSync(join(s.dir, 'mono'));
     g(mono, 'init', '-q');
     assert.throws(() => projectAdd({ home, env: { ND_HOME: '' }, source: join(mono, 'pkg'), name: 'pkg' }),
-      (e) => e.message.includes(`nd project add ${mono}`));
+      (e) => e.message.includes(mono) && e.message.includes(`git init ${join(mono, 'pkg')} && nd project add ${join(mono, 'pkg')}`));
     assert.ok(!existsSync(join(mono, 'pkg', '.no-deceit')));
     assert.ok(!existsSync(join(home, 'data', 'projects.edn')));
     const r = projectAdd({ home, env: { ND_HOME: '' }, source: mono });
     assert.equal(r.path, mono);
     assert.ok(existsSync(join(mono, '.no-deceit', 'state.json')));
+  } finally { s.cleanup(); }
+});
+
+test('projectAdd refuses a scratch dir under the home\'s projects/ and advises git init, never governing the home', () => {
+  const s = scratch();
+  try {
+    mkdirSync(join(s.dir, 'home'));
+    const home = realpathSync(join(s.dir, 'home'));
+    g(home, 'init', '-q');
+    const scratchDir = join(home, 'projects', 'scratch'); mkdirSync(scratchDir, { recursive: true });
+    assert.throws(() => projectAdd({ home, env: { ND_HOME: '' }, source: scratchDir }), (e) =>
+      e.message.includes(`git init ${scratchDir} && nd project add ${scratchDir}`)
+      && [...e.message.matchAll(/nd project add (\S+)/g)].every((m) => m[1] === scratchDir));
+    assert.ok(!existsSync(join(scratchDir, '.no-deceit')));
+    assert.ok(!existsSync(join(home, '.no-deceit')));
+    g(scratchDir, 'init', '-q');
+    assert.equal(projectAdd({ home, env: { ND_HOME: '' }, source: scratchDir }).path, scratchDir);
+    assert.ok(existsSync(join(scratchDir, '.no-deceit', 'state.json')));
   } finally { s.cleanup(); }
 });
 

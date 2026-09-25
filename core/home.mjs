@@ -68,7 +68,7 @@ export function projectAdd({ home, env, source, name, summary = '' }) {
     if (!existsSync(abs) || !lstatSync(abs).isDirectory()) throw new Error(`${source} is not a directory or a git URL`);
     target = realpathSync(abs);
     const top = realpathSync(gitToplevel(target));
-    if (top !== target) throw new Error(`${source} is inside the git repo ${top}; sessions there resolve to that repo, so run: nd project add ${top}`);
+    if (top !== target) throw new Error(`${source} is inside the git repo ${top}, so sessions there would resolve to that repo; make it its own project first: git init ${target} && nd project add ${target}`);
   }
   const projName = name || (remote ? projectNameFrom(source) : basename(target));
   if (!/^[A-Za-z0-9][\w.-]*$/.test(projName)) throw new Error(`invalid project name "${projName}" (use --name)`);
