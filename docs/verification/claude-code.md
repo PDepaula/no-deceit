@@ -79,8 +79,10 @@ which drives the real hook shim and CLI as subprocesses with piped payloads:
     both; `SessionStart` then injects both paths and the never-quote rule
   - the Tier 2 unlock is per topic with an active topic (`resolveEffective`, and the
     gate denies a write for a topic that has not passed), project-level without
-  - the scout is exercised through its spawn plan (read/fetch tools only, not
-    `--bare`, `ND_SCOUT_CHILD`) and a mocked stdout; format-invalid output is
+  - the scout is exercised through its spawn plan (read/fetch tools only,
+    `dontAsk` with `Read` scoped to the named paths and no skip-permissions, not
+    `--bare`, `ND_SCOUT_CHILD`; a directory `--from` is refused) and a mocked
+    stdout; format-invalid output is
     rejected with nothing written; the keyword list is regenerated from the sealed map
   - `nd curriculum build` / `reviewed` classify as category G and refuse in an
     agent shell; `check` / `review` are reads and `review` prints no sealed content
