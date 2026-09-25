@@ -56,12 +56,11 @@ test('harness/claude-code is a skills-dir plugin: manifest, hooks forwarding to 
   assert.equal(plugin.name, 'no-deceit');
   const rootHooks = JSON.parse(readFileSync(join(repoRoot, 'hooks/hooks.json'), 'utf8'));
   const homeHooks = JSON.parse(readFileSync(join(dir, 'hooks/hooks.json'), 'utf8'));
-  assert.deepEqual(Object.keys(homeHooks.hooks), Object.keys(rootHooks.hooks));
-  for (const groups of Object.values(homeHooks.hooks)) {
-    for (const g of groups) for (const h of g.hooks) {
-      assert.match(h.command, /\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/run\.mjs/);
-    }
+  const forwarded = structuredClone(rootHooks);
+  for (const groups of Object.values(forwarded.hooks)) {
+    for (const g of groups) for (const h of g.hooks) h.command = h.command.replace('/hooks/nd-hook.mjs', '/hooks/run.mjs');
   }
+  assert.deepEqual(homeHooks, forwarded, 'the skills-dir hooks.json must match hooks/hooks.json (matchers, timeouts) except for the run.mjs forwarder');
   for (const l of ['skills', 'agents']) {
     assert.ok(lstatSync(join(dir, l)).isSymbolicLink(), `${l} must be a symlink`);
     assert.ok(existsSync(join(dir, l)), `${l} symlink dangles`);
