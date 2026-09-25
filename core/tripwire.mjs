@@ -62,7 +62,7 @@ export function parseChangedFiles(toolResponse) {
 
 /**
  * leakedSourceWrites(paths, cfg) -> [{ file, category }]
- * A path is a leak when classifying it as a Write would be E or G, and it
+ * A path is a leak when classifying it as a Write would be E, G, or H, and it
  * does not match the tripwire ignore globs (caches, bytecode, etc.).
  */
 export function leakedSourceWrites(paths, cfg = {}) {
@@ -72,7 +72,7 @@ export function leakedSourceWrites(paths, cfg = {}) {
     if (!file) continue;
     if (matchesAny(file, ignore)) continue;
     const category = classify('Write', { file_path: file }, cfg);
-    if (category === 'E' || category === 'G') leaked.push({ file, category });
+    if (category === 'E' || category === 'G' || category === 'H') leaked.push({ file, category });
   }
   return leaked;
 }

@@ -37,6 +37,11 @@ test('a file-mutating Bash that writes source is leaked (category E)', () => {
   assert.equal(leaked[0].category, 'E');
 });
 
+test('a diagram source written by Bash is leaked (category H)', () => {
+  const leaked = leakedSourceWrites(['/repo/docs/arch.mmd', '/repo/src/app.py'], cfg);
+  assert.deepEqual(leaked.map((x) => x.category), ['H', 'E']);
+});
+
 test('a test-path write is not a source leak', () => {
   assert.equal(leakedSourceWrites(['/repo/test/foo.test.mjs'], cfg).length, 0);
 });
