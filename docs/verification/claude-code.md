@@ -131,10 +131,20 @@ it does not try to stop a determined adversary. Accepted gaps:
   not tracked and a backslash-newline is always joined, so the next line is
   read as part of the comment and not caught.
 
+### Known gaps of the home tamper rule (accepted)
+
+A home's `state/`, `config/`, `data/` and `.nd-home` are category G when a
+command names them by absolute path or by a `~/`, `$HOME/` or `${HOME}/`
+spelling of the home root. A relative spelling (`../../state/sessions/…` from
+`<home>/projects/<app>`) is not matched: `state`, `config` and `data` are
+ordinary directory names in any repo, and matching `../../config` would deny
+commands like `npx tsc -p ../../config/tsconfig.base.json` as tamper. A
+deliberately disguised path is an accepted gap, per the enforcement ruling.
+
 ## To do a live end-to-end check by hand
 
 ```bash
-git clone <this repo> ~/.claude/skills/no-deceit   # loads as no-deceit@skills-dir
+git clone <this repo> ~/no-deceit && ~/no-deceit/bin/nd bootstrap --claude   # links ~/.claude/skills/no-deceit; loads as no-deceit@skills-dir
 cd <a project> && nd init                           # opt in (Tier 2, locked)
 # In a Claude Code session there, ask it to write a source file:
 #   it should be denied with the locked-Tier-2 reason, and no file should appear.

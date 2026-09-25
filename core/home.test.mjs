@@ -195,8 +195,34 @@ test('bootstrap stops on an older skills-dir entry with the move-aside step, and
     const link = join(userHome, '.claude', 'skills', 'no-deceit');
     mkdirSync(join(userHome, '.claude', 'skills'), { recursive: true });
     symlinkSync(old, link);
-    assert.throws(() => bootstrap({ home, userHome, env: { ND_HOME: '', HOME: userHome } }), new RegExp(`nothing changed[\\s\\S]*already a symlink to ${old}[\\s\\S]*mv ${link} ${link}\\.old`));
+    assert.throws(() => bootstrap({ home, userHome, env: { ND_HOME: '', HOME: userHome } }), new RegExp(`nothing changed[\\s\\S]*already a symlink to ${old}[\\s\\S]*mv ${link} ${join(userHome, 'no-deceit.old')}\n`));
     assert.equal(readlinkSync(link), old);
+    assert.ok(!existsSync(join(home, '.nd-home')));
+  } finally { s.cleanup(); }
+});
+
+test('bootstrap runs the Claude preflight whatever harness flags are passed', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home);
+    const userHome = fakeUser(s.dir, { opencode: true, pi: true, cursor: true });
+    writeFileSync(join(userHome, '.claude', 'plugins', 'installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'no-deceit@no-deceit': [{}] } }));
+    for (const only of [['opencode'], ['pi'], ['cursor']]) {
+      assert.throws(() => bootstrap({ home, userHome, env: { ND_HOME: '', HOME: userHome }, only }), /nothing changed[\s\S]*claude plugin uninstall no-deceit/);
+    }
+    assert.ok(!existsSync(join(home, '.nd-home')));
+    assert.ok(!existsSync(join(userHome, '.config', 'opencode', 'plugins')));
+    assert.ok(!existsSync(join(userHome, '.cursor', 'hooks.json')));
+  } finally { s.cleanup(); }
+});
+
+test('bootstrap run from a home inside the skills dir says to move the checkout out first', () => {
+  const s = scratch();
+  try {
+    const userHome = fakeUser(s.dir);
+    const home = join(userHome, '.claude', 'skills', 'no-deceit'); mkdirSync(home, { recursive: true });
+    assert.throws(() => bootstrap({ home, userHome, env: { ND_HOME: '', HOME: userHome } }),
+      new RegExp(`inside the skills dir[\\s\\S]*mv ${home} ${join(userHome, 'no-deceit')} && ${join(userHome, 'no-deceit', 'bin', 'nd')} bootstrap`));
     assert.ok(!existsSync(join(home, '.nd-home')));
   } finally { s.cleanup(); }
 });

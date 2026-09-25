@@ -10,7 +10,7 @@
 // would be a dependency, which D6 forbids).
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync, statSync } from 'node:fs';
-import { join, dirname, relative } from 'node:path';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
@@ -252,19 +252,17 @@ export function readAllLedger(env) {
 }
 
 /**
- * Every spelling of a state path a command is likely to use: the absolute
- * path, its `~/`, `$HOME/` and `${HOME}/` forms when it sits under HOME, and
- * the `../`-relative form from the governed repo (a home's state/ config/
- * data/ have no distinctive segment for the classifier to match on).
+ * The spellings of a state path a command is likely to use: the absolute
+ * path and its `~/`, `$HOME/` and `${HOME}/` forms when it sits under HOME.
+ * A relative spelling of a home's state/ config/ data/ is not matched: those
+ * names are ordinary in any repo (an accepted gap, docs/verification).
  */
-function statePathSpellings(abs, repoRoot, userHome) {
+function statePathSpellings(abs, userHome) {
   const out = [abs];
   if (userHome && abs.startsWith(userHome.replace(/\/+$/, '') + '/')) {
     const rest = abs.slice(userHome.replace(/\/+$/, '').length);
     out.push(`~${rest}`, `$HOME${rest}`, `\${HOME}${rest}`);
   }
-  const rel = relative(repoRoot, abs);
-  if (rel.startsWith('../')) out.push(rel);
   return out;
 }
 
@@ -279,7 +277,7 @@ export function buildClassifyCfg(config, repoRoot, env = process.env) {
   const abs = [proj.dir, home.stateDir, home.configDir, dataPaths(env).dataDir];
   if (env.ND_HOME) abs.push(join(env.ND_HOME, '.nd-home'));
   return {
-    statePathPrefixes: abs.flatMap((p) => statePathSpellings(p, repoRoot, env.HOME || homedir())),
+    statePathPrefixes: abs.flatMap((p) => statePathSpellings(p, env.HOME || homedir())),
     testGlobs: config.testGlobs,
     toolingGlobs: config.toolingGlobs,
     ndBin: 'nd',

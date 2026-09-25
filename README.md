@@ -166,11 +166,11 @@ read at launch.
 
 **Already installed the old way?** If No Deceit came from the Claude Code
 marketplace, or `~/.claude/skills/no-deceit` is already a link or directory
-pointing somewhere else (an older clone), bootstrap stops with nothing changed:
-both copies would fire the hooks on every call and keep separate state. Run
-the step it prints (`claude plugin uninstall no-deceit`, or
-`mv ~/.claude/skills/no-deceit ~/.claude/skills/no-deceit.old`), then
-`nd bootstrap` again.
+pointing somewhere else (an older clone), bootstrap stops with nothing changed,
+whichever harness flags you pass: both copies would fire the hooks on every
+call and keep separate state. Run the step it prints (`claude plugin uninstall
+no-deceit`, or `mv ~/.claude/skills/no-deceit ~/no-deceit.old`, out of the
+directory Claude Code scans), then `nd bootstrap` again.
 An npm/OpenCode install (`opencode plugin no-deceit`) is deprecated: remove
 that entry from your OpenCode config and use `nd bootstrap --opencode`.
 
