@@ -98,16 +98,19 @@ function markdownCarriesDiagram(path, content) {
   return Boolean(path) && RE_MARKDOWN_PATH.test(String(path)) && RE_DIAGRAM_CONTENT.test(String(content || ''));
 }
 
-// Diagram renderers. A Bash command that invokes one anywhere is diagram
-// creation (H), whatever feeds it, the learner's own file included: they render
-// in their own terminal. Matched on the raw command, no shell-quote parsing.
-// The distinctive names match on a word boundary; `d2` and `dot` only in
-// command position (start, after a shell operator or a package runner), or
-// `dot -T...`, so `dotfiles` or `grep dot` never match.
+// Diagram renderers. A Bash command that invokes one is diagram creation (H),
+// whatever feeds it, the learner's own file included: they render in their own
+// terminal. Matched on the raw command, no shell-quote parsing, and only in
+// command position: at the start, after a shell operator, `(`, `$(`, a backtick,
+// `{` or an opening quote (so quoted text leans toward blocking), or after a
+// launcher word and its flags. `dot` counts only with a `-T` flag. A renderer
+// name merely mentioned as an argument (`grep -rn mmdc`, `cat plantuml-notes.md`,
+// `ls dotfiles`) is not an invocation.
 const RE_RENDERER_CMD = new RegExp(
-  '\\b(?:mmdc|plantuml|excalidraw-cli)\\b|@mermaid-js/mermaid-cli' +
-  '|(?:(?:^|[|;&(`\\n])\\s*|\\b(?:npx|bunx|dlx|exec)(?:\\s+-\\S+)*\\s+)(?:d2|dot)(?=\\s|$)' +
-  '|\\bdot\\s+-T',
+  '(?:(?:^|[|;&\\n(`\'"{])\\s*(?:[A-Za-z_]\\w*=\\S*\\s+)*' +
+  '|\\b(?:npx|bunx|dlx|exec|xargs|env|command|time|nice|nohup|sudo|sh|bash|then|do|else)(?:\\s+-\\S+)*\\s+)' +
+  '(?:[^\\s\'"|;&]*/)?' +
+  '(?:(?:mmdc|plantuml|excalidraw-cli|d2|@mermaid-js/mermaid-cli)(?=[\\s;|&)@]|$)|dot\\s+-T)',
 );
 
 // --- Bash shape detection ------------------------------------------------

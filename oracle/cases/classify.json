@@ -6,6 +6,12 @@
     {"name": "read is inspect", "args": ["Read", {"file_path": "a.js"}], "expect": "A"},
     {"name": "write is source mutation", "args": ["Write", {"file_path": "src/a.js"}], "expect": "E"},
     {"name": "ls is inspect", "args": ["Bash", {"command": "ls"}], "expect": "A"},
-    {"name": "nd tier is tamper", "args": ["Bash", {"command": "nd tier 3"}], "expect": "G"}
+    {"name": "nd tier is tamper", "args": ["Bash", {"command": "nd tier 3"}], "expect": "G"},
+    {"name": "piped renderer is diagram", "args": ["Bash", {"command": "echo 'graph TD' | mmdc -i - -o a.svg"}], "expect": "H"},
+    {"name": "renderer behind a runner is diagram", "args": ["Bash", {"command": "npx -y mmdc -i a.mmd -o a.svg"}], "expect": "H"},
+    {"name": "dot -T is diagram", "args": ["Bash", {"command": "dot -Tpng in.dot > out.png"}], "expect": "H"},
+    {"name": "grepping a renderer name is inspect", "args": ["Bash", {"command": "grep -rn mmdc core/"}], "expect": "A"},
+    {"name": "reading renderer notes is inspect", "args": ["Bash", {"command": "cat docs/plantuml-notes.md"}], "expect": "A"},
+    {"name": "grep dot is inspect", "args": ["Bash", {"command": "grep dot notes.txt"}], "expect": "A"}
   ]
 }

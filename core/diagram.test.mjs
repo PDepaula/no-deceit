@@ -64,6 +64,29 @@ test('rendering a file the learner drew is H too; a redirected diagram source is
   assert.equal(classify('Bash', { command: 'dot -Tcanon theirs.dot > docs/arch.dot' }, cfg), 'H');
 });
 
+test('a renderer behind a launcher, a path, or an assignment is still an invocation', () => {
+  assert.equal(classify('Bash', { command: 'sh -c "mmdc -i flow.mmd -o flow.svg"' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'bash -c plantuml docs/a.puml' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'ls *.mmd | xargs -n1 mmdc -i' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'sudo env PATH=/x time nice excalidraw-cli a.json' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'out=$(plantuml -tsvg a.puml)' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'echo `d2 a.d2 a.svg`' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: './node_modules/.bin/mmdc -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'PUPPETEER_X=1 mmdc -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'npx @mermaid-js/mermaid-cli@10 -i a.mmd -o a.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'make && /usr/bin/dot -Tsvg a.dot -o a.svg' }, cfg), 'H');
+});
+
+test('a renderer name mentioned as an argument is not an invocation', () => {
+  assert.equal(classify('Bash', { command: 'grep -rn mmdc core/' }, cfg), 'A');
+  assert.equal(classify('Bash', { command: 'rg plantuml docs' }, cfg), 'A');
+  assert.equal(classify('Bash', { command: 'cat docs/plantuml-notes.md' }, cfg), 'A');
+  assert.equal(classify('Bash', { command: 'which mmdc' }, cfg), 'A');
+  assert.equal(classify('Bash', { command: 'ls dotfiles' }, cfg), 'A');
+  assert.equal(classify('Bash', { command: 'grep dot notes.txt' }, cfg), 'A');
+  assert.equal(classify('Bash', { command: 'npm install @mermaid-js/mermaid-cli' }, cfg), 'C');
+});
+
 test('dot and d2 as plain words are not renderer invocations', () => {
   assert.equal(classify('Bash', { command: 'ls ~/dotfiles' }, cfg), 'A');
   assert.equal(classify('Bash', { command: 'grep dot src/app.js' }, cfg), 'A');
