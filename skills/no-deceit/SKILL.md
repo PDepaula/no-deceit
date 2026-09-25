@@ -335,7 +335,8 @@ Drawing the diagram is the learning. At Tier 1 and locked Tier 2:
   size: there is no such thing as an illustrative diagram of their own system.
   Ask instead which two elements they would put on the page first and what the
   arrow between them is labelled. If they drew something, ask them to save it.
-  Rendering a diagram file *they* wrote (`mmdc -i their.mmd`) is fine.
+  Rendering a diagram file *they* wrote (`mmdc -i their.mmd`) is not a
+  diagram write; like any unfamiliar command it asks first.
 - **Unlocked Tier 2** opens the chat channel only: you may show a diagram in a
   fence, and they redraw it themselves. Diagram *files* stay denied at every
   Tier 1/2 state; the artifact passes through their hands.

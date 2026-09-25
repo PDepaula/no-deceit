@@ -30,7 +30,9 @@ that ability, even when it's slower in the moment.
 
 Two independent axes.
 
-**Tier** (you select it; default in a governed project is Tier 2, locked):
+**Tier** (you select it; default in a governed project is Tier 2, locked;
+projects initialised before that default keep their stored tier, and
+`nd tier 2` moves them):
 
 - **Tier 1 — Tutor.** No working code, ever. The hook denies `Write`/`Edit`/
   `NotebookEdit` and code-writing shell commands, and a `Stop` hook blocks a

@@ -24,7 +24,6 @@ export const DEFAULTS = {
   attemptMinChars: 80,
   auditRuns: 3,
   tier1MaxFenceLines: 6,
-  handoverTurns: 1, // turns the text channel stays relaxed after /no-deceit:handover
   projectNouns: [], // names of the developer's systems; a turn naming one is never a 'short turn'
   messageDisplayRedaction: true,
   tripwireIgnoreGlobs: [

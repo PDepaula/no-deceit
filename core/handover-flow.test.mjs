@@ -96,10 +96,10 @@ test('handover: after consumption the next turn is gated again', () => {
   } finally { s.cleanup(); }
 });
 
-test('handover: a stale armed flag with no turns left is cleared on the next prompt', () => {
+test('handover: a stale armed flag with nothing pending is cleared on the next prompt', () => {
   const s = scratch();
   try {
-    writeSessionSync(s.env, 'sess-3', { handoverActive: true, handoverTurns: 0 });
+    writeSessionSync(s.env, 'sess-3', { handoverActive: true, handoverPending: false });
     assert.equal(armHandoverForPrompt({ env: s.env, sessionId: 'sess-3' }), null);
     assert.equal(readSession(s.env, 'sess-3').handoverActive, false);
   } finally { s.cleanup(); }

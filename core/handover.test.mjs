@@ -29,6 +29,9 @@ test('question ending: last prose line, ignoring trailing markup', () => {
 test('short turn: under 40 words, no fence, no project noun', () => {
   assert.equal(isShortTurn('Captured. Ready when you are.'), true);
   assert.equal(isShortTurn('Captured, bondly is next.', { projectNouns: ['Bondly'] }), false);
+  assert.equal(isShortTurn('Happy to help. Done.', { projectNouns: ['app'] }), true);
+  assert.equal(isShortTurn('The app is up.', { projectNouns: ['app'] }), false);
+  assert.equal(isShortTurn('Pushed gd-integrations.', { projectNouns: ['gd-integrations'] }), false);
   assert.equal(isShortTurn('Ok.\n```\nx\n```'), false);
   assert.equal(isShortTurn('word '.repeat(40)), false);
   assert.equal(wordCount('  a b  c '), 3);

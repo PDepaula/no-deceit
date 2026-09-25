@@ -90,7 +90,7 @@ export const REASONS = {
     'developer\'s own system, of any size. Retract it. Ask which two elements ' +
     'of their system they would put on the page first and what the arrow ' +
     'between them is labelled. If they have drawn something, ask them to ' +
-    'save it and run `nd evidence add`.',
+    'save it.',
 
   T_QUESTION_ENDING:
     'No Deceit Tier 1 / locked Tier 2: this turn neither ends with a question ' +
@@ -110,7 +110,7 @@ export const REASONS = {
     'of the developer\'s system, in a file or in chat. Ask which two elements ' +
     'of their system they would put on the page first and what the arrow ' +
     'between them is labelled. If they have drawn something, ask them to save ' +
-    'it and run `nd evidence add`.',
+    'it.',
 
   DIAGRAM_FILE_T2_UNLOCKED:
     'No Deceit Tier 2 is unlocked: you may show a diagram in chat (a fenced ' +
