@@ -121,19 +121,17 @@ export function parseHandoverArgs(arg) {
 
 /**
  * The developer's own act: ask for the answer. Ledgers a `handover` and arms
- * the text-channel relaxation for the next `handoverTurns` turns. Rides the
+ * the text-channel relaxation for exactly the next turn. Rides the
  * UserPromptSubmit channel only, so the model cannot issue it.
  */
 export function startHandover({ repoRoot, env, sessionId, arg, nowMs = Date.now() }) {
   if (!isGoverned(repoRoot)) return 'No Deceit: this project is not governed, so there is nothing to hand over.';
   if (!sessionId) return 'No Deceit: handover needs a session, and none was provided. Nothing recorded.';
-  const cfg = loadConfig(env);
   const e = effectiveNow({ repoRoot, env, sessionId, nowMs });
   if (!chatTextGated(e)) {
     return `The text channel is already open at Tier ${e.tier}${e.tier === 2 ? ' (unlocked)' : ''}; nothing to relax, nothing recorded.`;
   }
   const { domain, reason } = parseHandoverArgs(arg);
-  const turns = Math.max(1, Number(cfg.handoverTurns) || 1);
   appendLedger(env, {
     event: 'handover',
     ...(domain ? { domain } : {}),
@@ -142,7 +140,7 @@ export function startHandover({ repoRoot, env, sessionId, arg, nowMs = Date.now(
     reason,
     sessionId,
   });
-  writeSession(env, sessionId, { handoverTurns: turns, handoverActive: false });
+  writeSession(env, sessionId, { handoverPending: true, handoverActive: false });
   const label = domain || 'unscoped';
   const n = readAllLedger(env).filter((x) => x.event === 'handover'
     && (domainOf(x) || 'unscoped') === label
@@ -165,9 +163,8 @@ export const HANDOVER_CONTEXT =
 export function armHandoverForPrompt({ env, sessionId }) {
   if (!sessionId) return null;
   const sess = readSession(env, sessionId);
-  const turns = Number(sess.handoverTurns) || 0;
-  if (turns > 0) {
-    writeSession(env, sessionId, { handoverTurns: turns - 1, handoverActive: true });
+  if (sess.handoverPending) {
+    writeSession(env, sessionId, { handoverPending: false, handoverActive: true });
     return HANDOVER_CONTEXT;
   }
   if (sess.handoverActive) writeSession(env, sessionId, { handoverActive: false });

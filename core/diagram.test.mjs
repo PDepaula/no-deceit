@@ -33,11 +33,20 @@ test('H: Bash writing a diagram path or diagram content into markdown', () => {
   assert.equal(classify('Bash', { command: 'cat > n.md <<EOF\nhello\nEOF' }, cfg), 'E');
 });
 
-test('H vs B: a renderer fed inline source is H; rendering the learner\'s own file is B', () => {
+test('H: a renderer fed inline source is H, bare or behind a package runner', () => {
   assert.equal(classify('Bash', { command: 'echo "a -> b" | dot -Tpng' }, cfg), 'H');
   assert.equal(classify('Bash', { command: 'd2 <<EOF\na -> b\nEOF' }, cfg), 'H');
-  assert.equal(classify('Bash', { command: 'mmdc -i flow.mmd -o flow.png' }, cfg), 'B');
-  assert.equal(classify('Bash', { command: 'dot -Tpng in.dot > out.png' }, cfg), 'B');
+  assert.equal(classify('Bash', { command: 'echo "graph TD; A---B" | npx -p @mermaid-js/mermaid-cli mmdc -i - -o docs/arch.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'echo "a -- b" | bunx d2 - docs/arch.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'echo "a -- b" | pnpm dlx d2 - docs/arch.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'echo "a -- b" | yarn dlx --quiet d2 - docs/arch.svg' }, cfg), 'H');
+  assert.equal(classify('Bash', { command: 'npx -y mmdc <<EOF\ngraph TD\nEOF' }, cfg), 'H');
+});
+
+test('renderers on a file keep their ordinary handling; a redirected diagram source is H', () => {
+  assert.equal(classify('Bash', { command: 'mmdc -i flow.mmd -o flow.png' }, cfg), 'U');
+  assert.equal(classify('Bash', { command: 'dot -Tpng in.dot > out.png' }, cfg), 'E');
+  assert.equal(classify('Bash', { command: 'dot -Tcanon theirs.dot > docs/arch.dot' }, cfg), 'H');
 });
 
 test('G still wins over H (a diagram in the state dir is tamper)', () => {
@@ -53,7 +62,6 @@ test('decide H: denied at T1, T2 locked, T2 unlocked (R4); T3 needs a preamble',
   assert.match(u.reason, /redraws/);
   assert.equal(decide(eff({ tier: 3 }), { category: 'H' }).reason, REASONS.T3_NO_PREAMBLE);
   assert.equal(decide(eff({ tier: 3, t3PreamblePresent: true }), { category: 'H' }).decision, 'allow');
-  assert.match(REASONS.DIAGRAM_FILE, /drawing the diagram is the learning/);
 });
 
 test('fence: diagram languages, excalidraw JSON, and mind-map bodies are diagrams at any size', () => {

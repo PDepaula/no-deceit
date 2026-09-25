@@ -7,17 +7,18 @@ based on [Keep a Changelog](https://keepachangelog.com/).
 
 - **Changed:** Tier 2 (locked) is the default for every governed project
   (`DEFAULTS.tier`, `nd init`, absent state). An explicit `tier: 1` in
-  `state.json` is honoured.
+  `state.json` is honoured: projects initialised before this change keep
+  their stored tier (old `nd init` wrote Tier 1); `nd tier 2` moves them.
 - **Added:** classifier category **H** (design artifact): writes to diagram
   sources, diagram content written into markdown, and diagram renderers fed
-  inline source. Denied at Tier 1 and Tier 2 locked *and* unlocked; a diagram
+  inline source (bare or via `npx` / `bunx` / `pnpm dlx` / `yarn dlx`). Denied at Tier 1 and Tier 2 locked *and* unlocked; a diagram
   fence of any size in chat is a `chat_diagram` violation on the gated tiers,
   and `MessageDisplay` redacts it.
 - **Added:** the `Handing over: <what>` label and the question-ending rule at
   Tier 1 / locked Tier 2 (short turns under ~40 words with no fence and no
   project noun pass). Config `projectNouns`.
 - **Added:** `/no-deceit:handover [--domain d] [why]` on the UserPromptSubmit
-  channel; relaxes the text channel for `handoverTurns` (default 1) turn.
+  channel; relaxes the text channel for exactly one turn.
   New ledger events `handover` and `handing_over`; new violation kinds
   `chat_diagram`, `question_ending`, `handover_unlabelled`. `nd report`
   prints handovers per domain with a streak note.

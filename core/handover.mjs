@@ -36,7 +36,9 @@ function mentionsNoun(text, nouns) {
   const lower = String(text ?? '').toLowerCase();
   return (nouns || []).some((n) => {
     const w = String(n || '').trim().toLowerCase();
-    return w && lower.includes(w);
+    if (!w) return false;
+    const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|[^a-z0-9_-])${escaped}($|[^a-z0-9_-])`).test(lower);
   });
 }
 

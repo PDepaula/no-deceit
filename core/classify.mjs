@@ -99,12 +99,14 @@ function markdownCarriesDiagram(path, content) {
 }
 
 // Diagram renderers. Feeding one inline source (heredoc, here-string, -e, a pipe
-// into it) authors a diagram (H); rendering a file the learner wrote is a run (B).
+// into it) authors a diagram (H), bare or behind a package runner
+// (`npx -p @mermaid-js/mermaid-cli mmdc`, `bunx d2`, `pnpm dlx`, `yarn dlx`).
 const DIAGRAM_RENDERERS = ['mmdc', 'd2', 'dot', 'plantuml', 'excalidraw-cli'];
 const RE_RENDERER_WORD = DIAGRAM_RENDERERS.map((r) => r.replace(/[-]/g, '\\-')).join('|');
+const RE_RENDERER_RUNNER = '(?:(?:npx|bunx|pnpm\\s+dlx|yarn\\s+dlx)(?:\\s+-[^\\s;&|]+(?:\\s+[^-\\s;&|][^\\s;&|]*)?)*\\s+)?';
 const RE_RENDERER_INLINE = new RegExp(
-  `(^|[;&|(]\\s*)(?:${RE_RENDERER_WORD})\\b[^;&|]*(?:<<|<<<|\\s-e\\b|\\s--eval\\b)` +
-  `|\\|\\s*(?:${RE_RENDERER_WORD})\\b`,
+  `(^|[;&|(]\\s*)${RE_RENDERER_RUNNER}(?:${RE_RENDERER_WORD})\\b[^;&|]*(?:<<|<<<|\\s-e\\b|\\s--eval\\b)` +
+  `|\\|\\s*${RE_RENDERER_RUNNER}(?:${RE_RENDERER_WORD})\\b`,
 );
 
 // --- Bash shape detection ------------------------------------------------
@@ -301,10 +303,6 @@ function classifyBashSegment(cmd, cfg) {
     if (targets.some((t) => matchesAny(t, cfg.toolingGlobs || []))) return 'C';
     return 'E';
   };
-
-  // A diagram renderer with no inline source only renders a file the learner
-  // wrote (inline-fed renderers were already judged H on the whole command).
-  if (DIAGRAM_RENDERERS.includes(stripWrappers(c).split(/\s+/)[0])) return 'B';
 
   // Unambiguous file-authoring shapes first (specific, target-bearing syntax).
   if (AUTHORING_SHAPES.some((rx) => rx.test(c))) return routeByTarget();
