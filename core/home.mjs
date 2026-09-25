@@ -131,11 +131,11 @@ export function bootstrap({ home, userHome = homedir(), env, only = [], dryRun =
     cursor: join(userHome, '.cursor'),
   };
 
-  // Claude preflight, whatever harnesses were asked for: a marketplace install
-  // or an older skills-dir entry would keep firing its own hooks against XDG
-  // state beside this home's. Stop before anything is written; re-running
-  // after the uninstall completes the bootstrap.
-  const links = [];
+  // Preflight, before anything is written: a marketplace install, an older
+  // skills-dir entry, or any requested link that already points elsewhere would
+  // keep firing its own hooks against XDG state beside this home's. The Claude
+  // checks run whatever harnesses were asked for. Re-running after the printed
+  // step completes the bootstrap.
   const claudeLink = join(dirs.claude, 'skills', 'no-deceit');
   const claudeTarget = join(home, 'harness', 'claude-code');
   const blockers = [];
@@ -148,10 +148,29 @@ export function bootstrap({ home, userHome = homedir(), env, only = [], dryRun =
       ? `this home is ${claudeLink}, inside the skills dir Claude Code scans. Move the checkout out, then run bootstrap from its new location:  mv ${claudeLink} ${join(userHome, 'no-deceit')} && ${join(userHome, 'no-deceit', 'bin', 'nd')} bootstrap`
       : `${claudeLink} ${a.note.split(';')[0]} (an older install). Move it out of the skills dir:  mv ${claudeLink} ${join(userHome, 'no-deceit.old')}`);
   }
-  if (blockers.length) {
-    throw new Error(`bootstrap stopped, nothing changed. Both installs would fire the hooks on every call and keep separate state.\n  ${blockers.join('\n  ')}\nThen re-run \`nd bootstrap\`.`);
-  }
+  const links = [];
   if (want('claude') && (only.includes('claude') || existsSync(dirs.claude))) links.push(['claude', claudeTarget, claudeLink]);
+  const others = [];
+  if (want('opencode') && (only.includes('opencode') || existsSync(dirs.opencode))) {
+    others.push(['opencode', join(home, 'harness', 'opencode', 'no-deceit.ts'), join(dirs.opencode, 'plugins', 'no-deceit.ts')]);
+  }
+  if (want('pi') && (only.includes('pi') || existsSync(dirs.pi))) {
+    others.push(['pi', join(home, 'harness', 'pi', 'no-deceit.ts'), join(dirs.pi, 'agent', 'extensions', 'no-deceit.ts')]);
+  }
+  for (const [h, target, linkPath] of others) {
+    const o = linkAction(target, linkPath);
+    if (o.kind === 'conflict') {
+      blockers.push(`${linkPath} ${o.note.split(';')[0]} (an older ${h} install). Move it out of the dir ${h} loads from:  mv ${linkPath} ${join(userHome, `no-deceit-${h}.ts.old`)}`);
+    }
+    links.push([h, target, linkPath]);
+  }
+  const cursorFile = join(dirs.cursor, 'hooks.json');
+  const wantCursor = want('cursor') && (only.includes('cursor') || existsSync(dirs.cursor));
+  const cursorExisting = wantCursor && existsSync(cursorFile) ? readJson(cursorFile) : null;
+  if (wantCursor && existsSync(cursorFile) && cursorExisting === null) blockers.push(`${cursorFile} is not valid JSON. Fix it by hand (it may hold other hooks)`);
+  if (blockers.length) {
+    throw new Error(`bootstrap stopped, nothing changed. Two installs would fire the hooks on every call and keep separate state.\n  ${blockers.join('\n  ')}\nThen re-run \`nd bootstrap\`.`);
+  }
 
   say(`No Deceit home: ${home}${dryRun ? ' (dry run — nothing written)' : ''}`);
   if (!dryRun) {
@@ -190,37 +209,18 @@ export function bootstrap({ home, userHome = homedir(), env, only = [], dryRun =
     if (!dryRun) { mkdirSync(dirname(migrated), { recursive: true }); writeFileSync(migrated, `migratedFromXdg ${new Date().toISOString()}\n`); }
   }
 
-  let cursorHooks = null;
-
-  if (want('opencode') && (only.includes('opencode') || existsSync(dirs.opencode))) {
-    links.push(['opencode', join(home, 'harness', 'opencode', 'no-deceit.ts'), join(dirs.opencode, 'plugins', 'no-deceit.ts')]);
-  }
-  if (want('pi') && (only.includes('pi') || existsSync(dirs.pi))) {
-    links.push(['pi', join(home, 'harness', 'pi', 'no-deceit.ts'), join(dirs.pi, 'agent', 'extensions', 'no-deceit.ts')]);
-  }
   for (const [h, target, linkPath] of links) {
-    const a = linkAction(target, linkPath);
-    if (a.kind === 'create') {
-      if (!dryRun) { mkdirSync(dirname(linkPath), { recursive: true }); symlinkSync(target, linkPath); }
-      say(`  ${h}: linked ${linkPath} → ${target}`);
-    } else if (a.kind === 'ok') {
+    if (linkAction(target, linkPath).kind === 'ok') {
       say(`  ${h}: already linked (${linkPath})`);
     } else {
-      say(`  ${h}: CONFLICT ${linkPath} ${a.note}`);
+      if (!dryRun) { mkdirSync(dirname(linkPath), { recursive: true }); symlinkSync(target, linkPath); }
+      say(`  ${h}: linked ${linkPath} → ${target}`);
     }
   }
-  if (want('cursor') && (only.includes('cursor') || existsSync(dirs.cursor))) {
-    const file = join(dirs.cursor, 'hooks.json');
-    let existing = null;
-    if (existsSync(file)) {
-      existing = readJson(file);
-      if (existing === null) say(`  cursor: CONFLICT ${file} is not valid JSON; fix it, then re-run`);
-    }
-    if (!existsSync(file) || existing !== null) {
-      cursorHooks = mergeCursorHooks(existing, join(home, 'bin', 'nd'));
-      if (!dryRun) { mkdirSync(dirs.cursor, { recursive: true }); writeFileSync(file, JSON.stringify(cursorHooks, null, 2) + '\n'); }
-      say(`  cursor: preToolUse → ${join(home, 'bin', 'nd')} --cursor merged into ${file}`);
-    }
+  if (wantCursor) {
+    const cursorHooks = mergeCursorHooks(cursorExisting, join(home, 'bin', 'nd'));
+    if (!dryRun) { mkdirSync(dirs.cursor, { recursive: true }); writeFileSync(cursorFile, JSON.stringify(cursorHooks, null, 2) + '\n'); }
+    say(`  cursor: preToolUse → ${join(home, 'bin', 'nd')} --cursor merged into ${cursorFile}`);
   }
 
   say(`  PATH:   not edited. Add to your shell profile:  ${pathHint(join(home, 'bin'))}`);

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, lstatSync, readlinkSync, symlinkSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { ensureHome, projectAdd, bootstrap, update, initProject } from './home.mjs';
 import { homePaths, dataPaths, detectHome, withDetectedHome, loadConfig } from './state.mjs';
@@ -241,6 +241,38 @@ test('bootstrap treats a skills-dir symlink to the home root as an older link to
     assert.doesNotMatch(msg, /inside the skills dir/);
     assert.equal(readlinkSync(link), home);
     assert.ok(!existsSync(join(home, '.nd-home')));
+  } finally { s.cleanup(); }
+});
+
+test('bootstrap stops, with nothing changed, when an OpenCode or Pi link or the Cursor hooks file conflicts', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home);
+    const userHome = fakeUser(s.dir, { claude: false, opencode: true, pi: true, cursor: true });
+    const env = { ND_HOME: '', HOME: userHome };
+    const old = join(s.dir, 'old-clone', 'no-deceit.ts'); mkdirSync(dirname(old), { recursive: true }); writeFileSync(old, '');
+    const cases = [
+      ['opencode', join(userHome, '.config', 'opencode', 'plugins', 'no-deceit.ts')],
+      ['pi', join(userHome, '.pi', 'agent', 'extensions', 'no-deceit.ts')],
+    ];
+    for (const [h, link] of cases) {
+      mkdirSync(dirname(link), { recursive: true });
+      symlinkSync(old, link);
+      assert.throws(() => bootstrap({ home, userHome, env, only: [h] }),
+        new RegExp(`nothing changed[\\s\\S]*already a symlink to ${old}[\\s\\S]*mv ${link} ${join(userHome, `no-deceit-${h}.ts.old`)}`));
+      assert.ok(!existsSync(join(home, '.nd-home')));
+      assert.equal(readlinkSync(link), old);
+      rmSync(link);
+    }
+    writeFileSync(join(userHome, '.cursor', 'hooks.json'), '{ not json');
+    assert.throws(() => bootstrap({ home, userHome, env, only: ['cursor'] }), /nothing changed[\s\S]*hooks\.json is not valid JSON/);
+    assert.ok(!existsSync(join(home, '.nd-home')));
+    assert.equal(readFileSync(join(userHome, '.cursor', 'hooks.json'), 'utf8'), '{ not json');
+
+    rmSync(join(userHome, '.cursor', 'hooks.json'));
+    bootstrap({ home, userHome, env });
+    assert.ok(existsSync(join(home, '.nd-home')));
+    assert.equal(readlinkSync(cases[0][1]), join(home, 'harness', 'opencode', 'no-deceit.ts'));
   } finally { s.cleanup(); }
 });
 
