@@ -193,7 +193,7 @@ test('evaluateStop: over-threshold fence at Tier 1 is a violation with a ledger 
 test('evaluateStop: small snippet at Tier 1 is allowed', () => {
   const s = scratch();
   try {
-    const r = evaluateStop({ text: SMALL_FENCE, cwd: s.repo, env: s.env, sessionId: 's', nowMs: NOW });
+    const r = evaluateStop({ text: SMALL_FENCE + '\nWhich reads easier to you?', cwd: s.repo, env: s.env, sessionId: 's', nowMs: NOW });
     assert.equal(r.decision, 'allow');
   } finally { s.cleanup(); }
 });

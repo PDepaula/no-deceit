@@ -57,9 +57,9 @@ function cmdInit() {
   mkdirSync(p.verdictsDir, { recursive: true });
   mkdirSync(p.checksDir, { recursive: true });
   mkdirSync(p.t3Dir, { recursive: true });
-  if (!existsSync(p.stateFile)) writeFileSync(p.stateFile, JSON.stringify({ tier: 1, mode: 'ask', unlocked: false }, null, 2) + '\n');
+  if (!existsSync(p.stateFile)) writeFileSync(p.stateFile, JSON.stringify({ tier: loadConfig(env).tier === 1 ? 1 : 2, mode: 'ask', unlocked: false }, null, 2) + '\n');
   if (!existsSync(p.gitignore)) writeFileSync(p.gitignore, '# Local No Deceit state — not shared.\nstate.json\nverdicts/\n');
-  say(`No Deceit initialised in ${p.dir}. This project is now governed (Tier 1, mode ask).`);
+  say(`No Deceit initialised in ${p.dir}. This project is now governed (Tier ${loadConfig(env).tier === 1 ? 1 : 2}, mode ask).`);
 }
 
 const [sub, ...rest] = process.argv.slice(2);

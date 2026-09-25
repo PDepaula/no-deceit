@@ -141,7 +141,7 @@ test('Stop blocks an over-threshold fence at Tier 1 and ledgers it', () => {
 test('Stop allows a small snippet at Tier 1', () => {
   const s = scratch();
   try {
-    const out = runHook('Stop', { session_id: 's', cwd: s.repo, last_assistant_message: '```\nconst x = 1;\n```', stop_hook_active: false }, s.env);
+    const out = runHook('Stop', { session_id: 's', cwd: s.repo, last_assistant_message: '```\nconst x = 1;\n```\nWhich reads easier to you?', stop_hook_active: false }, s.env);
     assert.equal(out, null);
   } finally { s.cleanup(); }
 });
@@ -214,4 +214,45 @@ test('the plugin hook contract registers Stop, MessageDisplay, and PostToolUse',
   assert.match(postMatcher, /Bash/);
   const preMatcher = spec.hooks.PreToolUse[0].matcher;
   assert.match(preMatcher, /Agent/);
+});
+
+const LONG_STATEMENT = 'The orders table mixes header and line data, so every read of a single order fans out across duplicated rows and the join runs on every query instead of once at load time, which is why it is slow and stale-prone. '.repeat(2);
+
+test('Stop blocks an unlabelled statement at the default Tier 2 (locked) with the question-ending reason', () => {
+  const s = scratch();
+  try {
+    const out = runHook('Stop', { session_id: 's', cwd: s.repo, last_assistant_message: LONG_STATEMENT, stop_hook_active: false }, s.env);
+    assert.equal(out.decision, 'block');
+    assert.match(out.reason, /Handing over:/);
+  } finally { s.cleanup(); }
+});
+
+test('PreToolUse denies a diagram file write at Tier 2 unlocked, telling the agent to show it in chat', () => {
+  const s = scratch();
+  try {
+    writeSession(s.env, 's', { unlocked: true });
+    const out = runHook('PreToolUse', { session_id: 's', cwd: s.repo, tool_name: 'Write', tool_input: { file_path: join(s.repo, 'docs/flow.mmd'), content: 'graph TD' } }, s.env);
+    assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
+    assert.match(out.hookSpecificOutput.permissionDecisionReason, /redraws/);
+  } finally { s.cleanup(); }
+});
+
+test('typed /no-deceit:handover is handled by the hook, arms exactly one turn, and re-arms the gate', () => {
+  const s = scratch();
+  try {
+    const cmd = runHook('UserPromptSubmit', { session_id: 'h', cwd: s.repo, prompt: '/no-deceit:handover --domain etl' }, s.env);
+    assert.equal(cmd.decision, 'block');
+    assert.match(cmd.reason, /Handover recorded for etl/);
+    // Next ordinary prompt injects the handover context.
+    const next = runHook('UserPromptSubmit', { session_id: 'h', cwd: s.repo, prompt: 'ok, go' }, s.env);
+    assert.match(next.hookSpecificOutput.additionalContext, /Handing over: <one line>/);
+    // The relaxed turn: diagram allowed with the label; the flag is consumed.
+    const ok = runHook('Stop', { session_id: 'h', cwd: s.repo, last_assistant_message: 'Here.\n```mermaid\ngraph TD\n  a-->b\n```\nHanding over: the flow', stop_hook_active: false }, s.env);
+    assert.equal(ok, null);
+    // The following turn is gated again.
+    const again = runHook('Stop', { session_id: 'h', cwd: s.repo, last_assistant_message: 'Here.\n```mermaid\ngraph TD\n  a-->b\n```\nHanding over: the flow', stop_hook_active: false }, s.env);
+    assert.equal(again.decision, 'block');
+    const ledger = readFileSync(join(s.env.XDG_STATE_HOME, 'no-deceit', 'ledger.jsonl'), 'utf8');
+    assert.match(ledger, /"event":"handover"/);
+  } finally { s.cleanup(); }
 });

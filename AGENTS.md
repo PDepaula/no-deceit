@@ -16,9 +16,11 @@ Read it before changing enforcement semantics.
 ## Architecture (functional core / imperative shell — it dogfoods its own lens)
 
 - `core/*.mjs` — PURE, zero-dependency policy owner; no fs/clock/env reads.
-  `classify.mjs` (tool call → category A–G/U), `policy.mjs` (`resolveEffective`
+  `classify.mjs` (tool call → category A–H/U; H = design artifact), `policy.mjs` (`resolveEffective`
   tier resolution incl. Tier 3 expiry + `decide` the tier × category table +
-  `decideTextChannel` / `decideDisplay` / `decideBashEditDiff`), `scope.mjs`
+  `decideTextChannel` / `decideDisplay` / `decideBashEditDiff`; Tier 2 locked is the
+  default), `handover.mjs` (`Handing over:` label + question-ending rule),
+  `scope.mjs`
   (Step 0 opt-in + worker exemption), `fence.mjs` / `narration.mjs` /
   `tripwire.mjs` (Phase 3 text-channel + bashEditDiff), `prefilter.mjs` /
   `rubric.mjs` / `grader-parse.mjs` / `grader-job.mjs` / `audit.mjs` (Phase 2
@@ -65,6 +67,10 @@ Read it before changing enforcement semantics.
 
 ## Non-negotiable invariants (do not regress)
 
+- The user-typed `/no-deceit:handover` (UserPromptSubmit only, session flag in
+  XDG state) is the only thing that relaxes the text channel; the model must
+  never be able to issue or forge it. Diagram file writes (category H) stay
+  denied at every Tier 1/2 state.
 - The agent must NEVER be able to change its own tier: changes come only from
   the in-hook `/no-deceit:` prompt commands or the developer's `nd` shell.
   Category G (tamper) is denied at every tier.

@@ -86,3 +86,53 @@ export function redactOverThresholdFences(text, maxLines = DEFAULT_MAX_FENCE_LIN
   }
   return { text: lines.join('\n'), redacted: true, count: over.length };
 }
+
+// --- Diagram fences (category H text channel) -------------------------------
+//
+// Unlike code, a diagram of the learner's own system has no "illustrative"
+// size: any diagram fence is the answer, so the line threshold does not apply.
+
+const DIAGRAM_LANGS = new Set([
+  'mermaid', 'mmd', 'plantuml', 'puml', 'd2', 'dot', 'graphviz', 'excalidraw', 'mindmap',
+]);
+const RE_EXCALIDRAW_JSON = /"type"\s*:\s*"excalidraw(?:\/[a-z-]+)?"/i;
+const RE_MINDMAP_HEAD = /^\s*mindmap\s*$/m;
+
+/** Is this parsed fence a diagram (Mermaid / PlantUML / D2 / DOT / Excalidraw JSON / mind-map)? */
+export function isDiagramFence(f) {
+  const lang = String(f.lang || '').trim().split(/[\s{]/)[0].toLowerCase();
+  if (DIAGRAM_LANGS.has(lang)) return true;
+  if (RE_EXCALIDRAW_JSON.test(f.body)) return true;
+  return RE_MINDMAP_HEAD.test(f.body);
+}
+
+export function diagramFences(text) {
+  return extractFences(text).filter(isDiagramFence);
+}
+
+const DIAGRAM_PLACEHOLDER =
+  '[No Deceit: diagram redacted at Tier 1 / locked Tier 2. Drawing it is the learning.]';
+
+/**
+ * Redact over-threshold code fences AND every diagram fence in one pass, so the
+ * two rules cannot fight over overlapping line indices.
+ * Returns { text, redacted, count, codeCount, diagramCount }.
+ */
+export function redactGatedFences(text, maxLines = DEFAULT_MAX_FENCE_LINES) {
+  const src = String(text ?? '');
+  const lines = src.split('\n');
+  const all = extractFences(src);
+  const todo = [];
+  let diagramCount = 0;
+  let codeCount = 0;
+  for (const f of all) {
+    if (isDiagramFence(f)) { diagramCount++; todo.push({ f, ph: DIAGRAM_PLACEHOLDER }); }
+    else if (f.lineCount > maxLines) { codeCount++; todo.push({ f, ph: DEFAULT_PLACEHOLDER }); }
+  }
+  if (todo.length === 0) return { text: src, redacted: false, count: 0, codeCount: 0, diagramCount: 0 };
+  for (const { f, ph } of todo.sort((a, b) => b.f.start - a.f.start)) {
+    const closer = f.closed ? lines[f.end] : null;
+    lines.splice(f.start, f.end - f.start + 1, ...(closer ? [lines[f.start], ph, closer] : [lines[f.start], ph]));
+  }
+  return { text: lines.join('\n'), redacted: true, count: todo.length, codeCount, diagramCount };
+}
