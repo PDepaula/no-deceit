@@ -6,7 +6,7 @@
 // transcript cannot ride along.
 
 import { join } from 'node:path';
-import { MENTAL_RUBRIC, COMMIT_RUBRIC } from './rubric.mjs';
+import { MENTAL_RUBRIC, COMMIT_RUBRIC, TRANSFER_RUBRIC } from './rubric.mjs';
 
 export const JOB_KEYS = [
   'kind',
@@ -16,6 +16,9 @@ export const JOB_KEYS = [
   'rubric',
   'rubricPath',
   'answerPath',
+  'curriculumPath', // concept summary for the topic: what "the principle" is
+  'projectsPath', // project manifest: P2 is checked against a list, not the grader's willingness to believe "my ETL"
+  'summaryPath', // optional parsed diagram summary (the Babashka parser seam; see docs in PORTING.md)
 ];
 
 const FORBIDDEN = [
@@ -34,10 +37,13 @@ const FORBIDDEN = [
 ];
 
 export function buildGraderJob(input = {}) {
-  const kind = input.kind === 'check' ? 'check' : 'unlock';
-  const route = input.route === 'commit-history' ? 'commit-history' : kind === 'check' ? 'check' : 'mental-model';
+  const kind = input.kind === 'check' ? 'check' : input.kind === 'transfer' ? 'transfer' : 'unlock';
+  const route = kind === 'transfer' ? 'transfer'
+    : input.route === 'commit-history' ? 'commit-history' : kind === 'check' ? 'check' : 'mental-model';
   const rubric = input.rubric
-    || (kind === 'check' ? input.rubric : route === 'commit-history' ? COMMIT_RUBRIC : MENTAL_RUBRIC);
+    || (kind === 'check' ? input.rubric
+      : route === 'transfer' ? TRANSFER_RUBRIC
+      : route === 'commit-history' ? COMMIT_RUBRIC : MENTAL_RUBRIC);
   const job = {
     kind,
     route,
@@ -47,6 +53,9 @@ export function buildGraderJob(input = {}) {
   };
   if (input.rubricPath) job.rubricPath = input.rubricPath;
   if (input.answerPath) job.answerPath = input.answerPath;
+  if (input.curriculumPath) job.curriculumPath = input.curriculumPath;
+  if (input.projectsPath) job.projectsPath = input.projectsPath;
+  if (input.summaryPath) job.summaryPath = input.summaryPath;
   return job;
 }
 
@@ -62,6 +71,9 @@ export function assertJobBlind(job) {
   }
   const path = job.evidencePath || job.answerPath;
   if (!path) throw new Error('grader job is not blind: no evidence file path');
+  if (job.kind === 'transfer' && !job.projectsPath) {
+    throw new Error('grader job is not blind: a transfer job needs a projects manifest path');
+  }
   return true;
 }
 
@@ -90,7 +102,7 @@ export function graderSpawnPlan({
   const agent = join(pluginRoot, 'agents', 'nd-grader.md');
   const prompt = probe ? 'Reply with the single word: ok' : (
     `Read the JSON job file at ${jobPath}. ` +
-    `Read only the file paths named in that job (evidencePath, rubricPath, answerPath). ` +
+    `Read only the file paths named in that job (evidencePath, rubricPath, answerPath, curriculumPath, projectsPath, summaryPath). ` +
     `Grade against the rubric in the job. Print one JSON object and nothing else. ` +
     `Do not read any other files.`);
   return {

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -254,5 +254,41 @@ test('typed /no-deceit:handover is handled by the hook, arms exactly one turn, a
     assert.equal(again.decision, 'block');
     const ledger = readFileSync(join(s.env.XDG_STATE_HOME, 'no-deceit', 'ledger.jsonl'), 'utf8');
     assert.match(ledger, /"event":"handover"/);
+  } finally { s.cleanup(); }
+});
+
+const TEACH_BODY = 'Join at load time means readers get finished rows and pay once, at the price of staleness.\nIn gd-integrations the dashboard join should move into the nightly ETL, unless finance needs same-hour totals.';
+
+test('multi-line /no-deceit:teach captures the body as evidence and blocks the prompt (the tutor never sees it)', () => {
+  const s = scratch();
+  try {
+    const env = { ...s.env, XDG_DATA_HOME: join(s.dir, 'share') };
+    const out = runHook('UserPromptSubmit', { session_id: 't', cwd: s.repo, prompt: `/no-deceit:teach etl --project gd-integrations\n${TEACH_BODY}` }, env);
+    assert.equal(out.decision, 'block');
+    assert.match(out.reason, /Captured \d+ words for etl \(project gd-integrations\)/);
+    assert.equal(out.hookSpecificOutput, undefined, 'no context is injected for the model');
+    const dir = join(s.dir, 'share', 'no-deceit', 'evidence', 'etl');
+    const [name] = readdirSync(dir);
+    assert.match(readFileSync(join(dir, name), 'utf8'), /gd-integrations the dashboard join/);
+    const ledger = readFileSync(join(s.env.XDG_STATE_HOME, 'no-deceit', 'ledger.jsonl'), 'utf8');
+    assert.match(ledger, /"event":"evidence_captured"/);
+    assert.doesNotMatch(ledger, /nightly ETL/, 'the ledger holds the hash and path, not the evidence text');
+  } finally { s.cleanup(); }
+});
+
+test('/no-deceit:teach with no body captures nothing, and /no-deceit:grade runs the transfer grader', () => {
+  const s = scratch();
+  try {
+    const env = { ...s.env, XDG_DATA_HOME: join(s.dir, 'share') };
+    const empty = runHook('UserPromptSubmit', { session_id: 't', cwd: s.repo, prompt: '/no-deceit:teach etl' }, env);
+    assert.match(empty.reason, /nothing to capture/);
+    runHook('UserPromptSubmit', { session_id: 't', cwd: s.repo, prompt: `/no-deceit:teach etl --project gd-integrations\n${TEACH_BODY}` }, env);
+    mkdirSync(join(s.dir, 'share', 'no-deceit'), { recursive: true });
+    writeFileSync(join(s.dir, 'share', 'no-deceit', 'projects.edn'), `[{:name "gd-integrations" :path "${s.repo}" :summary "nightly ETL"}]\n`);
+    const mock = JSON.stringify({ verdict: 'unlocked', criteria: Object.fromEntries(['P1', 'P2', 'P3', 'P4'].map((k) => [k, { met: true, span: 'x' }])) });
+    const graded = runHook('UserPromptSubmit', { session_id: 't', cwd: s.repo, prompt: '/no-deceit:grade' }, { ...env, ND_GRADER_MOCK_JSON: mock });
+    assert.equal(graded.decision, 'block');
+    assert.match(graded.reason, /Transfer teach-back for etl passed/);
+    assert.equal(readProjectState(s.repo, env).unlocked, true);
   } finally { s.cleanup(); }
 });

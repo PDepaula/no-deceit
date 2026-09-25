@@ -59,11 +59,11 @@ const RE_STATE_SEGMENT = /(^|\/)\.no-deceit(\/|$)/;
 // quote, or any boundary — so tamper is caught regardless of mutation shape.
 const RE_STATE_SEGMENT_CMD = /\.no-deceit(\/|$|\b)/;
 
-// The undotted home state/config dirs (~/.config/no-deceit, ~/.local/state/no-deceit,
+// The undotted home state/config/data dirs (~/.config/no-deceit, ~/.local/state/no-deceit, ~/.local/share/no-deceit,
 // or their XDG-var forms). Tilde, $HOME, and relative spellings all reduce to one of
 // these location-anchored segments, so match the segment rather than a resolved prefix
 // — and never a bare 'no-deceit' token, which is the repo's own name.
-const RE_HOME_STATE_CMD = /(?:\.config\/|\.local\/state\/|XDG_(?:CONFIG|STATE)_HOME\}?\/)no-deceit(\/|$|\b)/;
+const RE_HOME_STATE_CMD = /(?:\.config\/|\.local\/(?:state|share)\/|XDG_(?:CONFIG|STATE|DATA)_HOME\}?\/)no-deceit(\/|$|\b)/;
 
 /** Is `absPath` under one of the No Deceit state-path prefixes? */
 function underStatePath(absPath, prefixes) {
@@ -248,7 +248,7 @@ function invokesRenderer(cmd) {
 
 // --- Bash shape detection ------------------------------------------------
 
-const RE_MUTATING_ND = /(^|[\s;&|(])nd\s+(tier|mode|unlock|init|reset|set|check)\b/;
+const RE_MUTATING_ND = /(^|[\s;&|(])nd\s+(tier|mode|unlock|init|reset|set|check|grade|evidence)\b/;
 const RE_READONLY_ND = /(^|[\s;&|(])nd\s+(status|ledger|show|doctor|help|audit|report)\b/;
 
 // Unambiguous file-authoring shapes: specific syntax that always writes, so

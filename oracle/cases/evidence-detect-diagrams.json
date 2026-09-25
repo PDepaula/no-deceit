@@ -1,0 +1,14 @@
+{
+  "module": "evidence-detect-diagrams",
+  "js": {"file":"core/evidence.mjs","fn":"detectDiagrams"},
+  "bb": {"ns":"no-deceit.evidence","fn":"detect-diagrams"},
+  "cases": [
+    {"name":"plain prose has none","args":["just words about joins"],"expect":{"kinds":[],"invalid":[]}},
+    {"name":"mermaid fence","args":["my map\n```mermaid\nflowchart TD\n A-->B\n```"],"expect":{"kinds":["mermaid"],"invalid":[]}},
+    {"name":"excalidraw clipboard fence","args":["```json\n{\"type\":\"excalidraw/clipboard\",\"elements\":[]}\n```"],"expect":{"kinds":["excalidraw"],"invalid":[]}},
+    {"name":"excalidraw JSON pasted inline","args":["here: {\"type\":\"excalidraw\",\"elements\":[]}"],"expect":{"kinds":["excalidraw"],"invalid":[]}},
+    {"name":"bad excalidraw type is reported, not a diagram","args":["```json\n{\"type\":\"figma\",\"elements\":[]}\n```"],"expect":{"kinds":[],"invalid":["excalidraw JSON block: type is \"figma\", expected \"excalidraw\" or \"excalidraw/clipboard\""]}},
+    {"name":"nested markdown outline is a mind map","args":["- join placement\n  - load time\n  - query time"],"expect":{"kinds":["mindmap-text"],"invalid":[]}},
+    {"name":"flat list is not a mind map","args":["- one\n- two"],"expect":{"kinds":[],"invalid":[]}}
+  ]
+}

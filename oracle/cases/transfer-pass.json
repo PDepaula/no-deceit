@@ -1,0 +1,14 @@
+{
+  "module": "transfer-pass",
+  "js": {"file":"core/rubric.mjs","fn":"transferPass"},
+  "bb": {"ns":"no-deceit.rubric","fn":"transfer-pass"},
+  "cases": [
+    {"name":"P1 P2 P4 P3 passes","args":[{"P1":true,"P2":true,"P4":true,"P3":true}],"expect":true},
+    {"name":"P1 P2 P4 P5 passes","args":[{"P1":true,"P2":true,"P4":true,"P5":true}],"expect":true},
+    {"name":"no P3 or P5 fails","args":[{"P1":true,"P2":true,"P4":true}],"expect":false},
+    {"name":"no P4 (no judgment) fails","args":[{"P1":true,"P2":true,"P3":true,"P5":true}],"expect":false},
+    {"name":"no P2 (no project locus) fails","args":[{"P1":true,"P4":true,"P3":true}],"expect":false},
+    {"name":"no P1 fails","args":[{"P2":true,"P4":true,"P3":true}],"expect":false},
+    {"name":"empty fails","args":[{}],"expect":false}
+  ]
+}

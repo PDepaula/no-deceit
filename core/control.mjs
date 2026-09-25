@@ -18,15 +18,20 @@ const MODES = ['coach', 'pair', 'ask'];
 
 /**
  * Parse a control command out of a prompt. Pure.
- * Recognises only a line that STARTS with `/no-deceit:` (after trimming), so a
- * mid-sentence mention is not a command. Returns { name, arg } or null.
+ * Recognises only a prompt whose FIRST line STARTS with `/no-deceit:` (after
+ * trimming), so a mid-sentence mention is not a command. Returns
+ * { name, arg, body } or null; `body` is everything after line 1 (the
+ * teach-back for `/no-deceit:teach`), '' for a one-line command.
  */
 export function parseCommand(promptText) {
   if (typeof promptText !== 'string') return null;
-  const line = promptText.trim();
+  const text = promptText.replace(/^\s+/, '');
+  const nl = text.search(/\r?\n/);
+  const line = (nl < 0 ? text : text.slice(0, nl)).trim();
   const m = /^\/no-deceit:([a-z]+)\b(.*)$/.exec(line);
   if (!m) return null;
-  return { name: m[1], arg: m[2].trim() };
+  const body = nl < 0 ? '' : text.slice(nl).replace(/^\r?\n/, '').replace(/\s+$/, '');
+  return { name: m[1], arg: m[2].trim(), body };
 }
 
 export function setTier({ repoRoot, env, sessionId, tier, nowMs = Date.now() }) {

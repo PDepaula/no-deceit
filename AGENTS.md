@@ -25,11 +25,13 @@ Read it before changing enforcement semantics.
   `tripwire.mjs` (Phase 3 text-channel + bashEditDiff), `prefilter.mjs` /
   `rubric.mjs` / `grader-parse.mjs` / `grader-job.mjs` / `audit.mjs` (Phase 2
   engagement grader: pre-filter, mechanical verdict, blindness, gold scoring),
-  `report.mjs` (Phase 5 earned-time summary + per-domain Coach/Pair
+  `evidence.mjs` (redesign phase 2: teach args, diagram kind detection, evidence file
+  format; `TRANSFER_RUBRIC` / `finalizeTransferVerdict` live in `rubric.mjs`,
+  `prefilterTransfer` in `prefilter.mjs`), `report.mjs` (Phase 5 earned-time summary + per-domain Coach/Pair
   suggestions over ledger entries). Keep these pure so per-harness adapters
   import them unchanged.
 - `core/state.mjs`, `core/control.mjs`, `core/gate.mjs`, `core/grader.mjs`,
-  `core/git-evidence.mjs` — the imperative shell: XDG state I/O, ledger,
+  `core/git-evidence.mjs`, `core/evidence-io.mjs` — the imperative shell: XDG state I/O, ledger,
   tier/mode/unlock ops, fail-closed orchestrator (`evaluate` /
   `evaluateStop` / `evaluateDisplay` / `evaluatePostToolUse`), and the
   mockable grader spawn.
@@ -40,7 +42,7 @@ Read it before changing enforcement semantics.
   (`tool.execute.before` throws), Pi (`tool_call` `{block:true}`), Cursor
   (`nd --cursor` stdout object). Mapping lives in `adapters/map-tool.mjs`;
   do not fork policy. Verification records: `docs/verification/<harness>.md`.
-- `bin/nd` — the developer's shell CLI (`init|tier|mode|status|unlock|check|
+- `bin/nd` — the developer's shell CLI (`init|tier|mode|status|unlock|check|evidence|grade|
   audit|ledger|report|doctor`) plus Cursor's `nd --cursor` transport;
   auto-added to PATH by the Claude plugin. `nd report` is read-only.
 - `agents/nd-grader.md` — the blind grader agent; spawned only by the hook or
@@ -48,6 +50,11 @@ Read it before changing enforcement semantics.
   "Not logged in"); blindness is flag/cwd/env isolation in
   `core/grader-job.mjs`, and `nd doctor --grader-probe` checks the child can
   log in. Model is `graderModel` (default `haiku`).
+- `gold/transfer-gold.jsonl` — transfer gold set (source of truth; `nd audit`
+  runs both sets). Evidence lives in the data home (`dataPaths` in
+  `core/state.mjs`); writes and shell refs there are category G, reads are
+  not hook-enforced (the skill tells the tutor not to read). Diagram parsing is NOT in Node: the Babashka
+  parsers' contract is `PORTING.md` step 7, fixtures in `fixtures/evidence/`.
 - `gold/unlock-gold.mjs` — adversarial gold set; `nd audit` release gate is
   `graded_up = 0` before accepting a grader-prompt change.
 - `skills/no-deceit/SKILL.md` — the teaching layer.

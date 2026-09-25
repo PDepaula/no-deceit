@@ -1,0 +1,39 @@
+{
+  "kind": "excalidraw",
+  "nodes": [
+    {
+      "id": "r1",
+      "label": "orders table",
+      "shape": "rectangle",
+      "group": null,
+      "frame": null,
+      "emphasis": 1
+    },
+    {
+      "id": "r2",
+      "label": "reporting DB",
+      "shape": "rectangle",
+      "group": null,
+      "frame": null,
+      "emphasis": 2
+    }
+  ],
+  "edges": [
+    {
+      "from": "r1",
+      "to": "r2",
+      "label": null,
+      "directed": true,
+      "via": "binding"
+    }
+  ],
+  "groups": {},
+  "frames": {},
+  "loose_text": [
+    "should this be a view?"
+  ],
+  "clusters": 2,
+  "freedraw": 0,
+  "images": 0,
+  "emphasis_variance": 0.25
+}

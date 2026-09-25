@@ -49,6 +49,28 @@ which drives the real hook shim and CLI as subprocesses with piped payloads:
   - one appeal per verdict
   - `nd audit --oracle` → `graded_up: 0` / gate pass; `--inflate` → gate block
   - live LLM is not required (oracle/inflate/ND_GRADER_MOCK_JSON)
+- **Evidence capture and the transfer grader (redesign phase 2)**
+  (`core/evidence*.test.mjs`, `core/grade.test.mjs`, `core/transfer*.test.mjs`,
+  `hooks/nd-hook.test.mjs`, `bin/nd.test.mjs`):
+  - a multi-line `/no-deceit:teach <topic> --project <p>` piped to the hook
+    writes the evidence file under the data home, ledgers `evidence_captured`
+    (hash and path, never the text), and returns `decision: "block"` with no
+    injected context; an empty body captures nothing
+  - `/no-deceit:grade` runs the transfer grader (mocked via
+    `ND_GRADER_MOCK_JSON`), writes a verdict file, ledgers `transfer_grade`, and
+    unlocks Tier 2 for the project the evidence names (resolved through the
+    manifest's `path`); a missing project manifest is an error, not a silent pass
+  - writes and Bash references to the data dir, `nd evidence` and `nd grade`
+    classify as category G (reads of the data dir are not hook-enforced);
+    `nd evidence` / `nd grade` refuse inside an agent shell
+  - `finalizeTransferVerdict` is mechanical (no upgrade, torn and missing-span
+    round down); a missing diagram summary yields G1–G5 `unknown`, never a fail
+  - `gold/transfer-gold.jsonl` (27 items): prefilter outcomes, gold verdicts and
+    spans are checked; `nd audit --oracle` → `graded_up: 0`, `--inflate` → block
+  - **Not verified live:** a real Claude Code session's multi-line
+    `UserPromptSubmit` payload shape for `/no-deceit:teach`, and a live-model
+    transfer grade or gold audit (CI never calls a model). The hook shim is
+    driven with the documented payload; treat the first real use as the check.
 - **Phase 3 text channel** (`core/fence.test.mjs`, `core/narration.test.mjs`,
   `core/text-channel.test.mjs`, `core/tripwire.test.mjs`, `core/gate.test.mjs`,
   `hooks/nd-hook.test.mjs`):

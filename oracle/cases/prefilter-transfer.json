@@ -1,0 +1,19 @@
+{
+  "module": "prefilter-transfer",
+  "js": {"file":"core/prefilter.mjs","fn":"prefilterTransfer"},
+  "bb": {"ns":"no-deceit.prefilter","fn":"prefilter-transfer"},
+  "cases": [
+    {"name":"empty","args":["   "],"expect":{"ok":false,"reason":"empty"}},
+    {"name":"too short","args":["join at load time"],"expect":{"ok":false,"reason":"too_short"}},
+    {"name":"own words pass","args":["In my words: doing the join during the load means readers get finished rows and only pay once, at the price of staleness, which suits gd-integrations.",{"sourceTexts":["An ETL-time join materialises the combined rows ahead of any read, so the cost is paid once per load instead of once per read, but the result is only as fresh as the last load."]}],"expect":{"ok":true,"reason":null}},
+    {"name":"verbatim excerpt is source_paste","args":["An ETL-time join materialises the combined rows ahead of any read, so the cost is paid once per load instead of once per read, but the result is only as fresh as the last load.",{"sourceTexts":["## Mechanism\nAn ETL-time join materialises the combined rows ahead of any read, so the cost is paid once per load instead of once per read, but the result is only as fresh as the last load. More."]}],"expect":{"ok":false,"reason":"source_paste"}},
+    {"name":"bare URL is source_paste","args":["https://dataintensive.net/chapter-10 and https://kleppmann.com/x"],"expect":{"ok":false,"reason":"source_paste"}},
+    {"name":"URL plus real prose passes","args":["In my words: doing the join during the load means readers get finished rows and only pay once, at the price of staleness, which suits gd-integrations. Background: https://example.com/x",{"sourceTexts":["An ETL-time join materialises the combined rows ahead of any read, so the cost is paid once per load instead of once per read, but the result is only as fresh as the last load."]}],"expect":{"ok":true,"reason":null}},
+    {"name":"tiny diagram with a summary is too_few_nodes","args":["flowchart TD\n a --> b",{"diagramFile":true,"summary":{"diagrams":[{"nodes":[{"id":"a"},{"id":"b"}]}]}}],"expect":{"ok":false,"reason":"too_few_nodes"}},
+    {"name":"diagram without a summary is not rejected","args":["flowchart TD\n a --> b",{"diagramFile":true}],"expect":{"ok":true,"reason":null}},
+    {"name":"unparsed diagram entries count as no summary","args":["erDiagram\n A ||--o{ B : has",{"diagramFile":true,"summary":{"version":1,"diagrams":[{"kind":"mermaid","diagram_type":"erDiagram","parsed":false},{"kind":"mindmap-text","parsed":false}]}}],"expect":{"ok":true,"reason":null}},
+    {"name":"unparsed entry beside a tiny parsed one is too_few_nodes","args":["flowchart TD\n a --> b",{"diagramFile":true,"summary":{"version":1,"diagrams":[{"kind":"mermaid","diagram_type":"erDiagram","parsed":false},{"kind":"mermaid","nodes":[{"id":"a"},{"id":"b"}]}]}}],"expect":{"ok":false,"reason":"too_few_nodes"}},
+    {"name":"diagram with 3 nodes passes","args":["flowchart TD\n a --> b --> c",{"diagramFile":true,"summary":{"diagrams":[{"nodes":[{"id":"a"},{"id":"b"},{"id":"c"}]}]}}],"expect":{"ok":true,"reason":null}},
+    {"name":"short evidence with a fence is too_short","args":["x ```mermaid\nA-->B\n``` see map here for the join placement idea",{"summary":{"diagrams":[{"nodes":[{"id":"A"}]}]}}],"expect":{"ok":false,"reason":"too_short"}}
+  ]
+}
