@@ -73,7 +73,13 @@ export function parseGradeArgs(input) {
 export function parseCurriculumBuildArgs(input) {
   const tokens = tokenize(input);
   const out = { topic: null, goal: null, mission: null, from: [], projects: [], force: false, error: null };
-  const value = (t, name, i) => (t === `--${name}` ? [tokens[i + 1] ?? null, 1] : t.startsWith(`--${name}=`) ? [t.slice(name.length + 3), 0] : null);
+  const value = (t, name, i) => {
+    if (t.startsWith(`--${name}=`)) return [t.slice(name.length + 3), 0];
+    if (t !== `--${name}`) return null;
+    const next = tokens[i + 1];
+    if (next === undefined || next.startsWith('-')) { out.error ??= `--${name} needs a value`; return [null, 0]; }
+    return [next, 1];
+  };
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
     let v;
@@ -84,6 +90,7 @@ export function parseCurriculumBuildArgs(input) {
     else if ((v = value(t, 'projects', i))) { out.projects = String(v[0] ?? '').split(',').map((x) => x.trim()).filter(Boolean); i += v[1]; }
     else if (t.startsWith('-')) out.error ??= `unknown option ${t}; use --goal, --mission, --from, --projects or --force`;
     else if (out.topic === null) out.topic = t;
+    else out.error ??= `unexpected argument ${t} (quote a multi-word --goal or --mission)`;
   }
   return out;
 }

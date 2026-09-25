@@ -366,6 +366,15 @@ test('nd curriculum build runs the scout seam (mock), and refuses inside an agen
     const unknown = run([...args, '--model', 'opus'], { ...s.env, ND_SCOUT_MOCK_FILE: mock }, s.dir, true);
     assert.equal(unknown.code, 1);
     assert.match(unknown.out, /unknown option --model/);
+    const unquoted = run(['curriculum', 'build', 'etl-basics', '--goal', 'place', 'each', 'join', '--mission', 'own', '--from', join(CUR_FIX, 'open.md')], { ...s.env, ND_SCOUT_MOCK_FILE: mock }, s.dir, true);
+    assert.equal(unquoted.code, 1);
+    assert.match(unquoted.out, /unexpected argument each/);
+    const flagAsValue = run(['curriculum', 'build', 'etl-basics', '--goal', '--mission', 'own', '--from', join(CUR_FIX, 'open.md')], { ...s.env, ND_SCOUT_MOCK_FILE: mock }, s.dir, true);
+    assert.equal(flagAsValue.code, 1);
+    assert.match(flagAsValue.out, /--goal needs a value/);
+    const bareFrom = run([...args, '--from'], { ...s.env, ND_SCOUT_MOCK_FILE: mock }, s.dir, true);
+    assert.equal(bareFrom.code, 1);
+    assert.match(bareFrom.out, /--from needs a value/);
     assert.ok(!existsSync(join(s.dir, 'data', 'curricula', 'etl-basics', 'open.md')));
     const denied = run(args, { ...s.env, CLAUDECODE: '1', ND_SCOUT_MOCK_FILE: mock }, s.dir, true);
     assert.equal(denied.code, 1);
