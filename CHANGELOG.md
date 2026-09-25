@@ -9,8 +9,9 @@ One-line index; the what / why / what-you-should-notice is in
 `docs/releases/v0.8.0.md`.
 
 - **Added:** home layout (`projects/ data/ state/ config/`, `.nd-home`), `nd bootstrap`
-  (harness symlinks, marketplace double-fire check), `nd project add`, `nd update`
-  (ff-only + release notes), `core/home.mjs` + pure `core/update.mjs`.
+  (harness symlinks; stops with nothing changed on a double install or link
+  conflict), `nd project add`, `nd update` (ff-only + release notes),
+  `core/home.mjs` + pure `core/update.mjs`.
 - **Changed:** `adapters/` → `harness/`; `harness/claude-code/` skills-dir plugin;
   manifests repointed; `package.json` private (no `main`/`files`/`bin`); state and
   config resolve under `ND_HOME` when a home exists, XDG otherwise.
