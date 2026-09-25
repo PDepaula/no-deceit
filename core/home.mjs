@@ -268,4 +268,3 @@ export function update({ home }) {
   if (c.bbBump) say('bb.edn changed: check `bb --version` against :min-bb-version and update bb if needed.');
   return out;
 }
-
