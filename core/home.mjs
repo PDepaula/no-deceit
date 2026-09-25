@@ -8,14 +8,14 @@
 
 import {
   existsSync, mkdirSync, writeFileSync, readFileSync, symlinkSync, lstatSync, readlinkSync,
-  appendFileSync, copyFileSync, realpathSync,
+  copyFileSync, realpathSync, readdirSync,
 } from 'node:fs';
-import { join, resolve, dirname } from 'node:path';
+import { join, resolve, dirname, basename } from 'node:path';
 import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
-import { projectPaths, loadConfig, readProjectState, homePaths } from './state.mjs';
+import { projectPaths, loadConfig, readProjectState, homePaths, dataPaths } from './state.mjs';
 import {
-  PRIVATE_DIRS, renderManifestEntry, manifestHasProject, projectNameFrom, isRemoteSource,
+  PRIVATE_DIRS, addManifestEntry, manifestHasProject, projectNameFrom, isRemoteSource,
   marketplaceInstalls, mergeCursorHooks, pathHint, classifyChanges,
 } from './update.mjs';
 
@@ -55,30 +55,50 @@ export function ensureHome(home) {
 /**
  * `nd project add <git-url|path> [--name n] [--summary s] [--path]`.
  * A remote is cloned into projects/<name>; an existing local directory is
- * governed in place (never moved). Registers it in data/projects.edn (the
- * P2 manifest) and runs the equivalent of `nd init` inside it.
+ * governed in place (never moved). Registers it in the project manifest the
+ * grader reads (the first existing projects.{edn,json,md} in the data home,
+ * else projects.edn) and runs the equivalent of `nd init` inside it.
  */
 export function projectAdd({ home, env, source, name, summary = '' }) {
   if (!source) throw new Error('usage: nd project add <git-url|path> [--name n] [--summary "…"]');
-  const projName = name || projectNameFrom(source);
+  const remote = isRemoteSource(source);
+  let target = null;
+  if (!remote) {
+    const abs = resolve(source);
+    if (!existsSync(abs) || !lstatSync(abs).isDirectory()) throw new Error(`${source} is not a directory or a git URL`);
+    target = realpathSync(abs);
+  }
+  const projName = name || (remote ? projectNameFrom(source) : basename(target));
   if (!/^[A-Za-z0-9][\w.-]*$/.test(projName)) throw new Error(`invalid project name "${projName}" (use --name)`);
   ensureHome(home);
-  const manifest = join(home, 'data', 'projects.edn');
+  const dp = dataPaths({ ...env, ND_HOME: home });
+  const manifest = dp.projectsManifests.find((f) => existsSync(f)) || dp.projectsManifests[0];
   const current = existsSync(manifest) ? readFileSync(manifest, 'utf8') : '';
-  if (manifestHasProject(current, projName)) throw new Error(`project "${projName}" is already in ${manifest}`);
-  let target;
-  if (isRemoteSource(source)) {
+  if (manifestHasProject(current, manifest, projName)) throw new Error(`project "${projName}" is already in ${manifest}`);
+  if (remote) {
     target = join(home, 'projects', projName);
     if (existsSync(target)) throw new Error(`${target} already exists`);
-    git(home, ['clone', '--', source, target]);
-  } else {
-    target = resolve(source);
-    if (!existsSync(target) || !lstatSync(target).isDirectory()) throw new Error(`${source} is not a directory or a git URL`);
-    target = realpathSync(target);
   }
+  const next = addManifestEntry(current, manifest, { name: projName, path: target, summary });
+  if (remote) git(home, ['clone', '--', source, target]);
   const { state } = initProject(target, env);
-  appendFileSync(manifest, (current && !current.endsWith('\n') ? '\n' : '') + renderManifestEntry({ name: projName, path: target, summary }) + '\n');
-  return { name: projName, path: target, manifest, tier: state.tier, cloned: isRemoteSource(source) };
+  mkdirSync(dirname(manifest), { recursive: true });
+  writeFileSync(manifest, next);
+  return { name: projName, path: target, manifest, tier: state.tier, cloned: remote };
+}
+
+/** Copy every file under `from` that is absent under `to` (skipping a top-level `.git`). Returns the relative paths copied. */
+function copyMissing(from, to, dryRun, rel = '') {
+  const copied = [];
+  for (const ent of readdirSync(join(from, rel), { withFileTypes: true })) {
+    const r = rel ? `${rel}/${ent.name}` : ent.name;
+    if (!rel && ent.name === '.git') continue;
+    if (ent.isDirectory()) { copied.push(...copyMissing(from, to, dryRun, r)); continue; }
+    if (existsSync(join(to, r))) continue;
+    if (!dryRun) { mkdirSync(dirname(join(to, r)), { recursive: true }); copyFileSync(join(from, r), join(to, r)); }
+    copied.push(r);
+  }
+  return copied;
 }
 
 function linkAction(target, linkPath) {
@@ -111,32 +131,56 @@ export function bootstrap({ home, userHome = homedir(), env, only = [], dryRun =
     cursor: join(userHome, '.cursor'),
   };
 
+  // Claude preflight: a marketplace install or an older skills-dir entry would
+  // keep firing its own hooks against XDG state beside this home's. Stop before
+  // anything is written; re-running after the uninstall completes the bootstrap.
+  const links = [];
+  if (want('claude') && (only.includes('claude') || existsSync(dirs.claude))) {
+    const linkPath = join(dirs.claude, 'skills', 'no-deceit');
+    const target = join(home, 'harness', 'claude-code');
+    const blockers = [];
+    const found = marketplaceInstalls(readJson(join(dirs.claude, 'plugins', 'installed_plugins.json')), readJson(join(dirs.claude, 'settings.json')));
+    if (found.length) blockers.push(`No Deceit is already installed as a marketplace plugin (${found.join(', ')}). Uninstall it:  claude plugin uninstall no-deceit`);
+    const a = linkAction(target, linkPath);
+    if (a.kind === 'conflict') blockers.push(`${linkPath} ${a.note.split(';')[0]} (an older install). Move it aside:  mv ${linkPath} ${linkPath}.old`);
+    if (blockers.length) {
+      throw new Error(`bootstrap stopped, nothing changed. Both installs would fire the hooks on every call and keep separate state.\n  ${blockers.join('\n  ')}\nThen re-run \`nd bootstrap\`.`);
+    }
+    links.push(['claude', target, linkPath]);
+  }
+
   say(`No Deceit home: ${home}${dryRun ? ' (dry run — nothing written)' : ''}`);
   if (!dryRun) {
     const made = ensureHome(home);
     say(made.length ? `  layout: created ${made.join(', ')}` : '  layout: projects/ data/ state/ config/ present; data/ is its own git repo');
   }
 
-  // Ledger continuity: copy (never move) the pre-home XDG ledger once.
-  const xdgLedger = homePaths({ ...env, ND_HOME: '' }).ledger;
-  const homeLedger = join(home, 'state', 'ledger.jsonl');
-  if (existsSync(xdgLedger) && !existsSync(homeLedger)) {
-    if (!dryRun) copyFileSync(xdgLedger, homeLedger);
-    say(`  ledger: copied ${xdgLedger} → ${homeLedger} (the old file is left in place)`);
-  }
-
-  const links = [];
-  let cursorHooks = null;
-
-  if (want('claude') && (only.includes('claude') || existsSync(dirs.claude))) {
-    const found = marketplaceInstalls(readJson(join(dirs.claude, 'plugins', 'installed_plugins.json')), readJson(join(dirs.claude, 'settings.json')));
-    if (found.length) {
-      say(`  claude: SKIPPED — No Deceit is already installed as a marketplace plugin (${found.join(', ')}). Both would fire the hooks on every call.`);
-      say('          Uninstall it first, then re-run `nd bootstrap`:  claude plugin uninstall no-deceit');
-    } else {
-      links.push(['claude', join(home, 'harness', 'claude-code'), join(dirs.claude, 'skills', 'no-deceit')]);
+  // Continuity: copy (never move, never overwrite) the pre-home XDG ledger,
+  // config and data into the home, which they stop being read from once the
+  // marker is down.
+  const xdgEnv = { ...env, ND_HOME: '' };
+  const homeEnv = { ...env, ND_HOME: home };
+  for (const [label, from, to] of [
+    ['ledger', homePaths(xdgEnv).ledger, homePaths(homeEnv).ledger],
+    ['config', homePaths(xdgEnv).configFile, homePaths(homeEnv).configFile],
+  ]) {
+    if (from !== to && existsSync(from) && !existsSync(to)) {
+      if (!dryRun) { mkdirSync(dirname(to), { recursive: true }); copyFileSync(from, to); }
+      say(`  ${label}: copied ${from} → ${to} (the old file is left in place)`);
     }
   }
+  const fromData = dataPaths(xdgEnv).dataDir;
+  const toData = dataPaths(homeEnv).dataDir;
+  if (fromData !== toData && existsSync(fromData)) {
+    const copied = copyMissing(fromData, toData, dryRun);
+    if (copied.length) {
+      const tops = [...new Set(copied.map((f) => f.split('/')[0]))].sort();
+      say(`  data: copied ${copied.length} file(s) (${tops.join(', ')}) from ${fromData} → ${toData}; existing files kept, the old dir is left in place`);
+    }
+  }
+
+  let cursorHooks = null;
+
   if (want('opencode') && (only.includes('opencode') || existsSync(dirs.opencode))) {
     links.push(['opencode', join(home, 'harness', 'opencode', 'no-deceit.ts'), join(dirs.opencode, 'plugins', 'no-deceit.ts')]);
   }

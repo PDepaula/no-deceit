@@ -5,9 +5,11 @@
 
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { readFileSync, existsSync, lstatSync } from 'node:fs';
+import { readFileSync, existsSync, lstatSync, mkdtempSync, mkdirSync, symlinkSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
@@ -60,12 +62,27 @@ test('harness/claude-code is a skills-dir plugin: manifest, hooks forwarding to 
       assert.match(h.command, /\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/run\.mjs/);
     }
   }
-  assert.match(readFileSync(join(dir, 'hooks/run.mjs'), 'utf8'), /import '\.\.\/\.\.\/\.\.\/hooks\/nd-hook\.mjs'/);
-  assert.ok(existsSync(join(dir, '../../hooks/nd-hook.mjs')));
   for (const l of ['skills', 'agents']) {
     assert.ok(lstatSync(join(dir, l)).isSymbolicLink(), `${l} must be a symlink`);
     assert.ok(existsSync(join(dir, l)), `${l} symlink dangles`);
   }
+});
+
+test('harness/claude-code/hooks/run.mjs, reached through a skills-dir symlink, runs the real hook', () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'nd-pkg-'));
+  try {
+    const link = join(tmp, 'skills', 'no-deceit');
+    mkdirSync(dirname(link), { recursive: true });
+    symlinkSync(join(repoRoot, 'harness/claude-code'), link);
+    const repo = join(tmp, 'repo');
+    mkdirSync(join(repo, '.no-deceit'), { recursive: true });
+    const env = { ...process.env, HOME: tmp, ND_HOME: '', XDG_STATE_HOME: join(tmp, 'xs'), XDG_CONFIG_HOME: join(tmp, 'xc'), XDG_DATA_HOME: join(tmp, 'xd') };
+    for (const k of ['FM_TASK_ID', 'ND_EXEMPT', 'ND_WORKER', 'ND_HEADLESS', 'ND_DATA_DIR', 'ND_GRADER_CHILD']) delete env[k];
+    const out = execFileSync('node', [join(link, 'hooks/run.mjs'), 'SessionStart'], {
+      input: JSON.stringify({ session_id: 's', cwd: repo, source: 'startup' }), env, encoding: 'utf8',
+    });
+    assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /No Deceit is active/);
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
 test('.cursor-plugin/plugin.json parses, names the plugin, and points hooks at the Cursor-shaped hooks.json', () => {
@@ -77,9 +94,11 @@ test('.cursor-plugin/plugin.json parses, names the plugin, and points hooks at t
   assert.ok(Array.isArray(hooks.hooks.preToolUse));
 });
 
-test('the personal home dirs are gitignored', () => {
-  const ignore = readFileSync(join(repoRoot, '.gitignore'), 'utf8').split('\n');
-  for (const d of ['/projects/', '/data/', '/state/', '/config/']) assert.ok(ignore.includes(d), `${d} missing from .gitignore`);
+test('the personal home dirs and the .nd-home marker are gitignored', () => {
+  const paths = ['projects/x', 'data/x', 'state/x', 'config/x', '.nd-home'];
+  const ignored = execFileSync('git', ['check-ignore', '--no-index', ...paths, 'core/x', 'harness/x'], { cwd: repoRoot, encoding: 'utf8' })
+    .split('\n').filter(Boolean);
+  assert.deepEqual(ignored.sort(), [...paths].sort());
 });
 
 test('the npm 0.7.2 deprecation stub is self-contained and publishes nothing but a notice', () => {

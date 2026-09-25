@@ -12,8 +12,13 @@ export function renderManifestEntry({ name, path, summary = '' }) {
   return `{:name ${q(name)} :path ${q(path)} :summary ${q(summary)}}`;
 }
 
-/** True when the edn manifest text already names project `name`. */
-export function manifestHasProject(text, name) {
+/** True when manifest text (`projects.edn` maps or a `projects.json` array) already names project `name`. */
+export function manifestHasProject(text, fileName, name) {
+  if (/\.json$/.test(fileName)) {
+    let list;
+    try { list = JSON.parse(text); } catch { return false; }
+    return Array.isArray(list) && list.some((p) => p && p.name === name);
+  }
   for (const [map] of String(text ?? '').matchAll(/\{[^{}]*\}/g)) {
     const n = /:name\s+"([^"]*)"/.exec(map);
     if (n && n[1] === name) return true;
@@ -21,7 +26,28 @@ export function manifestHasProject(text, name) {
   return false;
 }
 
-/** A project name from a git URL or path: last segment, `.git` stripped. */
+/**
+ * The manifest text with one project added, in that manifest's own format.
+ * Only projects.edn and projects.json carry the path an unlock resolves; a
+ * projects.md is free text, so it is refused rather than half-registered.
+ */
+export function addManifestEntry(text, fileName, { name, path, summary = '' }) {
+  const cur = String(text ?? '');
+  if (/\.json$/.test(fileName)) {
+    let list = [];
+    if (cur.trim()) {
+      try { list = JSON.parse(cur); } catch { list = null; }
+      if (!Array.isArray(list)) throw new Error(`${fileName} is not a JSON array of {name, path, summary}; fix it, then re-run`);
+    }
+    return JSON.stringify([...list, { name, path, summary }], null, 2) + '\n';
+  }
+  if (/\.edn$/.test(fileName)) {
+    return cur + (cur && !cur.endsWith('\n') ? '\n' : '') + renderManifestEntry({ name, path, summary }) + '\n';
+  }
+  throw new Error(`${fileName} is free text, so the grader cannot resolve a project path from it; move its entries to projects.edn or projects.json, then re-run`);
+}
+
+/** A project name from a git URL: last segment, `.git` stripped. */
 export function projectNameFrom(source) {
   const seg = String(source ?? '').replace(/[/\\]+$/, '').split(/[/\\:]/).pop() || '';
   return seg.replace(/\.git$/, '');
