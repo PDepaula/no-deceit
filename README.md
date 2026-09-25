@@ -149,8 +149,10 @@ bin/nd bootstrap               # create the layout, link the harnesses
 `data/`), then links this checkout into each harness whose config dir exists
 (or only those you name: `--claude --opencode --pi --cursor`). It never
 overwrites a link or file it did not make, never edits your shell profile
-(it prints the `PATH` line for `bin/`), and copies an older XDG ledger into
-`state/` once, leaving the original.
+(it prints the `PATH` line for `bin/`), and copies an older XDG ledger,
+`config.json` and data tree (curricula, evidence, verdicts, project manifest)
+into the home once, leaving the originals and never overwriting a file the
+home already has.
 
 | Harness | What bootstrap does | Enforcement |
 | --- | --- | --- |
@@ -163,11 +165,12 @@ Restart any running harness session after bootstrapping: hooks and skills are
 read at launch.
 
 **Already installed the old way?** If No Deceit came from the Claude Code
-marketplace, bootstrap detects it and stops for Claude: both copies would fire
-the hooks on every call. Run `claude plugin uninstall no-deceit`, then
-`nd bootstrap` again. If `~/.claude/skills/no-deceit` is already a link or
-directory pointing somewhere else (an older clone), bootstrap reports a
-conflict and leaves it; remove it yourself if it should point at this home.
+marketplace, or `~/.claude/skills/no-deceit` is already a link or directory
+pointing somewhere else (an older clone), bootstrap stops with nothing changed:
+both copies would fire the hooks on every call and keep separate state. Run
+the step it prints (`claude plugin uninstall no-deceit`, or
+`mv ~/.claude/skills/no-deceit ~/.claude/skills/no-deceit.old`), then
+`nd bootstrap` again.
 An npm/OpenCode install (`opencode plugin no-deceit`) is deprecated: remove
 that entry from your OpenCode config and use `nd bootstrap --opencode`.
 
@@ -188,8 +191,9 @@ cd projects/app                                   # start your harness here, boo
 ```
 
 `nd project add` clones a remote into `projects/<name>` (a local directory is
-governed where it is), appends it to `data/projects.edn` (the manifest the
-grader checks P2 against), and opts it in (`nd init`, Tier 2). Projects keep
+governed where it is), adds it to the project manifest the grader checks P2
+against (the existing `projects.edn` or `projects.json` in the data home, which
+honors `ND_DATA_DIR`; else a new `data/projects.edn`), and opts it in (`nd init`, Tier 2). Projects keep
 their own remotes; No Deceit does not touch delivery.
 
 ```bash

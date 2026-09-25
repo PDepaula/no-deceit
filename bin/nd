@@ -95,7 +95,7 @@ switch (sub) {
                                   --since/--until: ISO date or relative 7d/24h/30m/1w)
   nd project add <git-url|path> [--name n] [--summary "…"]
                                   clone (or adopt a local dir) into the home's projects/, register it in
-                                  data/projects.edn, and opt it in (nd init)
+                                  the data home's project manifest, and opt it in (nd init)
   nd bootstrap [--dry-run] [--claude] [--opencode] [--pi] [--cursor]
                                   create the home layout and link this checkout into each harness
                                   (default: every harness whose config dir exists)

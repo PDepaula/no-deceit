@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { ensureHome, projectAdd, bootstrap, update, initProject } from './home.mjs';
-import { homePaths, dataPaths, detectHome, withDetectedHome } from './state.mjs';
+import { homePaths, dataPaths, detectHome, withDetectedHome, loadConfig } from './state.mjs';
+import { manifestProjectPath } from './evidence.mjs';
 
 const g = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const GIT_ID = ['-c', 'user.name=t', '-c', 'user.email=t@t'];
@@ -69,6 +70,47 @@ test('projectAdd adopts a local dir in place, registers it in projects.edn, opts
   } finally { s.cleanup(); }
 });
 
+test('projectAdd names a local "." source after the real directory', () => {
+  const s = scratch();
+  const cwd = process.cwd();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home);
+    const app = join(s.dir, 'my-app'); mkdirSync(app);
+    process.chdir(app);
+    assert.equal(projectAdd({ home, env: { ND_HOME: '' }, source: '.' }).name, 'my-app');
+  } finally { process.chdir(cwd); s.cleanup(); }
+});
+
+test('projectAdd registers in the manifest the grader reads: ND_DATA_DIR, and an existing projects.json', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home);
+    const data = join(s.dir, 'elsewhere');
+    const app = join(s.dir, 'app'); mkdirSync(app);
+    const env = { ND_HOME: '', ND_DATA_DIR: data };
+    const r = projectAdd({ home, env, source: app });
+    const dp = dataPaths({ ...env, ND_HOME: home });
+    assert.equal(r.manifest, dp.projectsManifests[0]);
+    assert.equal(manifestProjectPath(readFileSync(r.manifest, 'utf8'), r.manifest, 'app'), r.path);
+    assert.ok(!existsSync(join(home, 'data', 'projects.edn')));
+
+    const home2 = join(s.dir, 'home2'); mkdirSync(join(home2, 'data'), { recursive: true });
+    writeFileSync(join(home2, 'data', 'projects.json'), JSON.stringify([{ name: 'old', path: '/old' }]));
+    const r2 = projectAdd({ home: home2, env: { ND_HOME: '' }, source: app });
+    assert.equal(r2.manifest, join(home2, 'data', 'projects.json'));
+    assert.ok(!existsSync(join(home2, 'data', 'projects.edn')), 'a new projects.edn would shadow projects.json');
+    const text = readFileSync(r2.manifest, 'utf8');
+    assert.equal(manifestProjectPath(text, r2.manifest, 'old'), '/old');
+    assert.equal(manifestProjectPath(text, r2.manifest, 'app'), r2.path);
+    assert.throws(() => projectAdd({ home: home2, env: { ND_HOME: '' }, source: app }), /already in/);
+
+    const home3 = join(s.dir, 'home3'); mkdirSync(join(home3, 'data'), { recursive: true });
+    writeFileSync(join(home3, 'data', 'projects.md'), '- old: my old app\n');
+    assert.throws(() => projectAdd({ home: home3, env: { ND_HOME: '' }, source: app }), /free text/);
+    assert.equal(readFileSync(join(home3, 'data', 'projects.md'), 'utf8'), '- old: my old app\n');
+  } finally { s.cleanup(); }
+});
+
 test('projectAdd clones a remote into projects/<name>', () => {
   const s = scratch();
   try {
@@ -119,30 +161,43 @@ test('bootstrap links each detected harness, is idempotent, and writes nothing o
   } finally { s.cleanup(); }
 });
 
-test('bootstrap detects a marketplace install, tells the user to uninstall, and does not link Claude', () => {
+test('bootstrap stops on a marketplace install with the uninstall step, and changes nothing until it is gone', () => {
   const s = scratch();
   try {
     const home = join(s.dir, 'home'); mkdirSync(home);
     const userHome = fakeUser(s.dir);
-    writeFileSync(join(userHome, '.claude', 'plugins', 'installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'no-deceit@no-deceit': [{}] } }));
-    const out = bootstrap({ home, userHome, env: { ND_HOME: '', HOME: userHome } }).join('\n');
-    assert.match(out, /already installed as a marketplace plugin \(no-deceit@no-deceit\)/);
-    assert.match(out, /claude plugin uninstall no-deceit/);
+    const xs = join(s.dir, 'xs');
+    mkdirSync(join(xs, 'no-deceit'), { recursive: true });
+    writeFileSync(join(xs, 'no-deceit', 'ledger.jsonl'), '{"event":"x"}\n');
+    const env = { ND_HOME: '', HOME: userHome, XDG_STATE_HOME: xs };
+    const installed = join(userHome, '.claude', 'plugins', 'installed_plugins.json');
+    writeFileSync(installed, JSON.stringify({ version: 2, plugins: { 'no-deceit@no-deceit': [{}] } }));
+    assert.throws(() => bootstrap({ home, userHome, env }), /nothing changed[\s\S]*marketplace plugin \(no-deceit@no-deceit\)[\s\S]*claude plugin uninstall no-deceit/);
+    assert.throws(() => bootstrap({ home, userHome, env, dryRun: true }), /claude plugin uninstall no-deceit/);
+    assert.ok(!existsSync(join(home, '.nd-home')));
+    assert.ok(!existsSync(join(home, 'state')));
     assert.ok(!existsSync(join(userHome, '.claude', 'skills', 'no-deceit')));
+
+    writeFileSync(installed, JSON.stringify({ version: 2, plugins: {} }));
+    bootstrap({ home, userHome, env });
+    assert.ok(existsSync(join(home, '.nd-home')));
+    assert.equal(readlinkSync(join(userHome, '.claude', 'skills', 'no-deceit')), join(home, 'harness', 'claude-code'));
+    assert.equal(readFileSync(join(home, 'state', 'ledger.jsonl'), 'utf8'), '{"event":"x"}\n');
   } finally { s.cleanup(); }
 });
 
-test('bootstrap never replaces an existing skills-dir entry that points elsewhere', () => {
+test('bootstrap stops on an older skills-dir entry with the move-aside step, and never replaces it', () => {
   const s = scratch();
   try {
     const home = join(s.dir, 'home'); mkdirSync(home);
     const userHome = fakeUser(s.dir);
     const old = join(s.dir, 'old-clone'); mkdirSync(old);
+    const link = join(userHome, '.claude', 'skills', 'no-deceit');
     mkdirSync(join(userHome, '.claude', 'skills'), { recursive: true });
-    symlinkSync(old, join(userHome, '.claude', 'skills', 'no-deceit'));
-    const out = bootstrap({ home, userHome, env: { ND_HOME: '', HOME: userHome } }).join('\n');
-    assert.match(out, /CONFLICT .*no-deceit already a symlink to /);
-    assert.equal(readlinkSync(join(userHome, '.claude', 'skills', 'no-deceit')), old);
+    symlinkSync(old, link);
+    assert.throws(() => bootstrap({ home, userHome, env: { ND_HOME: '', HOME: userHome } }), new RegExp(`nothing changed[\\s\\S]*already a symlink to ${old}[\\s\\S]*mv ${link} ${link}\\.old`));
+    assert.equal(readlinkSync(link), old);
+    assert.ok(!existsSync(join(home, '.nd-home')));
   } finally { s.cleanup(); }
 });
 
@@ -161,6 +216,46 @@ test('bootstrap copies (not moves) a pre-home XDG ledger once', () => {
     writeFileSync(join(home, 'state', 'ledger.jsonl'), '{"event":"newer"}\n');
     bootstrap({ home, userHome, env });
     assert.equal(readFileSync(join(home, 'state', 'ledger.jsonl'), 'utf8'), '{"event":"newer"}\n');
+  } finally { s.cleanup(); }
+});
+
+test('bootstrap carries XDG config and data into the home: copies absent files, overwrites nothing, reports it', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home);
+    const userHome = fakeUser(s.dir, { claude: false });
+    const xc = join(s.dir, 'xc'); const xd = join(s.dir, 'xd');
+    const env = { ND_HOME: '', HOME: userHome, XDG_STATE_HOME: join(s.dir, 'xs'), XDG_CONFIG_HOME: xc, XDG_DATA_HOME: xd };
+    mkdirSync(join(xc, 'no-deceit'), { recursive: true });
+    writeFileSync(join(xc, 'no-deceit', 'config.json'), '{"graderModel":"sonnet"}');
+    const xdata = join(xd, 'no-deceit');
+    mkdirSync(join(xdata, 'curricula', 'etl'), { recursive: true });
+    writeFileSync(join(xdata, 'curricula', 'etl', 'curriculum.md'), '# etl');
+    mkdirSync(join(xdata, 'evidence', 'etl'), { recursive: true });
+    writeFileSync(join(xdata, 'evidence', 'etl', 'a-teach.md'), 'teach');
+    writeFileSync(join(xdata, 'projects.edn'), '{:name "app" :path "/app"}\n');
+    mkdirSync(join(xdata, '.git'));
+    writeFileSync(join(xdata, '.git', 'HEAD'), 'ref: refs/heads/other\n');
+    mkdirSync(join(home, 'data', 'evidence', 'etl'), { recursive: true });
+    writeFileSync(join(home, 'data', 'evidence', 'etl', 'a-teach.md'), 'mine');
+
+    const dry = bootstrap({ home, userHome, env, dryRun: true }).join('\n');
+    assert.match(dry, /config: copied/);
+    assert.ok(!existsSync(join(home, 'config', 'config.json')));
+
+    const out = bootstrap({ home, userHome, env }).join('\n');
+    assert.match(out, /config: copied .*config\.json/);
+    assert.match(out, /data: copied 2 file\(s\) \(curricula, projects\.edn\)/);
+    const homeEnv = { ...env, ND_HOME: home };
+    assert.equal(loadConfig(homeEnv).graderModel, 'sonnet');
+    assert.ok(existsSync(dataPaths(homeEnv).curriculumFile('etl')));
+    assert.equal(readFileSync(join(home, 'data', 'evidence', 'etl', 'a-teach.md'), 'utf8'), 'mine');
+    assert.notEqual(readFileSync(join(home, 'data', '.git', 'HEAD'), 'utf8'), 'ref: refs/heads/other\n');
+    assert.ok(existsSync(join(xdata, 'projects.edn')) && existsSync(join(xc, 'no-deceit', 'config.json')));
+
+    writeFileSync(join(home, 'config', 'config.json'), '{"graderModel":"opus"}');
+    assert.doesNotMatch(bootstrap({ home, userHome, env }).join('\n'), /config: copied|data: copied/);
+    assert.equal(loadConfig(homeEnv).graderModel, 'opus');
   } finally { s.cleanup(); }
 });
 

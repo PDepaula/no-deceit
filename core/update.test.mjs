@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import {
-  renderManifestEntry, manifestHasProject, projectNameFrom, isRemoteSource,
+  renderManifestEntry, manifestHasProject, addManifestEntry, projectNameFrom, isRemoteSource,
   marketplaceInstalls, mergeCursorHooks, classifyChanges, versionCompare,
 } from './update.mjs';
 import { manifestProjectPath } from './evidence.mjs';
@@ -10,8 +10,21 @@ test('renderManifestEntry round-trips through the grader manifest reader', () =>
   const line = renderManifestEntry({ name: 'bondly', path: '/x/bondly', summary: 'a "quoted"\nsummary' });
   assert.equal(line, `{:name "bondly" :path "/x/bondly" :summary "a 'quoted' summary"}`);
   assert.equal(manifestProjectPath(`${line}\n`, 'projects.edn', 'bondly'), '/x/bondly');
-  assert.ok(manifestHasProject(`${line}\n`, 'bondly'));
-  assert.ok(!manifestHasProject(`${line}\n`, 'other'));
+  assert.ok(manifestHasProject(`${line}\n`, 'projects.edn', 'bondly'));
+  assert.ok(!manifestHasProject(`${line}\n`, 'projects.edn', 'other'));
+});
+
+test('addManifestEntry writes the manifest in its own format, readable by the grader', () => {
+  const edn = addManifestEntry('{:name "a" :path "/a"}', '/d/projects.edn', { name: 'b', path: '/b' });
+  assert.equal(manifestProjectPath(edn, 'projects.edn', 'a'), '/a');
+  assert.equal(manifestProjectPath(edn, 'projects.edn', 'b'), '/b');
+  const json = addManifestEntry('[{"name":"a","path":"/a"}]', '/d/projects.json', { name: 'b', path: '/b', summary: 's' });
+  assert.equal(manifestProjectPath(json, 'projects.json', 'a'), '/a');
+  assert.equal(manifestProjectPath(json, 'projects.json', 'b'), '/b');
+  assert.ok(manifestHasProject(json, 'projects.json', 'b'));
+  assert.equal(manifestProjectPath(addManifestEntry('', '/d/projects.json', { name: 'c', path: '/c' }), 'projects.json', 'c'), '/c');
+  assert.throws(() => addManifestEntry('{"not":"a list"}', '/d/projects.json', { name: 'b', path: '/b' }), /not a JSON array/);
+  assert.throws(() => addManifestEntry('- a: my app\n', '/d/projects.md', { name: 'b', path: '/b' }), /free text/);
 });
 
 test('projectNameFrom / isRemoteSource', () => {
