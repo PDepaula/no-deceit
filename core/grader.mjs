@@ -852,7 +852,10 @@ export async function runGrade({
     const before = readProjectState(target.repo, env);
     const topics = before.unlockedTopics;
     writeProjectState(target.repo, { ...before, unlocked: true, unlockedTopics: topics.includes(useTopic) ? topics : [...topics, useTopic] });
-    return `${passed} Tier 2 is unlocked for ${claimed} (${target.repo}).`;
+    const other = before.topic && before.topic !== useTopic
+      ? ` Its active topic is ${before.topic}, which stays locked (switch with \`nd tier 2 --topic ${useTopic}\`).`
+      : '';
+    return `${passed} Tier 2 is unlocked for topic ${useTopic} in ${claimed} (${target.repo}).${other}`;
   }
   return `not_yet (${result.source}${result.prefilter_reason ? `: ${result.prefilter_reason}` : ''}). ` +
     `Next question: ${result.next_smaller_question}`;
