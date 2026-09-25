@@ -55,9 +55,10 @@ export function ensureHome(home) {
 /**
  * `nd project add <git-url|path> [--name n] [--summary s] [--path]`.
  * A remote is cloned into projects/<name>; an existing local directory is
- * governed in place (never moved), and must be its git repo's top level. Registers it in the project manifest the
- * grader reads (the first existing projects.{edn,json,md} in the data home,
- * else projects.edn) and runs the equivalent of `nd init` inside it.
+ * governed in place (never moved), and must be its git repo's top level (the
+ * repo root the hooks resolve). Registers it in the project manifest the grader
+ * reads (the first existing projects.{edn,json,md} in the data home, else
+ * projects.edn) and runs the equivalent of `nd init` inside it.
  */
 export function projectAdd({ home, userHome = homedir(), env, source, name, summary = '' }) {
   if (!source) throw new Error('usage: nd project add <git-url|path> [--name n] [--summary "…"]');
