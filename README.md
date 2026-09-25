@@ -4,7 +4,7 @@ A **plugin** that governs how much AI coding assistance you get, based on a
 manually chosen tier — forcing a conscious, honest choice between optimizing
 for **learning** and optimizing for **velocity**, instead of silently
 defaulting into either one. Claude Code is the reference harness; OpenCode,
-Pi, and Cursor get the same policy through thin adapters.
+Pi, and Cursor get the same policy through thin adapters under `harness/`.
 
 The difference from a plain skill: a skill can only *advise*, and the agent can
 read the advice and keep going. No Deceit ships as one plugin where **hooks
@@ -116,50 +116,130 @@ only from your own `/no-deceit:` prompt commands (handled inside the hook, from
 your literal text) or your own `nd` shell CLI. Every tier change, override, and
 denial is written to an append-only ledger.
 
-## Install
+## Install: a home repo, not a package
 
-Each harness gets No Deceit through its own native install channel — one
-plugin, four adapters, same policy core. All of them require Node (for the
-`.mjs` policy core; zero external dependencies).
+No Deceit is a **git checkout you keep and `git pull`** — the same shape as
+firstmate. The checkout is your *home*: shared code and docs are tracked;
+your personal material lives beside them in four gitignored directories.
 
-| Harness | Native install | Notes |
+```
+no-deceit/                  the home. `git clone` once, `nd update` forever
+├── core/ hooks/ bin/ harness/ skills/ agents/ gold/ docs/    tracked, shareable
+├── projects/               GITIGNORED  governed projects (flat clones, each with its own .no-deceit/)
+├── data/                   GITIGNORED  its own nested private git repo: curricula, refs, evidence,
+│                                       verdicts, projects.edn (the manifest the grader checks P2 against)
+├── state/                  GITIGNORED  ledger.jsonl, sessions, migrated-from-xdg (the one-shot XDG copy record)
+└── config/                 GITIGNORED  config.json (overrides of the defaults)
+```
+
+**Why the split.** Curricula and evidence are the most valuable files here and
+the only ones you write by hand, so `data/` is versioned (its own git repo;
+add a *private* remote with `git -C data remote add origin …` if you want a
+backup) but can never leak into the shareable tree. The ledger is the honesty
+record, so it stays out of anything shareable too.
+
+```bash
+git clone https://github.com/PDepaula/no-deceit
+cd no-deceit
+bin/nd bootstrap --dry-run     # show what it would do
+bin/nd bootstrap               # create the layout, link the harnesses
+```
+
+`nd bootstrap` creates `projects/ data/ state/ config/` (and `git init`s
+`data/`), then links this checkout into each harness whose config dir exists
+(or only those you name: `--claude --opencode --pi --cursor`). It never
+overwrites a link or file it did not make, never edits your shell profile
+(it prints the `PATH` line for `bin/`), and copies an older XDG ledger,
+`config.json` and data tree (curricula, evidence, verdicts, project manifest)
+into the home once, leaving the originals and never overwriting a file the
+home already has. The migration is recorded in `state/`, so a later
+`nd bootstrap` never brings back a file you deleted from the home.
+
+| Harness | What bootstrap does | Enforcement |
 | --- | --- | --- |
-| **Claude Code** | `claude plugin marketplace add PDepaula/no-deceit`<br>`claude plugin install no-deceit` | This repo is its own single-plugin marketplace (`.claude-plugin/`). Reference harness — full enforcement (hooks + `MessageDisplay` redaction). |
-| **Pi** | `pi install git:github.com/PDepaula/no-deceit@<tag>` | Package manifest (`package.json`'s `pi` key) registers the extension + skill; discoverable at [pi.dev/packages](https://pi.dev/packages) via the `pi-package` keyword once submitted (a captain step). See `docs/verification/pi.md`. |
-| **OpenCode** | `opencode plugin no-deceit` | Requires the package to be published to npm first (below) — a captain step. See `docs/verification/opencode.md`. |
-| **Cursor** | `cursor-agent plugin marketplace add github.com/PDepaula/no-deceit`, then `/plugins` → install `no-deceit` | Same repo-as-marketplace as Claude Code, via a Cursor-specific `.cursor-plugin/` manifest so the hook wiring (not just the metadata) actually enforces. See `docs/verification/cursor.md`. |
+| **Claude Code** | `~/.claude/skills/no-deceit` → `harness/claude-code` (a skills-dir plugin: hooks, skill and grader agent load with no marketplace and no install step; `git pull` updates it in place) | Full: hooks + `MessageDisplay` redaction |
+| **OpenCode** | `~/.config/opencode/plugins/no-deceit.ts` → `harness/opencode/no-deceit.ts` | `tool.execute.before` throws |
+| **Pi** | `~/.pi/agent/extensions/no-deceit.ts` → `harness/pi/no-deceit.ts` | `tool_call` returns `{block:true}` |
+| **Cursor** | merges a `preToolUse` entry into `~/.cursor/hooks.json` → `<home>/bin/nd --cursor` (absolute path; Cursor does not follow a plugin symlink) | `preToolUse` deny object |
 
-Fallback for any harness (no marketplace/registry involved, works today):
+Restart any running harness session after bootstrapping: hooks and skills are
+read at launch.
+
+**Already installed the old way?** If No Deceit came from the Claude Code
+marketplace, or `~/.claude/skills/no-deceit` is already a link or directory
+pointing somewhere else (an older clone), bootstrap stops with nothing changed,
+whichever harness flags you pass: both copies would fire the hooks on every
+call and keep separate state. Run the step it prints (`claude plugin uninstall
+no-deceit`, or `mv ~/.claude/skills/no-deceit ~/no-deceit.old`, out of the
+directory Claude Code scans), then `nd bootstrap` again. The same holds for
+any harness link bootstrap would create: if `~/.config/opencode/plugins/no-deceit.ts`
+or `~/.pi/agent/extensions/no-deceit.ts` already points elsewhere, or
+`~/.cursor/hooks.json` is not valid JSON, bootstrap stops and prints the step.
+
+Bootstrap does not look inside Pi's, OpenCode's or Cursor's own package
+stores, so remove a package install yourself **before** running `nd bootstrap`,
+or both copies load:
+
+- Pi (`pi install git:github.com/PDepaula/no-deceit@<tag>`): `pi list` shows the
+  exact source; remove it with `pi remove git:github.com/PDepaula/no-deceit@<tag>`
+  (add `-l` if you installed it project-local).
+- OpenCode (`opencode plugin no-deceit`, deprecated npm route): delete
+  `"no-deceit"` from the `plugin` array in `~/.config/opencode/opencode.json`
+  (or the project's `.opencode/opencode.json`), then use `nd bootstrap --opencode`.
+- Cursor (plugin marketplace): uninstall the No Deceit plugin in Cursor (Settings → Plugins → No Deceit →
+  Uninstall), then drop the marketplace with
+  `cursor-agent plugin marketplace remove github.com/PDepaula/no-deceit`,
+  then use `nd bootstrap --cursor`.
+
+**Marketplace, Pi and Cursor package routes still work** for people who just
+want the gate without a home: `claude plugin marketplace add PDepaula/no-deceit`,
+`pi install git:github.com/PDepaula/no-deceit@<tag>`, and Cursor's plugin
+marketplace (the root `.claude-plugin/`, `package.json` `pi` key and
+`.cursor-plugin/` manifests point into `harness/`). Those installs live in a
+harness cache, not a home: no `nd update`, no `data/` layout beyond the XDG
+fallback.
+
+### Governed projects and updating
 
 ```bash
-git clone https://github.com/PDepaula/no-deceit ~/.claude/skills/no-deceit
+nd project add https://github.com/you/app --summary "one-line domain summary"
+nd project add ~/code/existing-app --name app   # adopt a local dir in place (never moved)
+cd projects/app                                   # start your harness here, book open beside it
 ```
 
-then point the harness at the files inside that clone — see the per-harness
-section under "Other harnesses" below.
+`nd project add` clones a remote into `projects/<name>` (a local directory is
+governed where it is; a directory inside another git repo is refused: add that
+repo's top level instead, or `git init` the directory first when the enclosing
+repo is this home or `$HOME`), adds it to the project manifest the grader checks
+P2 against (the existing `projects.edn` or `projects.json` in the data home,
+which honors `ND_DATA_DIR`; else a new `data/projects.edn`), and opts it in
+(`nd init`, Tier 2). Projects keep their own remotes; No Deceit does not touch
+delivery.
 
-### Publish step (captain-run; not part of this repo's CI)
-
-OpenCode's native install needs an npm-published package first. The name
-`no-deceit` was free on npm as of 2026-09-18 (`npm view no-deceit` → 404).
-From a clean checkout, logged in as the account that will own the package:
+**Known issue:** Claude Code reads `CLAUDE.md` from every parent directory, so a
+session in `<home>/projects/<app>` also loads this home's own `CLAUDE.md` /
+`AGENTS.md` (No Deceit's developer memory, not instructions for your project).
+A fix is pending a design decision.
 
 ```bash
-npm login                 # once, interactively
-npm publish               # from the repo root; publishes what `npm pack` would produce
+nd update    # fetch, fast-forward only, print the release notes since your last update
 ```
 
-If the name is taken by the time you publish, use the scoped name
-`@pdepaula/no-deceit` instead (`npm publish --access public`) and update the
-OpenCode row above accordingly. Verify what will ship first with
-`npm pack --dry-run` (should list `core/`, `adapters/`, `bin/`, `skills/`,
-`agents/`, `gold/`, `hooks/`, `docs/config.example.json`, no `*.test.mjs`).
+`nd update` never merges, stashes, resets or forces, and never touches
+`projects/ data/ state/ config/`. It refuses if your checkout has diverged.
+After a successful update it prints the new `docs/releases/` entries in order,
+then `reread: yes|no` (`AGENTS.md`/`skills/`/`agents/`, a `hooks.json`, or
+`core/`/`harness/` changed: a running session read them at launch, restart the
+harness) and `rebootstrap: yes|no` (a harness
+entry file was added, removed or renamed: run `nd bootstrap` again). Each
+release note says what changed, why, and what you should notice.
 
-Put `bin/` on `PATH` if your install path did not already (needed for `nd`
-and for Cursor's `nd --cursor` hook). Then, in a project you want governed:
+### Everyday commands
+
+Put `bin/` on `PATH` (bootstrap prints the line). Then, in a governed project:
 
 ```bash
-nd init        # opt this project in (creates .no-deceit/)
+nd init        # opt a project in by hand (creates .no-deceit/)
 nd status      # show the current tier and mode (and any Coach/Pair suggestion)
 nd report      # weekly-style ledger summary (default last 7 days)
 nd tier 1      # or 2 / 3
@@ -207,53 +287,38 @@ state-minimization heuristics from the Clojure community). See
 
 ## Other harnesses
 
-The teaching `SKILL.md` is already portable (OpenCode, Cursor, and Pi all
-read Agent Skills; several of them from `~/.claude/skills/`). The *enforcing*
-half is the same pure core (`core/*.mjs`) behind a thin adapter per harness —
-not a rules-file wrapper, which would be advisory and reproduce the gap this
-plugin closes. No firstmate install is required.
-
-**OpenCode** — native: `opencode plugin no-deceit` once published to npm (see
-"Publish step" above). Manual fallback: point OpenCode at
-`adapters/opencode/no-deceit.ts` inside a clone (symlink into
-`~/.config/opencode/plugins/`, or list the path in `opencode.json`
-`plugin`). `tool.execute.before` imports the core and throws on deny. See
-`docs/verification/opencode.md`.
-
-**Pi** — native: `pi install git:github.com/PDepaula/no-deceit@<tag>` (the
-`pi` manifest in `package.json` registers the extension and skill). Manual
-fallback: symlink `adapters/pi/no-deceit.ts` to `~/.pi/agent/extensions/`
-(or `.pi/extensions/` in a trusted project). `tool_call` imports the core
-and returns `{block:true, reason}` on deny. See `docs/verification/pi.md`.
-
-**Cursor** — native: `cursor-agent plugin marketplace add
-github.com/PDepaula/no-deceit`, then install `no-deceit` from `/plugins`
-(this repo's `.cursor-plugin/plugin.json` points Cursor at the
-Cursor-shaped `adapters/cursor/hooks.json`, since Cursor's convention-based
-hook discovery would otherwise pick up Claude Code's differently-shaped
-`hooks/hooks.json`). Manual fallback: copy `adapters/cursor/hooks.json` to
-`~/.cursor/hooks.json` (or the project `.cursor/hooks.json`) and keep `nd`
-on `PATH`. `preToolUse` runs `nd --cursor`, which prints Cursor's decision
-object on stdout (exit 0). `failClosed` is on. See
-`docs/verification/cursor.md`.
+The teaching `SKILL.md` is portable (OpenCode, Cursor and Pi all read Agent
+Skills). The *enforcing* half is the same core (`core/*.mjs`) behind a thin
+adapter per harness under `harness/` — not a rules-file wrapper, which would be
+advisory and reproduce the gap this plugin closes. Each has a verification
+record in `docs/verification/<harness>.md`, and `harness/README.md` has the
+parity table.
 
 Parity gaps, stated plainly: there is no blocking turn-end hook on OpenCode
 or Cursor, so the Tier 3 narration / Tier 1 chat-fence check is not a hard
-block there (it would only be a follow-up). `MessageDisplay` redaction exists
-only in Claude Code. Cursor's `ask` is not enforced on `preToolUse`. The
-OpenCode adapter also has a known cwd-resolution gap for a governed project
-that is not itself a git repository — see `docs/verification/opencode.md`.
+block there. `MessageDisplay` redaction exists only in Claude Code. Cursor's
+`ask` is not enforced on `preToolUse`. The OpenCode adapter has a known
+cwd-resolution gap for a governed project that is not itself a git repository
+(issue #7). Diagram-file denial is a `PreToolUse` decision, so it is a hard
+block everywhere.
+
+## Project docs
+
+- `docs/releases/` — one file per tag: what changed, why, what you should notice.
+- `docs/decisions/` — the settled product calls (D1–D8, R1–R8) and where later
+  decisions reversed earlier ones.
+- `docs/verification/<harness>.md` — what was actually verified per harness.
+- `PORTING.md` — the incremental Babashka port (done by hand, as Clojure practice).
+- *Later:* a tracked `curricula-public/<topic>/` for curricula built only from
+  public material you want to share; not built yet. Everything under `data/`
+  stays private.
 
 ## Status
 
-Phase 6: native distribution on all four harnesses (this README's install
-matrix, the `pi`/`.cursor-plugin` manifests, and the npm packaging — publish
-itself is a captain step, see above). Phase 5 (the earned-time loop) is done:
-`nd report` reads the ledger the earlier phases write; Coach/Pair suggestions
-are evidence-based and still the developer's choice. firstmate `learn:`
-backlog-reserve tagging is out of scope (D8: exemption only). See `NOTES.md`
-for open threads and `CHANGELOG.md` for what's changed. The full design
-rationale lives in the scout report referenced from `AGENTS.md`.
+Home-repo layout, bootstrap and update have landed (still Node; the language
+port is incremental and invisible to users). The npm package is deprecated in
+favour of this git install. See `NOTES.md` for open threads, `CHANGELOG.md` for
+the index of changes, and `AGENTS.md` for the design authority.
 
 ## License
 

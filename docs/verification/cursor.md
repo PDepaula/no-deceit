@@ -13,6 +13,24 @@ re-prove settled primitives.
   `2026.08.11`). CI drives `nd --cursor` as a subprocess with piped JSON;
   this build additionally re-proved the live block end to end (below).
 
+## Home-repo install (v0.8.0)
+
+`.cursor-plugin/plugin.json` `hooks` now points at `./harness/cursor/hooks.json`
+(guarded by `harness/packaging.test.mjs`). `nd bootstrap --cursor` merges a
+`preToolUse` entry into `~/.cursor/hooks.json` with the **absolute** command
+`<home>/bin/nd --cursor` (Cursor does not follow a plugin symlink), replacing
+any earlier `nd --cursor` entry and keeping other hooks. `nd --cursor` remains
+the transport for one more release; it is a shim over `harness/cursor/run.mjs`.
+The merged file and the relocated manifest were not re-run against a live
+`cursor-agent`. An npm install is no longer offered.
+
+Coming from the plugin-marketplace route? Remove it **before**
+`nd bootstrap --cursor`, or the plugin's `nd --cursor` hook and the merged
+`<home>/bin/nd --cursor` entry both fire on every `preToolUse` (bootstrap does
+not inspect Cursor's plugin store): uninstall the No Deceit plugin in Cursor
+(Settings → Plugins → No Deceit → Uninstall), then drop the marketplace with
+`cursor-agent plugin marketplace remove github.com/PDepaula/no-deceit`.
+
 ## Live-verified (2026-09-18) and marketplace manifest (Phase 6)
 
 Reverse-engineered `cursor-agent`'s plugin-marketplace schema from its
@@ -38,11 +56,11 @@ either an inline object or, as used here, a path string.
   Claude-Code-shaped file (PascalCase `PreToolUse`/`Stop`/`MessageDisplay`
   event names, `{matcher, hooks:[{type,command}]}` items) — not the flat
   lowerCamelCase `{version, hooks:{preToolUse:[{command,failClosed,timeout}]}}`
-  shape Cursor's own hook runner expects (`adapters/cursor/hooks.json`).
+  shape Cursor's own hook runner expects (`harness/cursor/hooks.json`).
   Reusing the Claude manifest wholesale would silently ship a marketplace
   entry that indexes but does not enforce.
 - Fix: `.cursor-plugin/plugin.json` (new) sets `"hooks":
-  "./adapters/cursor/hooks.json"` explicitly, so Cursor's manifest-priority
+  "./harness/cursor/hooks.json"` explicitly, so Cursor's manifest-priority
   resolution picks the Cursor-shaped file over the Claude one, without
   touching `.claude-plugin/plugin.json` (Claude Code keeps its own
   `hooks/hooks.json` via the same convention, unaffected — `.cursor-plugin/`
@@ -72,18 +90,18 @@ either an inline object or, as used here, a path string.
 
 The adapter is verified by `node --test` with Cursor **not** required in CI:
 
-- **`adapters/cursor.test.mjs`** — `handleCursorPayload`:
+- **`harness/cursor.test.mjs`** — `handleCursorPayload`:
   - Tier 1 `Write` → `{permission:"deny", user_message, agent_message}` exit 0
   - `Read` → `{permission:"allow"}`
   - `Shell` source redirect → deny
   - `Task` → `{permission:"ask"}` (see gap below)
   - `FM_TASK_ID` → allow
   - thrown evaluator → fail-closed deny, still exit 0
-  - `adapters/cursor/hooks.json` parses as `preToolUse` → `nd --cursor` with
+  - `harness/cursor/hooks.json` parses as `preToolUse` → `nd --cursor` with
     `failClosed: true`
 - **`bin/nd.test.mjs`** — `node bin/nd --cursor` with stdin JSON prints the
   same deny/allow objects.
-- **`adapters/parity.test.mjs`** — Cursor `Write` / `path` yields the same
+- **`harness/parity.test.mjs`** — Cursor `Write` / `path` yields the same
   core decision as Claude-shaped `Write` / `file_path`.
 
 ## Known parity gaps (stated plainly)
@@ -103,38 +121,17 @@ The adapter is verified by `node --test` with Cursor **not** required in CI:
 
 A plugin-only Claude Code install should not be assumed to enforce inside
 Cursor (Cursor's Claude-compat map names settings files, not plugin
-`hooks/hooks.json`). Use `adapters/cursor/hooks.json`. If both a
+`hooks/hooks.json`). Use `harness/cursor/hooks.json`. If both a
 Claude-settings hook and this Cursor hook were registered, both would fire;
 `--cursor` marks this invocation as the Cursor registration.
 
 ## Install (attended session; no firstmate required)
 
-Via the plugin marketplace (this repo is the marketplace; `.cursor-plugin/`
-gives Cursor its own correctly-shaped hook wiring, see above):
-
-```bash
-cursor-agent plugin marketplace add github.com/PDepaula/no-deceit
-# then, interactively: /plugins → install no-deceit
-cd <a project> && nd init
-```
-
-`nd` must still be on `PATH` for the hook command to resolve (a marketplace
-install does not put a `bin/` on `PATH` by itself): put
-`~/.claude/skills/no-deceit/bin` (or wherever `nd` was installed from, e.g.
-the Claude plugin) on `PATH`, or install `no-deceit` from npm and use its
-`bin`.
-
-Fallback (manual, no marketplace involved) — `nd` must be on `PATH` (Claude
-plugin install puts it there; otherwise
-`export PATH="$HOME/.claude/skills/no-deceit/bin:$PATH"`):
-
-```bash
-git clone https://github.com/PDepaula/no-deceit ~/.claude/skills/no-deceit
-# User-level (or copy into a project's .cursor/hooks.json):
-mkdir -p ~/.cursor
-cp ~/.claude/skills/no-deceit/adapters/cursor/hooks.json ~/.cursor/hooks.json
-cd <a project> && nd init
-```
+The README's "Install: a home repo, not a package" section owns the install
+steps (`nd bootstrap --cursor`, or the Cursor plugin marketplace route). For
+the marketplace route `nd` must still be on `PATH` for the hook command to
+resolve (a marketplace install does not put a `bin/` on `PATH` by itself): put
+a checkout's `bin/` on `PATH`.
 
 Cursor reads `SKILL.md` natively (including from `~/.claude/skills/`), so the
 teaching layer needs no wrapper. `failClosed: true` is set so a crash or

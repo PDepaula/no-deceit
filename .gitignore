@@ -1,1 +1,8 @@
 node_modules/
+
+# Personal home dirs (see docs/decisions/ R7): data/ is its own nested private git repo.
+/projects/
+/data/
+/state/
+/config/
+/.nd-home

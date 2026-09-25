@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { classify } from './classify.mjs';
 import { decide } from './policy.mjs';
+import { buildClassifyCfg, DEFAULTS } from './state.mjs';
 
 // A representative config, mirroring the real defaults the hook builds.
 const cfg = {
@@ -168,6 +169,7 @@ test('Bash mutating nd subcommand (tier) is category G', () => {
 });
 test('Bash mutating nd subcommand (unlock) is category G', () => {
   assert.equal(classify('Bash', { command: 'nd unlock --override "because"' }, cfg), 'G');
+  for (const c of ['nd project add /x', 'nd bootstrap', 'nd update']) assert.equal(classify('Bash', { command: c }, cfg), 'G', c);
 });
 test('Bash mutating nd check (blind grader) is category G — tutor must not spawn it', () => {
   assert.equal(classify('Bash', { command: 'nd check parser' }, cfg), 'G');
@@ -223,6 +225,26 @@ for (const command of [
     assert.equal(decide(T3, { category: cat }).decision, 'deny');
   });
 }
+// A home's state/ config/ data/ and its .nd-home marker, by absolute, tilde and $HOME spellings.
+const homeCfg = buildClassifyCfg(DEFAULTS, '/home/u/src/nd/projects/app', { HOME: '/home/u', ND_HOME: '/home/u/src/nd' });
+for (const command of [
+  `printf '{"handoverPending":true}' > ~/src/nd/state/sessions/s.json`,
+  'echo x > $HOME/src/nd/config/config.json',
+  'echo x > ${HOME}/src/nd/data/verdicts/t/v.json',
+  'rm ~/src/nd/.nd-home',
+]) {
+  test(`Bash referencing a home-rooted state path is G and denied at Tier 3: ${command}`, () => {
+    const cat = classify('Bash', { command }, homeCfg);
+    assert.equal(cat, 'G');
+    assert.equal(decide(T3, { category: cat }).decision, 'deny');
+  });
+}
+test('a home-rooted config is not tamper when the command names ordinary repo files', () => {
+  assert.equal(classify('Bash', { command: 'cat src/state/machine.mjs' }, homeCfg), 'A');
+  assert.equal(classify('Bash', { command: 'echo x > src/config/app.json' }, homeCfg), 'E');
+  assert.notEqual(classify('Bash', { command: 'cd packages/web && npx tsc -p ../../config/tsconfig.base.json' }, homeCfg), 'G');
+  assert.notEqual(classify('Bash', { command: 'cat ../../data/seed.sql' }, homeCfg), 'G');
+});
 // The repo is itself named no-deceit; a bare reference must NOT be tamper.
 test('bare repo-name reference is not tamper', () => {
   assert.equal(classify('Bash', { command: 'cat no-deceit/README.md' }, cfg), 'A');

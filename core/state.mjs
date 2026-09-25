@@ -2,15 +2,16 @@
 //
 // Owns every path, every disk read/write, and the append-only ledger. State
 // lives on disk, outside the conversation, so it survives compaction,
-// --resume, restarts, and harness switches. XDG paths are used (not the
-// Claude-only plugin data dir) so the OpenCode/Cursor/Pi adapters share
-// one state and one ledger.
+// --resume, restarts, and harness switches. Home (`ND_HOME`) or XDG paths are
+// used (not the Claude-only plugin data dir) so the OpenCode/Cursor/Pi
+// adapters share one state and one ledger.
 //
 // Zero external dependencies: Node core config format is JSON (a TOML parser
 // would be a dependency, which D6 forbids).
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 
@@ -53,10 +54,42 @@ function xdg(env, varName, fallbackSub) {
   return base;
 }
 
-/** Home-scoped (XDG) paths: config file, state dir, ledger, sessions dir. */
+/**
+ * A checkout is a No Deceit *home* once `nd bootstrap` has dropped the
+ * `.nd-home` marker in it (the gitignored projects/ data/ state/ config/ dirs
+ * live beside it). Returns the home root for a checkout root, else null.
+ */
+export function detectHome(checkoutRoot) {
+  return existsSync(join(checkoutRoot, '.nd-home')) ? checkoutRoot : null;
+}
+
+/**
+ * Env with `ND_HOME` defaulted from the checkout the shim runs from. An
+ * explicit `ND_HOME` (even the empty string, which turns the home off and
+ * falls back to XDG) always wins.
+ */
+export function withDetectedHome(env, checkoutRoot) {
+  if (env.ND_HOME !== undefined) return env;
+  const home = detectHome(checkoutRoot);
+  return home ? { ...env, ND_HOME: home } : env;
+}
+
+/** The checkout this code runs from (core/..): the candidate home for `defaultEnv`. */
+export const CHECKOUT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** `process.env` plus the home auto-detected from the running checkout. Shims use this; tests pass their own env. */
+export function defaultEnv() {
+  return withDetectedHome(process.env, CHECKOUT_ROOT);
+}
+
+/**
+ * Home-scoped paths: config file, state dir, ledger, sessions dir. With a home
+ * (`ND_HOME`) they are `<home>/config` and `<home>/state`; otherwise the XDG
+ * fallback (~/.config/no-deceit, ~/.local/state/no-deceit).
+ */
 export function homePaths(env = process.env) {
-  const stateDir = join(xdg(env, 'XDG_STATE_HOME', ['.local', 'state']), 'no-deceit');
-  const configDir = join(xdg(env, 'XDG_CONFIG_HOME', ['.config']), 'no-deceit');
+  const stateDir = env.ND_HOME ? join(env.ND_HOME, 'state') : join(xdg(env, 'XDG_STATE_HOME', ['.local', 'state']), 'no-deceit');
+  const configDir = env.ND_HOME ? join(env.ND_HOME, 'config') : join(xdg(env, 'XDG_CONFIG_HOME', ['.config']), 'no-deceit');
   return {
     stateDir,
     configDir,
@@ -218,15 +251,33 @@ export function readAllLedger(env) {
   }
 }
 
-/** Build the config object the classifier needs, with absolute state-path prefixes. */
+/**
+ * The spellings of a state path a command is likely to use: the absolute
+ * path and its `~/`, `$HOME/` and `${HOME}/` forms when it sits under HOME.
+ * A relative spelling of a home's state/ config/ data/ is not matched: those
+ * names are ordinary in any repo (an accepted gap, docs/verification).
+ */
+function statePathSpellings(abs, userHome) {
+  const out = [abs];
+  if (userHome && abs.startsWith(userHome.replace(/\/+$/, '') + '/')) {
+    const rest = abs.slice(userHome.replace(/\/+$/, '').length);
+    out.push(`~${rest}`, `$HOME${rest}`, `\${HOME}${rest}`);
+  }
+  return out;
+}
+
+/** Build the config object the classifier needs, with the state-path prefixes in every spelling. */
 export function buildClassifyCfg(config, repoRoot, env = process.env) {
   const home = homePaths(env);
   const proj = projectPaths(repoRoot);
+  // The data home holds evidence and verdicts: writes and Bash references to it
+  // are tamper territory like the state dirs. Reads are not hook-enforced; the
+  // tutor is instructed not to read evidence files (§3.5). The `.nd-home`
+  // marker decides where state and config live, so it is state too.
+  const abs = [proj.dir, home.stateDir, home.configDir, dataPaths(env).dataDir];
+  if (env.ND_HOME) abs.push(join(env.ND_HOME, '.nd-home'));
   return {
-    // The data home holds evidence and verdicts: writes and Bash references to it
-    // are tamper territory like the state dirs. Reads are not hook-enforced; the
-    // tutor is instructed not to read evidence files (§3.5).
-    statePathPrefixes: [proj.dir, home.stateDir, home.configDir, dataPaths(env).dataDir],
+    statePathPrefixes: abs.flatMap((p) => statePathSpellings(p, env.HOME || homedir())),
     testGlobs: config.testGlobs,
     toolingGlobs: config.toolingGlobs,
     ndBin: 'nd',

@@ -11,9 +11,19 @@ re-prove settled primitives.
   0.80.5). Tool-call errors also block (fail-safe). CI mocks the extension
   I/O; this build additionally re-proved the live primitive once (below).
 
+## Home-repo install (v0.8.0)
+
+The Pi manifest now points at `./harness/pi/no-deceit.ts` (`package.json` is
+private; no `main`/`files`), and `nd bootstrap --pi` symlinks
+`~/.pi/agent/extensions/no-deceit.ts` to it — the same symlink shape as the
+retired manual fallback (a clone plus a symlink); the live run below used `pi -e`. `harness/packaging.test.mjs`
+checks the manifest paths resolve. The relocated path and the bootstrap-made
+symlink were not re-run against a live Pi.
+
+
 ## Live-verified (2026-09-18)
 
-Ran a real, non-interactive Pi session (`pi -e adapters/pi/no-deceit.ts -p
+Ran a real, non-interactive Pi session (`pi -e harness/pi/no-deceit.ts -p
 "..."`, model `ollama/qwen3.8:27b`) against an `nd init`-governed Tier 1
 project, with a temporary logging shim around `createPiExtension` to record
 the exact `tool_call` event and the gate's decision. Told the model to call
@@ -36,14 +46,14 @@ not just in the mocked unit tests below.
 
 The adapter is verified by `node --test` with Pi **not** required:
 
-- **`adapters/pi.test.mjs`** — `createPiExtension` against a fake `pi.on`:
+- **`harness/pi.test.mjs`** — `createPiExtension` against a fake `pi.on`:
   - `write` of source at Tier 1 returns `{block:true, reason}` matching Tier 1
   - `read` returns `{}`
   - `bash` source mutation at Tier 1 is blocked
   - `FM_TASK_ID` is a pass-through (`{}`)
-- **`adapters/parity.test.mjs`** — Pi `write` / `path` yields the same core
+- **`harness/parity.test.mjs`** — Pi `write` / `path` yields the same core
   decision as Claude-shaped `Write` / `file_path`.
-- **`adapters/map-tool.test.mjs`**, **`adapters/apply.test.mjs`** — Pi names
+- **`harness/map-tool.test.mjs`**, **`harness/apply.test.mjs`** — Pi names
   map onto the classifier, and deny/ask become `{block:true, reason}`.
 
 ## Known parity gaps (stated plainly)
@@ -65,40 +75,25 @@ to `package.json` ... Include the `pi-package` keyword for discoverability"):
 
 ```json
 "keywords": ["...", "pi-package"],
-"pi": { "extensions": ["./adapters/pi/no-deceit.ts"], "skills": ["./skills"] }
+"pi": { "extensions": ["./harness/pi/no-deceit.ts"], "skills": ["./skills"] }
 ```
 
-The extension is listed explicitly (it lives at `adapters/pi/no-deceit.ts`,
+The extension is listed explicitly (it lives at `harness/pi/no-deceit.ts`,
 not the `extensions/` convention dir Pi would auto-discover). Verified with
 `pi -e git:github.com/PDepaula/no-deceit` (or `pi -e .` from a local clone)
 loading both the extension and the `no-deceit` skill without error — see the
-live-verified run above, which used exactly that `-e` path. `adapters/packaging.test.mjs`
+live-verified run above, which used exactly that `-e` path. `harness/packaging.test.mjs`
 asserts the manifest paths actually resolve, so a future rename fails CI
 instead of silently breaking `pi install`.
 
 ## Install (attended session; no firstmate required)
 
-```bash
-pi install git:github.com/PDepaula/no-deceit@<tag>
-cd <a project> && nd init
-```
-
-This registers the package (extension + skill) in Pi's settings — see
+The README's "Install: a home repo, not a package" section owns the install
+steps (`nd bootstrap --pi`, or the package route
+`pi install git:github.com/PDepaula/no-deceit@<tag>`). See
 [Pi Packages](https://pi.dev/docs) for `-l` (project-local) vs. user-level
-install and how to pin a ref. It also makes the plugin discoverable in the
-[package gallery](https://pi.dev/packages) via the `pi-package` keyword,
-once published there (a captain step — this task does not submit it).
-
-Fallback (manual symlink, no package manifest involved): keep a full clone
-so relative imports resolve, then symlink the extension in — do not copy the
-`.ts` file out of the clone, `../run.mjs` must resolve next to it:
-
-```bash
-git clone https://github.com/PDepaula/no-deceit ~/.claude/skills/no-deceit
-ln -s ~/.claude/skills/no-deceit/adapters/pi/no-deceit.ts ~/.pi/agent/extensions/no-deceit.ts
-# or project-local: .pi/extensions/no-deceit.ts → same target (after project trust)
-cd <a project> && nd init
-```
+install and how to pin a ref. Gallery discoverability via the `pi-package`
+keyword needs a gallery submission (a captain step).
 
 Pi reads Agent Skills natively, so the teaching layer needs no wrapper
 either way.

@@ -11,22 +11,23 @@
 // CURSOR_AGENT, or PI_CODING_AGENT set). The grader is spawned from this CLI
 // or the hook, never by the tutor.
 
-import { gitToplevel, dataPaths, homePaths, projectPaths, isGoverned, readLedger, readAllLedger, loadConfig, readProjectState } from '../core/state.mjs';
+import { defaultEnv, gitToplevel, dataPaths, homePaths, projectPaths, isGoverned, readLedger, readAllLedger, loadConfig, readProjectState } from '../core/state.mjs';
 import { setTier, setMode, renderStatus, renderStatusShort } from '../core/control.mjs';
 import { parseReportArgs, summarizeLedger, formatReport } from '../core/report.mjs';
 import { parseUnlockArgs, parseCheckArgs, parseGradeArgs, parseEvidenceArgs } from '../core/unlock-args.mjs';
 import { runUnlock, runCheck, runGrade, runAudit, probeGraderAuth } from '../core/grader.mjs';
+import { initProject, projectAdd, bootstrap, update } from '../core/home.mjs';
+import { CHECKOUT_ROOT } from '../core/state.mjs';
 import { addEvidenceFile } from '../core/evidence-io.mjs';
 import { ITEMS } from '../gold/unlock-gold.mjs';
 import { ITEMS as TRANSFER_ITEMS } from '../gold/transfer-gold.mjs';
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 
-const env = process.env;
+const env = defaultEnv();
 const cwd = process.cwd();
 const repoRoot = gitToplevel(cwd);
 const sessionId = env.ND_SESSION || env.CLAUDE_SESSION_ID || null;
 
-const MUTATING = new Set(['init', 'tier', 'mode', 'unlock', 'check', 'grade', 'evidence']);
+const MUTATING = new Set(['init', 'tier', 'mode', 'unlock', 'check', 'grade', 'evidence', 'project', 'bootstrap', 'update']);
 const AGENT_SHELL_MARKERS = ['CLAUDECODE', 'CURSOR_AGENT', 'PI_CODING_AGENT'];
 
 function die(msg, code = 1) { process.stderr.write(msg + '\n'); process.exit(code); }
@@ -46,23 +47,22 @@ function guardAgentShell(sub) {
   }
 }
 
-if (process.argv.slice(2).includes('--cursor')) {
-  const { runCursorHook } = await import('../adapters/cursor/run.mjs');
+// Cursor's hook runs `nd --cursor`; only a leading `--cursor` is the transport
+// (`nd bootstrap --cursor` is bootstrap's harness flag).
+if (process.argv[2] === '--cursor') {
+  const { runCursorHook } = await import('../harness/cursor/run.mjs');
   await runCursorHook({ stdin: process.stdin, stdout: process.stdout, env, cwd: repoRoot });
   process.exit(0);
 }
 
 function cmdInit() {
-  const p = projectPaths(repoRoot);
-  mkdirSync(p.dir, { recursive: true });
-  mkdirSync(p.attemptsDir, { recursive: true });
-  mkdirSync(p.verdictsDir, { recursive: true });
-  mkdirSync(p.checksDir, { recursive: true });
-  mkdirSync(p.t3Dir, { recursive: true });
-  if (!existsSync(p.stateFile)) writeFileSync(p.stateFile, JSON.stringify({ tier: loadConfig(env).tier === 1 ? 1 : 2, mode: 'ask', unlocked: false }, null, 2) + '\n');
-  if (!existsSync(p.gitignore)) writeFileSync(p.gitignore, '# Local No Deceit state — not shared.\nstate.json\nverdicts/\n');
-  const st = readProjectState(repoRoot, env);
+  const { paths: p, state: st } = initProject(repoRoot, env);
   say(`No Deceit initialised in ${p.dir}. This project is now governed (Tier ${st.tier}, mode ${st.mode}).`);
+}
+
+function flagValue(args, flag) {
+  const i = args.indexOf(flag);
+  return i >= 0 ? args[i + 1] : undefined;
 }
 
 const [sub, ...rest] = process.argv.slice(2);
@@ -95,15 +95,53 @@ switch (sub) {
   nd report [--since <when>] [--until <when>]
                                   weekly-style ledger summary (default window: 7 days;
                                   --since/--until: ISO date or relative 7d/24h/30m/1w)
+  nd project add <git-url|path> [--name n] [--summary "…"]
+                                  clone (or adopt a local dir) into the home's projects/, register it in
+                                  the data home's project manifest, and opt it in (nd init)
+  nd bootstrap [--dry-run] [--claude] [--opencode] [--pi] [--cursor]
+                                  create the home layout and link this checkout into each harness
+                                  (default: every harness whose config dir exists)
+  nd update                       fetch and fast-forward this checkout; print the release notes between
+                                  the old and new HEAD (never touches projects/ data/ state/ config/)
   nd doctor [--grader-probe]      report paths (incl. the data home) and run the armed self-check;
                                   --grader-probe also runs a minimal grader login check
-  nd --cursor                     Cursor preToolUse transport (stdin JSON → stdout decision)`);
+  nd --cursor                     Cursor preToolUse transport (stdin JSON → stdout decision);
+                                  kept as a shim while the transport moves under harness/cursor/`);
     break;
 
   case 'init':
     guardAgentShell('init');
     cmdInit();
     break;
+
+  case 'project': {
+    guardAgentShell('project');
+    if (rest[0] !== 'add') die('usage: nd project add <git-url|path> [--name n] [--summary "…"]');
+    const home = env.ND_HOME || null;
+    if (!home) die('No Deceit: this checkout is not a home yet. Run `nd bootstrap` first.');
+    const args = rest.slice(1);
+    const source = args.find((a, i) => !a.startsWith('--') && !['--name', '--summary'].includes(args[i - 1]));
+    try {
+      const r = projectAdd({ home, env, source, name: flagValue(args, '--name'), summary: flagValue(args, '--summary') });
+      say(`${r.cloned ? 'Cloned' : 'Adopted'} ${r.name} at ${r.path}; registered in ${r.manifest}; governed at Tier ${r.tier}. Start your harness inside it.`);
+    } catch (e) { die(`No Deceit: ${e.message}`); }
+    break;
+  }
+
+  case 'bootstrap': {
+    guardAgentShell('bootstrap');
+    const only = ['claude', 'opencode', 'pi', 'cursor'].filter((h) => rest.includes(`--${h}`));
+    try { for (const l of bootstrap({ home: CHECKOUT_ROOT, env, only, dryRun: rest.includes('--dry-run') })) say(l); }
+    catch (e) { die(`No Deceit: ${e.message}`); }
+    break;
+  }
+
+  case 'update': {
+    guardAgentShell('update');
+    try { for (const l of update({ home: CHECKOUT_ROOT })) say(l); }
+    catch (e) { die(`No Deceit: ${e.message}`); }
+    break;
+  }
 
   case 'tier': {
     guardAgentShell('tier');
@@ -230,6 +268,7 @@ switch (sub) {
     say(`  governed:    ${isGoverned(repoRoot) ? 'yes' : 'no (run \`nd init\`)'}`);
     say(`  project dir: ${proj.dir}`);
     say(`  ledger:      ${home.ledger}`);
+    say(`  home:        ${env.ND_HOME || `(none — XDG fallback; run \`nd bootstrap\` in a checkout)`}`);
     say(`  data home:   ${dataPaths(env).dataDir} (evidence/, verdicts/, curricula/, projects.{edn,json,md})`);
     say(`  config:      ${home.configFile}`);
     say(`  grader model:${cfg.graderModel} (override via config.json graderModel)`);

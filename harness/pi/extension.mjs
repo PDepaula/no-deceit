@@ -2,6 +2,7 @@
 // this with an env seam so they do not need Pi installed.
 
 import { FAIL_CLOSED_REASON } from '../../core/gate.mjs';
+import { defaultEnv } from '../../core/state.mjs';
 import { evaluateHarnessCall } from '../run.mjs';
 import { applyPi } from '../apply.mjs';
 
@@ -17,7 +18,7 @@ export function createPiExtension(deps = {}) {
           toolName: event && event.toolName,
           toolInput: (event && event.input) || {},
           cwd: (ctx && ctx.cwd) || deps.cwd || process.cwd(),
-          env: env || process.env,
+          env: env || defaultEnv(),
           sessionId: (ctx && (ctx.sessionId || ctx.sessionID)) || undefined,
         });
         return apply(result);

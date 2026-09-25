@@ -1,7 +1,7 @@
 {
   "name": "no-deceit",
-  "version": "0.7.1",
-  "description": "Tier-enforcing AI coding-assistance gate — the hook is the law, the skill is the teacher. Claude Code, OpenCode, Pi, Cursor.",
+  "version": "0.8.0",
+  "description": "No Deceit home repo \u2014 a principle-transfer learning framework with a tier-enforcing gate. Installed by git clone, not npm (this manifest exists for Pi's package loader).",
   "type": "module",
   "license": "MIT",
   "author": "Patrick De Paula",
@@ -20,36 +20,22 @@
     "gate",
     "pi-package"
   ],
-  "bin": {
-    "nd": "bin/nd"
-  },
-  "main": "adapters/opencode/no-deceit.ts",
-  "files": [
-    "core",
-    "adapters",
-    "bin",
-    "skills",
-    "agents",
-    "gold",
-    "hooks",
-    "docs/config.example.json",
-    "!**/*.test.mjs"
-  ],
   "pi": {
     "extensions": [
-      "./adapters/pi/no-deceit.ts"
+      "./harness/pi/no-deceit.ts"
     ],
     "skills": [
       "./skills"
     ]
   },
   "scripts": {
-    "test": "node --test 'core/*.test.mjs' 'hooks/*.test.mjs' 'bin/*.test.mjs' 'adapters/*.test.mjs'"
+    "test": "node --test 'core/*.test.mjs' 'hooks/*.test.mjs' 'bin/*.test.mjs' 'harness/*.test.mjs'"
   },
   "engines": {
     "node": ">=18"
   },
   "devDependencies": {
     "yaml": "^2.9.1"
-  }
+  },
+  "private": true
 }
