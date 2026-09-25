@@ -337,6 +337,9 @@ test('nd tier 1 --topic refuses without a curriculum (exit 1, two ways named) an
     const eq = run(['tier', '1', '--topic=etl-basics'], s.env, s.dir, true);
     assert.equal(eq.code, 1);
     assert.match(eq.out, /unknown option --topic=etl-basics/);
+    const bare = run(['tier', '1', '--topic'], s.env, s.dir, true);
+    assert.equal(bare.code, 1);
+    assert.match(bare.out, /--topic needs a value/);
     assert.equal(readProjectState(s.dir, s.env).tier, 2);
     const d = join(s.dir, 'data', 'curricula', 'etl-basics');
     mkdirSync(d, { recursive: true });

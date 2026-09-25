@@ -23,29 +23,34 @@ export const DEFAULT_MIN_CHARS = 300;
 /**
  * Parse the arguments of `nd tier` / `/no-deceit:tier`: `<tier> [<topic>]`,
  * `--topic <t>`, `--no-topic`. Pure. `tier` is returned as the
- * raw token (setTier validates it); an unknown option or a bad topic produces
- * `error` here.
+ * raw token (setTier validates it); an unknown option, a missing `--topic`
+ * value, an extra argument or a bad topic produces `error` here.
  */
 export function parseTierArgs(input) {
   const tokens = Array.isArray(input) ? input.filter((t) => t !== '') : String(input ?? '').trim().split(/\s+/).filter(Boolean);
   let tier = null;
   let topic = null;
   let clearTopic = false;
-  let unknown = null;
+  let problem = null;
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
-    if (t === '--topic') topic = tokens[++i] ?? null;
-    else if (t === '--no-topic') clearTopic = true;
-    else if (t.startsWith('-')) unknown ??= t;
+    if (t === '--topic') {
+      const v = tokens[i + 1];
+      if (v === undefined || v.startsWith('-')) problem ??= '--topic needs a value';
+      else if (topic === null) { topic = v; i++; }
+      else { problem ??= `unexpected argument ${v}`; i++; }
+    } else if (t === '--no-topic') clearTopic = true;
+    else if (t.startsWith('-')) problem ??= `unknown option ${t}; use --topic <t> or --no-topic`;
     else if (tier === null) tier = t;
     else if (topic === null) topic = t;
+    else problem ??= `unexpected argument ${t}`;
   }
-  let error = null;
-  if (unknown !== null) error = `unknown option ${unknown}; use --topic <t> or --no-topic`;
-  else if (topic !== null && clearTopic) error = 'pass either a topic or --no-topic, not both';
-  else if (topic !== null && !isSlug(topic)) error = `topic "${topic}" must be a slug (lowercase letters, digits, . _ -)`;
-  else if (tier === '3' && (topic !== null || clearTopic)) error = 'a topic applies to Tier 1 or Tier 2, not to a Tier 3 grant';
-  return { tier, topic, clearTopic, error };
+  if (problem === null) {
+    if (topic !== null && clearTopic) problem = 'pass either a topic or --no-topic, not both';
+    else if (topic !== null && !isSlug(topic)) problem = `topic "${topic}" must be a slug (lowercase letters, digits, . _ -)`;
+    else if (tier === '3' && (topic !== null || clearTopic)) problem = 'a topic applies to Tier 1 or Tier 2, not to a Tier 3 grant';
+  }
+  return { tier, topic, clearTopic, error: problem };
 }
 
 /** The refusal `nd tier 1 --topic <t>` gives, naming both ways to get a curriculum. */

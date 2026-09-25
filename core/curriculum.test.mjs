@@ -23,6 +23,11 @@ test('parseTierArgs: positional topic, --topic, --no-topic, and errors', () => {
   assert.match(parseTierArgs('1 etl --no-topic').error, /not both/);
   assert.equal(parseTierArgs('1 --topic=etl').error, 'unknown option --topic=etl; use --topic <t> or --no-topic');
   assert.equal(parseTierArgs('1 -x').error, 'unknown option -x; use --topic <t> or --no-topic');
+  assert.equal(parseTierArgs('1 --topic').error, '--topic needs a value');
+  assert.equal(parseTierArgs('1 --topic --no-topic').error, '--topic needs a value');
+  assert.equal(parseTierArgs('1 etl extra').error, 'unexpected argument extra');
+  assert.equal(parseTierArgs('1 --topic etl other').error, 'unexpected argument other');
+  assert.equal(parseTierArgs('1 etl --topic other').error, 'unexpected argument other');
 });
 
 test('curriculumReady: both files, non-trivial, mission and a concept', () => {
