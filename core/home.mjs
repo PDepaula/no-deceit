@@ -11,7 +11,7 @@ import {
   existsSync, mkdirSync, writeFileSync, readFileSync, symlinkSync, lstatSync, readlinkSync,
   copyFileSync, realpathSync, readdirSync,
 } from 'node:fs';
-import { join, resolve, dirname, basename } from 'node:path';
+import { join, resolve, dirname, basename, sep } from 'node:path';
 import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { projectPaths, loadConfig, readProjectState, homePaths, dataPaths, gitToplevel, projectsDir } from './state.mjs';
@@ -58,12 +58,16 @@ export function ensureHome(home) {
  * A remote is cloned into the projects directory (`core/state.mjs`
  * `projectsDir`, outside the home by default); an existing local directory is
  * governed in place (never moved), and must be its git repo's top level (the
- * repo root the hooks resolve). Registers it in the project manifest the grader
- * reads (the first existing projects.{edn,json,md} in the data home, else
- * projects.edn) and runs the equivalent of `nd init` inside it.
+ * repo root the hooks resolve). A local directory inside the home is still
+ * governed, with a `warnings` entry naming the inherited developer memory and
+ * the move into the projects directory. Registers it in the project manifest
+ * the grader reads (the first existing projects.{edn,json,md} in the data
+ * home, else projects.edn) and runs the equivalent of `nd init` inside it.
  */
 export function projectAdd({ home, userHome = homedir(), env, source, name, summary = '' }) {
   if (!source) throw new Error('usage: nd project add <git-url|path> [--name n] [--summary "…"]');
+  const projDir = projectsDir({ ...env, ND_HOME: home });
+  const homeReal = realOrResolved(home);
   const remote = isRemoteSource(source);
   let target = null;
   if (!remote) {
@@ -72,16 +76,17 @@ export function projectAdd({ home, userHome = homedir(), env, source, name, summ
     target = realpathSync(abs);
     const top = realpathSync(gitToplevel(target));
     if (top !== target) {
-      const personal = [home, userHome].some((d) => { try { return realpathSync(d) === top; } catch { return false; } });
-      throw new Error(`${source} is inside the git repo ${top}, so sessions there would resolve to that repo; ` + (personal
-        ? `make it its own project first (or move it out): git init ${target} && nd project add ${target}`
-        : `govern that whole repository instead: nd project add ${top}`));
+      const moved = join(projDir, basename(target));
+      throw new Error(`${source} is inside the git repo ${top}, so sessions there would resolve to that repo; ` + (top === homeReal
+        ? `that repo is this home, whose own developer AGENTS.md every session inside it would also load. Move it out into the projects directory, then make it its own project: ${moveInto(target, projDir)} && git init ${sh(moved)} && nd project add ${sh(moved)}`
+        : top === realOrResolved(userHome)
+          ? `make it its own project first (or move it out): git init ${sh(target)} && nd project add ${sh(target)}`
+          : `govern that whole repository instead: nd project add ${sh(top)}`));
     }
   }
   const projName = name || (remote ? projectNameFrom(source) : basename(target));
   if (!/^[A-Za-z0-9][\w.-]*$/.test(projName)) throw new Error(`invalid project name "${projName}" (use --name)`);
   ensureHome(home);
-  const projDir = projectsDir({ ...env, ND_HOME: home });
   const dp = dataPaths({ ...env, ND_HOME: home });
   const manifest = dp.projectsManifests.find((f) => existsSync(f)) || dp.projectsManifests[0];
   const current = existsSync(manifest) ? readFileSync(manifest, 'utf8') : '';
@@ -95,8 +100,19 @@ export function projectAdd({ home, userHome = homedir(), env, source, name, summ
   const { state } = initProject(target, env);
   mkdirSync(dirname(manifest), { recursive: true });
   writeFileSync(manifest, next);
-  return { name: projName, path: target, manifest, tier: state.tier, cloned: remote };
+  const warnings = target.startsWith(homeReal + sep) ? [
+    `WARNING: ${target} is inside this home. Claude Code reads CLAUDE.md/AGENTS.md from every ancestor`,
+    `  directory, so every session there also loads this home's own developer AGENTS.md (how to modify the`,
+    `  plugin, test commands, grader internals), not just the project's. To fix it:`,
+    `    ${moveInto(target, projDir)}`,
+    `    then update its "path" in ${manifest} from ${target} to ${join(projDir, basename(target))}`,
+  ] : [];
+  return { name: projName, path: target, manifest, tier: state.tier, cloned: remote, warnings };
 }
+
+const sh = (p) => `"${p}"`;
+const moveInto = (dir, destParent) => `mkdir -p ${sh(destParent)} && mv ${sh(dir)} ${sh(destParent)}/`;
+const realOrResolved = (d) => { try { return realpathSync(d); } catch { return resolve(d); } };
 
 /** Copy every file under `from` that is absent under `to` (skipping a top-level `.git`). Returns the relative paths copied. */
 function copyMissing(from, to, dryRun, rel = '') {
@@ -142,14 +158,19 @@ function legacyProjectsWarning(home, env) {
   let names;
   try { names = readdirSync(legacy).filter((n) => !n.startsWith('.')); } catch { return []; }
   if (!names.length) return [];
-  const dest = projectsDir({ ...env, ND_HOME: home });
-  const manifest = dataPaths({ ...env, ND_HOME: home }).projectsManifests.find((f) => existsSync(f));
-  return [
+  const head = [
     `  WARNING: ${names.length} project(s) still under ${legacy} (${names.join(', ')}). Claude Code reads CLAUDE.md/AGENTS.md`,
     `    from every ancestor directory, so every session in ${legacy}/<app> also loads this home's own`,
     `    developer AGENTS.md (how to modify the plugin, test commands, grader internals) instead of just`,
+  ];
+  let dest;
+  try { dest = projectsDir({ ...env, ND_HOME: home }); }
+  catch (e) { return [...head, `    the project's. This is not moved automatically, and no move is suggested: ${e.message}`]; }
+  const manifest = dataPaths({ ...env, ND_HOME: home }).projectsManifests.find((f) => existsSync(f));
+  return [
+    ...head,
     `    the project's. This is not moved automatically. To fix it:`,
-    `      mkdir -p ${dest} && mv ${legacy}/* ${dest}/ && rmdir ${legacy}`,
+    `      mkdir -p ${sh(dest)} && mv ${sh(legacy)}/* ${sh(dest)}/ && rmdir ${sh(legacy)}`,
     manifest
       ? `      then update each "path" in ${manifest} from ${legacy}/<name> to ${dest}/<name>`
       : `      then update each project's registered path from ${legacy}/<name> to ${dest}/<name>`,

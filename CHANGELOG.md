@@ -34,7 +34,10 @@ One-line index; the what / why / what-you-should-notice is in
   dirs (`core/update.mjs` `PRIVATE_DIRS`). Existing installs with projects
   still under `<home>/projects` are not moved automatically: `nd bootstrap`
   and `nd update` detect them and print a warning naming the consequence and
-  the exact move steps.
+  the exact move steps (`nd update` still fast-forwards when the projects
+  directory is misconfigured). `nd project add` of a local directory inside
+  the home still governs it but warns the same way and prints the move into
+  the projects directory.
 - **Fixed:** the blind unlock grader is no longer spawned with
   `claude -p --bare`. `--bare` never reads OAuth credentials, so on a machine
   whose only login is a Claude subscription the child printed "Not logged

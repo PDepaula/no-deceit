@@ -142,6 +142,7 @@ switch (sub) {
     try {
       const r = projectAdd({ home, env, source, name: flagValue(args, '--name'), summary: flagValue(args, '--summary') });
       say(`${r.cloned ? 'Cloned' : 'Adopted'} ${r.name} at ${r.path}; registered in ${r.manifest}; governed at Tier ${r.tier}. Start your harness inside it.`);
+      for (const l of r.warnings) say(l);
     } catch (e) { die(`No Deceit: ${e.message}`); }
     break;
   }

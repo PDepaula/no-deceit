@@ -234,8 +234,9 @@ cd ../no-deceit-projects/app                      # start your harness here, boo
 
 `nd project add` clones a remote into the projects directory (a local directory
 is governed where it is; a directory inside another git repo is refused: add
-that repo's top level instead, or `git init` the directory first when the
-enclosing repo is this home or `$HOME`), adds it to the project manifest the
+that repo's top level instead, `git init` the directory first when the
+enclosing repo is `$HOME`, or move it out into the projects directory first
+when the enclosing repo is this home), adds it to the project manifest the
 grader checks P2 against (the existing `projects.edn` or `projects.json` in
 the data home, which honors `ND_DATA_DIR`; else a new `data/projects.edn`),
 and opts it in (`nd init`, Tier 2). Projects keep their own remotes; No Deceit
@@ -247,7 +248,9 @@ own developer memory (how to modify the plugin, test commands, grader
 internals) from inside a governed project. The default is a sibling of the
 home, `<home>-projects` (e.g. `~/no-deceit-projects` next to `~/no-deceit`);
 override it with the `ND_PROJECTS_DIR` environment variable. A directory
-that resolves inside the home is refused, with the reason. `nd bootstrap` creates
+that resolves inside the home is refused, with the reason. A local project
+you adopt from inside the home is still governed, but `nd project add` warns
+and prints the move into the projects directory. `nd bootstrap` creates
 the resolved directory (reporting it) and `nd doctor`/`nd project add` always
 re-resolve it, so a change takes effect on the next run.
 
@@ -256,7 +259,7 @@ under `<home>/projects`, `nd bootstrap` and `nd update` detect it and print a
 warning naming the inheritance consequence above and the exact steps — nothing
 is moved automatically:
 ```bash
-mkdir -p <home>-projects && mv <home>/projects/* <home>-projects/ && rmdir <home>/projects
+mkdir -p "<home>-projects" && mv "<home>/projects"/* "<home>-projects"/ && rmdir "<home>/projects"
 # then update each project's registered "path" in projects.edn/projects.json
 # from <home>/projects/<name> to <home>-projects/<name>
 ```
