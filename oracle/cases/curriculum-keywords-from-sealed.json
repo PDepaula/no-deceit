@@ -1,0 +1,10 @@
+{
+  "module": "curriculum-keywords-from-sealed",
+  "js": {"file":"core/curriculum.mjs","fn":"keywordsFromSealed"},
+  "bb": {"ns":"no-deceit.curriculum","fn":"keywords-from-sealed"},
+  "cases": [
+    {"name":"union, case-insensitive dedupe, sorted, hints reported","args":["---\ntopic: t\n---\n## Concepts\n### C1. One\n**Claim.** c\n**Keywords.** stream; Batch; replay\n\n### C2. Two\n**Claim.** d\n**Keywords.** batch; join\n**Hint keywords.** query time (no neutral term)\n"],"expect":{"keywords":["Batch","join","query time","replay","stream"],"hints":[{"concept":"C2","term":"query time","why":"no neutral term"}]}},
+    {"name":"no concepts","args":["nothing"],"expect":{"keywords":[],"hints":[]}},
+    {"name":"first spelling wins","args":["### C1. A\n**Keywords.** Zeta; alpha\n### C2. B\n**Keywords.** ZETA\n"],"expect":{"keywords":["alpha","Zeta"],"hints":[]}}
+  ]
+}

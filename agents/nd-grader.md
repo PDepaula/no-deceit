@@ -106,7 +106,10 @@ Files: `evidencePath` (the learner's work; a teach-back has a frontmatter
 header naming a `project` the learner claims, which is not proof), `projectsPath`
 (the manifest of the learner's real projects: **P2 is checked against this
 list**; a project not in it, or "my app", is not met), `curriculumPath` (optional:
-what "the principle" is for this topic), `summaryPath` (optional: a parsed
+what "the principle" is for this topic; usually the curriculum's sealed part,
+which is yours to read and never to echo; the learner's map or explanation is
+judged against P1–P5 only and never has to match the sealed concept map or its
+grouping), `summaryPath` (optional: a parsed
 summary of any diagram in the evidence).
 
 | Id | Criterion |

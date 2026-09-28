@@ -30,6 +30,11 @@ are `no-deceit.<name>` as in Layout.
 8. The imperative shell (`state`, `control`, `gate`, `grader`, `git-evidence`)
    comes last — that is where the hook flips from node to bb.
 
+Oracle cases for the curriculum functions (`curriculum-*.json`: `parseTierArgs`,
+`curriculumReady`, `checkKeywordList`, `keywordsFromSealed`, twin `no-deceit.curriculum`)
+and the topic-scoped `resolveEffective` (`policy-resolve-topic.json`, twin
+`no-deceit.policy`) are already in `oracle/cases/`; they fit after step 2.
+
 Steps 1–3 are small enough to give a first green `bb test` in an afternoon;
 step 4 is the meatiest table.
 

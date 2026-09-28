@@ -1,0 +1,23 @@
+{
+  "module": "curriculum-parse-tier-args",
+  "js": {"file":"core/curriculum.mjs","fn":"parseTierArgs"},
+  "bb": {"ns":"no-deceit.curriculum","fn":"parse-tier-args"},
+  "cases": [
+    {"name":"tier only","args":["2"],"expect":{"tier":"2","topic":null,"clearTopic":false,"error":null}},
+    {"name":"tier 1 with positional topic","args":["1 etl-basics"],"expect":{"tier":"1","topic":"etl-basics","clearTopic":false,"error":null}},
+    {"name":"--topic form","args":["1 --topic etl-basics"],"expect":{"tier":"1","topic":"etl-basics","clearTopic":false,"error":null}},
+    {"name":"--no-topic","args":["2 --no-topic"],"expect":{"tier":"2","topic":null,"clearTopic":true,"error":null}},
+    {"name":"topic before flag order","args":["--topic etl 1"],"expect":{"tier":"1","topic":"etl","clearTopic":false,"error":null}},
+    {"name":"empty input","args":[""],"expect":{"tier":null,"topic":null,"clearTopic":false,"error":null}},
+    {"name":"path traversal topic","args":["1 ../etc"],"expect":{"tier":"1","topic":"../etc","clearTopic":false,"error":"topic \"../etc\" must be a slug (lowercase letters, digits, . _ -)"}},
+    {"name":"uppercase topic","args":["1 Etl"],"expect":{"tier":"1","topic":"Etl","clearTopic":false,"error":"topic \"Etl\" must be a slug (lowercase letters, digits, . _ -)"}},
+    {"name":"tier 3 with a topic","args":["3 etl"],"expect":{"tier":"3","topic":"etl","clearTopic":false,"error":"a topic applies to Tier 1 or Tier 2, not to a Tier 3 grant"}},
+    {"name":"--topic= is not a spelling","args":["1 --topic=etl"],"expect":{"tier":"1","topic":null,"clearTopic":false,"error":"unknown option --topic=etl; use --topic <t> or --no-topic"}},
+    {"name":"unknown flag","args":["2 --force etl"],"expect":{"tier":"2","topic":"etl","clearTopic":false,"error":"unknown option --force; use --topic <t> or --no-topic"}},
+    {"name":"--topic without a value","args":["1 --topic"],"expect":{"tier":"1","topic":null,"clearTopic":false,"error":"--topic needs a value"}},
+    {"name":"--topic followed by a flag","args":["1 --topic --no-topic"],"expect":{"tier":"1","topic":null,"clearTopic":true,"error":"--topic needs a value"}},
+    {"name":"extra positional after topic","args":["1 etl extra"],"expect":{"tier":"1","topic":"etl","clearTopic":false,"error":"unexpected argument extra"}},
+    {"name":"second topic via --topic","args":["1 etl --topic other"],"expect":{"tier":"1","topic":"etl","clearTopic":false,"error":"unexpected argument other"}},
+    {"name":"topic and --no-topic","args":["1 etl --no-topic"],"expect":{"tier":"1","topic":"etl","clearTopic":true,"error":"pass either a topic or --no-topic, not both"}}
+  ]
+}

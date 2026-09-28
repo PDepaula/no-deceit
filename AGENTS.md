@@ -43,7 +43,7 @@ Read it before changing enforcement semantics.
   (`nd --cursor` stdout object). Mapping lives in `adapters/map-tool.mjs`;
   do not fork policy. Verification records: `docs/verification/<harness>.md`.
 - `bin/nd` — the developer's shell CLI (`init|tier|mode|status|unlock|check|evidence|grade|
-  audit|ledger|report|doctor`) plus Cursor's `nd --cursor` transport;
+  curriculum|audit|ledger|report|doctor`) plus Cursor's `nd --cursor` transport;
   auto-added to PATH by the Claude plugin. `nd report` is read-only.
 - `agents/nd-grader.md` — the blind grader agent; spawned only by the hook or
   `nd`, never by the tutor. Never spawn it with `claude --bare` (skips OAuth →

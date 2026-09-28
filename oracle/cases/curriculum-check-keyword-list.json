@@ -1,0 +1,24 @@
+{
+  "module": "curriculum-check-keyword-list (the keyword rules)",
+  "js": {"file":"core/curriculum.mjs","fn":"checkKeywordList"},
+  "bb": {"ns":"no-deceit.curriculum","fn":"check-keyword-list"},
+  "cases": [
+    {"name":"clean flat list","args":["## Keywords\n\n- a\n- b\n- c\n"],"expect":[]},
+    {"name":"no keywords section","args":["# nothing here"],"expect":[{"code":"no_section"}]},
+    {"name":"empty section","args":["## Keywords\n\n\n"],"expect":[{"code":"empty"}]},
+    {"name":"not alphabetical","args":["## Keywords\n\n- b\n- a\n"],"expect":[{"code":"not_alphabetical","keyword":"a"}]},
+    {"name":"alphabetical ignores case","args":["## Keywords\n\n- apple\n- Banana\n- cherry\n"],"expect":[]},
+    {"name":"duplicate ignores case","args":["## Keywords\n\n- a\n- A\n"],"expect":[{"code":"duplicate","keyword":"A"}]},
+    {"name":"bold","args":["## Keywords\n\n- **a**\n"],"expect":[{"code":"emphasis","keyword":"**a**"}]},
+    {"name":"italic underscore","args":["## Keywords\n\n- _a_\n"],"expect":[{"code":"emphasis","keyword":"_a_"}]},
+    {"name":"code formatting","args":["## Keywords\n\n- `a`\n"],"expect":[{"code":"emphasis","keyword":"`a`"}]},
+    {"name":"escaped asterisks are plain text","args":["## Keywords\n\n- \\*in\\*\n- ->\n"],"expect":[]},
+    {"name":"definition after a dash","args":["## Keywords\n\n- a — the first letter\n"],"expect":[{"code":"definition","keyword":"a — the first letter"}]},
+    {"name":"definition after a colon","args":["## Keywords\n\n- a: the first letter\n"],"expect":[{"code":"definition","keyword":"a: the first letter"}]},
+    {"name":"a sentence is not a keyword","args":["## Keywords\n\n- one two three four five six seven\n"],"expect":[{"code":"too_long","keyword":"one two three four five six seven"}]},
+    {"name":"heading splits the list into groups","args":["## Keywords\n\n### Group\n- a\n"],"expect":[{"code":"heading","line":"### Group"}]},
+    {"name":"prose intro","args":["## Keywords\n\nSome intro.\n- a\n"],"expect":[{"code":"prose","line":"Some intro."}]},
+    {"name":"blank line groups the list","args":["## Keywords\n\n- a\n\n- b\n"],"expect":[{"code":"grouped","keyword":"b"}]},
+    {"name":"only the keywords section is checked","args":["## Sources\n\n- **Z**\n\n## Keywords\n\n- a\n\n## Later\n\nprose"],"expect":[]}
+  ]
+}

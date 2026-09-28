@@ -292,3 +292,65 @@ test('/no-deceit:teach with no body captures nothing, and /no-deceit:grade runs 
     assert.equal(readProjectState(s.repo, env).unlocked, true);
   } finally { s.cleanup(); }
 });
+
+// --- Phase 3: curriculum and the Tier 1 gate ---
+
+import { dataPaths } from '../core/state.mjs';
+const CUR_FIX = join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'curriculum');
+
+function withData(s) {
+  s.env.ND_DATA_DIR = join(s.dir, 'data');
+  return dataPaths(s.env);
+}
+function installCurriculum(s, topic) {
+  const dp = withData(s);
+  mkdirSync(dp.curriculumDir(topic), { recursive: true });
+  writeFileSync(dp.curriculumOpen(topic), readFileSync(join(CUR_FIX, 'open.md')));
+  writeFileSync(dp.curriculumSealed(topic), readFileSync(join(CUR_FIX, 'sealed.md')));
+  return dp;
+}
+
+test('/no-deceit:tier 1 <topic> refuses without a curriculum, then succeeds and SessionStart injects its paths', () => {
+  const s = scratch();
+  try {
+    withData(s);
+    const refused = runHook('UserPromptSubmit', { session_id: 's', cwd: s.repo, prompt: '/no-deceit:tier 1 etl-basics' }, s.env);
+    assert.equal(refused.decision, 'block');
+    assert.match(refused.reason, /needs a curriculum/);
+    assert.match(refused.reason, /nd curriculum build etl-basics/);
+    assert.doesNotMatch(refused.reason, /No Deceit: No Deceit/);
+    assert.equal(readProjectState(s.repo, s.env).tier, 2);
+
+    const dp = installCurriculum(s, 'etl-basics');
+    const ok = runHook('UserPromptSubmit', { session_id: 's', cwd: s.repo, prompt: '/no-deceit:tier 1 etl-basics' }, s.env);
+    assert.match(ok.reason, /Tier set to 1 for topic etl-basics/);
+    const st = readProjectState(s.repo, s.env);
+    assert.deepEqual([st.tier, st.topic], [1, 'etl-basics']);
+
+    const start = runHook('SessionStart', { session_id: 's2', cwd: s.repo }, s.env);
+    const ctx = start.hookSpecificOutput.additionalContext;
+    assert.ok(ctx.includes(dp.curriculumOpen('etl-basics')) && ctx.includes(dp.curriculumSealed('etl-basics')));
+    assert.match(ctx, /never quote, recite, paraphrase or summarise/);
+    assert.match(ctx, /Topic: etl-basics — curriculum unreviewed/);
+  } finally { s.cleanup(); }
+});
+
+test('SessionStart with no active topic injects no curriculum paragraph', () => {
+  const s = scratch();
+  try {
+    withData(s);
+    const start = runHook('SessionStart', { session_id: 's', cwd: s.repo }, s.env);
+    assert.doesNotMatch(start.hookSpecificOutput.additionalContext, /Active topic/);
+  } finally { s.cleanup(); }
+});
+
+test('PreToolUse denies an agent write to the curriculum (category G) at Tier 1', () => {
+  const s = scratch();
+  try {
+    const dp = installCurriculum(s, 'etl-basics');
+    const out = runHook('PreToolUse', { session_id: 's', cwd: s.repo, tool_name: 'Write', tool_input: { file_path: dp.curriculumSealed('etl-basics') } }, s.env);
+    assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
+    const bash = runHook('PreToolUse', { session_id: 's', cwd: s.repo, tool_name: 'Bash', tool_input: { command: 'nd curriculum build etl --goal x --mission y --from a' } }, s.env);
+    assert.equal(bash.hookSpecificOutput.permissionDecision, 'deny');
+  } finally { s.cleanup(); }
+});

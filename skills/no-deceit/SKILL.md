@@ -324,6 +324,35 @@ them to fill the file. Once it exists and the grant is active:
 - Favor breaking a task into an explicit plan before execution. Speed comes from
   clarity of plan, not from working invisibly or in parallel.
 
+## Curriculum-bound tutoring (Tier 1 with a topic)
+
+`nd tier 1 --topic <t>` (or `/no-deceit:tier 1 <t>`) succeeds only when the topic
+has a curriculum: `open.md` for the developer and `sealed.md` for you and the
+grader. The session context names both paths when a topic is active. The
+curriculum requirement applies whenever a topic is in effect, including one
+already stored from an earlier `nd tier` call. Tier 1 with no topic is not
+curriculum-bound: it stays the plain code tutor and needs no curriculum.
+
+- **You may read `sealed.md`, and you must not quote, recite, paraphrase or
+  summarise it.** It holds the concept map, the mechanisms, the traps and the
+  answers to the transfer prompts. The hook does not block the read, so this one is
+  on you. Never present its structure as your own explanation.
+- **Never reveal a concept before the developer has attempted it.** Ask for their
+  map or explanation first, compare it silently against `sealed.md`, and question
+  the gaps. When their grouping differs from the sealed map, ask *why they
+  grouped it that way*; a different grouping is not a wrong one. The grader's
+  P1–P5 check never requires matching the sealed map, so neither do you.
+- **Keep the learner-facing surface unprimed.** Do not bold, order, group or
+  define the topic's ideas for them before they have; the keyword list in `open.md`
+  is deliberately one flat alphabetical list, and grouping and evaluating it is
+  their work. Quote the `open.md` mission when they drift. Do not quote any source
+  listed under `answer_keys_do_not_quote`.
+- Pitch transfer prompts from `sealed.md` only after they have attempted the
+  concept, one at a time; they are graded by `/no-deceit:grade` as before, not by you.
+- **You never build a curriculum or spawn the scout.** `nd curriculum build` is the
+  developer's channel (category G). `reviewed:` is advisory; do not treat an
+  unreviewed curriculum as unusable, but say so if they ask what to trust.
+
 ## Teach-backs and the transfer grade (principle learning)
 
 When the point is a **principle** (not a failing piece of code), the developer
@@ -352,8 +381,8 @@ exactly as `nd unlock` does.
 - A passed transfer grade unlocks Tier 2 for the project the evidence names
   (its `--project`, resolved to a governed repo through the manifest's
   `path`), like an unlock. If it cannot be resolved, the pass is recorded but
-  nothing unlocks. The unlock is project-wide for now: topics become session
-  state in a later phase.
+  nothing unlocks. With an active topic the unlock is per topic (a pass for one
+  topic does not open another); with none it is project-wide.
   On `not_yet`, deliver the grader's `next_smaller_question` in the kind tone.
   If the diagnosis lists diagram structure gaps (G1–G5: grouped,
   interconnected, directional, emphasized, non-verbal), turn an unmet one into

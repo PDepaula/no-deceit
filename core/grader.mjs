@@ -280,6 +280,12 @@ function tutorNoteFor(result) {
   );
 }
 
+/** An unlock earned while a topic is active also counts for that topic (the unlock is per topic there). */
+function withActiveTopic(state) {
+  if (!state.topic || state.unlockedTopics.includes(state.topic)) return {};
+  return { unlockedTopics: [...state.unlockedTopics, state.topic] };
+}
+
 function persistUnlock({ repoRoot, env, task, route, files = [], since = null, result, appealed = false, sessionId = null }) {
   const before = readProjectState(repoRoot, env);
   const lastUnlock = {
@@ -301,6 +307,7 @@ function persistUnlock({ repoRoot, env, task, route, files = [], since = null, r
   writeProjectState(repoRoot, {
     ...before,
     unlocked,
+    ...(result.verdict === 'unlocked' ? withActiveTopic(before) : {}),
     lastUnlock,
     lastDiagnosis,
     pendingTutorNote: tutorNoteFor(result),
@@ -340,6 +347,7 @@ export function unlockOverride({ repoRoot, env, reason, sessionId = null }) {
   writeProjectState(repoRoot, {
     ...before,
     unlocked: true,
+    ...withActiveTopic(before),
     lastUnlock,
     pendingTutorNote: null,
   });
@@ -698,12 +706,14 @@ function readTextIfExists(file) {
   try { return readFileSync(file, 'utf8'); } catch { return null; }
 }
 
-/** curriculum.md plus any refs/<topic>/ text: what a source_paste is measured against. */
+/** The curriculum files (open, sealed, legacy single file) plus any refs/<topic>/ text: what a source_paste is measured against. */
 function sourceTextsFor(env, topic) {
   const dp = dataPaths(env);
   const texts = [];
-  const cur = readTextIfExists(dp.curriculumFile(topic));
-  if (cur) texts.push(cur);
+  for (const f of [dp.curriculumOpen(topic), dp.curriculumSealed(topic), dp.curriculumFile(topic)]) {
+    const cur = readTextIfExists(f);
+    if (cur) texts.push(cur);
+  }
   try {
     for (const n of readdirSync(dp.refsDir(topic))) {
       if (/\.(md|txt|markdown)$/i.test(n)) {
@@ -746,8 +756,8 @@ function unlockTarget(projectsPath, project) {
  * `<data>/verdicts/<topic>/<ts>.json`, ledgers `transfer_grade`, and leaves the
  * tutor a note when the current project is governed. A pass unlocks Tier 2 for
  * the project the evidence names, resolved to its repo through the manifest.
- * Enforcement stays project-level: `unlockedTopics` is the per-topic record
- * until topics become session state (redesign phase 3).
+ * `unlockedTopics` is the per-topic record: with an active topic, Tier 2 is
+ * unlocked for that topic only (`resolveEffective`); with none, the project flag decides.
  */
 export async function runGrade({
   repoRoot,
@@ -773,7 +783,8 @@ export async function runGrade({
       'P2 is graded against that list, so the grader cannot judge transfer without it',
     );
   }
-  const curriculumPath = existsSync(dp.curriculumFile(useTopic)) ? dp.curriculumFile(useTopic) : null;
+  // The grader may read the sealed part; P1-P5 never require matching its concept map.
+  const curriculumPath = [dp.curriculumSealed(useTopic), dp.curriculumFile(useTopic)].find((f) => existsSync(f)) || null;
   const summaryPath = existsSync(summaryPathFor(evidencePath)) ? summaryPathFor(evidencePath) : null;
   let summary = null;
   if (summaryPath) { try { summary = JSON.parse(readFileSync(summaryPath, 'utf8')); } catch { summary = null; } }
@@ -841,7 +852,10 @@ export async function runGrade({
     const before = readProjectState(target.repo, env);
     const topics = before.unlockedTopics;
     writeProjectState(target.repo, { ...before, unlocked: true, unlockedTopics: topics.includes(useTopic) ? topics : [...topics, useTopic] });
-    return `${passed} Tier 2 is unlocked for ${claimed} (${target.repo}).`;
+    const other = before.topic && before.topic !== useTopic && !topics.includes(before.topic)
+      ? ` Its active topic is ${before.topic}, which stays locked (switch with \`nd tier 2 --topic ${useTopic}\`).`
+      : '';
+    return `${passed} Tier 2 is unlocked for topic ${useTopic} in ${claimed} (${target.repo}).${other}`;
   }
   return `not_yet (${result.source}${result.prefilter_reason ? `: ${result.prefilter_reason}` : ''}). ` +
     `Next question: ${result.next_smaller_question}`;
