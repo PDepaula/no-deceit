@@ -11,7 +11,7 @@ const HOOK = join(dirname(fileURLToPath(import.meta.url)), 'nd-hook.mjs');
 
 function scratch({ governed = true } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'nd-hook-'));
-  const env = { ...process.env, XDG_STATE_HOME: join(dir, 'state'), XDG_CONFIG_HOME: join(dir, 'config'), HOME: dir };
+  const env = { ...process.env, XDG_STATE_HOME: join(dir, 'state'), XDG_CONFIG_HOME: join(dir, 'config'), HOME: dir, ND_HOME: '' };
   delete env.FM_TASK_ID; delete env.ND_EXEMPT; delete env.ND_WORKER; delete env.ND_HEADLESS;
   const repo = join(dir, 'repo');
   mkdirSync(repo, { recursive: true });

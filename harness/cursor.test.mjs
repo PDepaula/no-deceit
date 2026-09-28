@@ -106,7 +106,7 @@ test('malformed Cursor evaluation fail-closes to deny, exit 0', () => {
   } finally { s.cleanup(); }
 });
 
-test('adapters/cursor/hooks.json registers preToolUse → nd --cursor failClosed', () => {
+test('harness/cursor/hooks.json registers preToolUse → nd --cursor failClosed', () => {
   const cfg = JSON.parse(readFileSync(HOOKS, 'utf8'));
   assert.equal(cfg.version, 1);
   const hooks = cfg.hooks.preToolUse;

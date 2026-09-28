@@ -3,6 +3,7 @@
 // not the status (firstmate field note, cursor-agent 2026.08.11+).
 
 import { FAIL_CLOSED_REASON } from '../../core/gate.mjs';
+import { defaultEnv } from '../../core/state.mjs';
 import { evaluateHarnessCall } from '../run.mjs';
 import { renderCursor } from '../apply.mjs';
 
@@ -27,7 +28,7 @@ export function handleCursorPayload(input = {}, deps = {}) {
       toolName: input.tool_name || input.toolName,
       toolInput,
       cwd,
-      env: deps.env || process.env,
+      env: deps.env || defaultEnv(),
       sessionId: input.session_id || input.conversation_id,
     });
     return { object: render(result), exitCode: 0 };
