@@ -167,7 +167,7 @@ project governed *inside* the home (`<home>/projects/<app>`) would also load
 the home's own `CLAUDE.md` / `AGENTS.md`: No Deceit's developer memory, meant
 for work on this repo, not on the governed project. `nd project add` now
 places new projects outside the home by default (`core/state.mjs`
-`projectsDir`; overridable with `ND_PROJECTS_DIR` or config `projectsDir`,
+`projectsDir`; overridable with `ND_PROJECTS_DIR`,
 refused if it resolves inside the home), so this no longer occurs for a
 default install. OpenCode stops its `AGENTS.md` walk at the project's git root
 and was never affected. An install from before this change, whose projects are

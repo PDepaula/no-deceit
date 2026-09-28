@@ -154,6 +154,16 @@ test('ND_PROJECTS_DIR overrides where nd project add clones and what nd doctor r
   } finally { s.cleanup(); }
 });
 
+test('a trailing-slash ND_HOME still resolves the default projects dir beside the home; with no home nd doctor says so', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home, { recursive: true });
+    const doc = run(['doctor'], { ...s.env, ND_HOME: `${home}/` }, s.dir);
+    assert.match(doc.out, new RegExp(`projects:    ${home}-projects `));
+    assert.match(run(['doctor'], { ...s.env, ND_HOME: '' }, s.dir).out, /projects: {4}\(no home\)/);
+  } finally { s.cleanup(); }
+});
+
 test('nd audit --oracle reports graded_up 0 and exits 0', () => {
   const s = scratch();
   try {

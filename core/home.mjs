@@ -1,8 +1,9 @@
 // No Deceit — the home repo shell: layout, `nd project add`, `nd bootstrap`,
 // `nd update`. Imperative (fs + git) around the pure helpers in update.mjs.
 //
-// The home is a git checkout with four gitignored personal dirs (projects/
-// data/ state/ config/). `data/` is its own nested private git repo (R7).
+// The home is a git checkout with three gitignored personal dirs (data/
+// state/ config/). `data/` is its own nested private git repo (R7). Governed
+// projects live outside the home by default (`core/state.mjs` `projectsDir`).
 // Nothing here ever edits, moves or deletes inside those dirs on update, and
 // bootstrap never overwrites a link or a file it did not create.
 
@@ -141,14 +142,14 @@ function legacyProjectsWarning(home, env) {
   let names;
   try { names = readdirSync(legacy).filter((n) => !n.startsWith('.')); } catch { return []; }
   if (!names.length) return [];
-  const dest = `${home}-projects`;
+  const dest = projectsDir({ ...env, ND_HOME: home });
   const manifest = dataPaths({ ...env, ND_HOME: home }).projectsManifests.find((f) => existsSync(f));
   return [
     `  WARNING: ${names.length} project(s) still under ${legacy} (${names.join(', ')}). Claude Code reads CLAUDE.md/AGENTS.md`,
     `    from every ancestor directory, so every session in ${legacy}/<app> also loads this home's own`,
     `    developer AGENTS.md (how to modify the plugin, test commands, grader internals) instead of just`,
     `    the project's. This is not moved automatically. To fix it:`,
-    `      mv ${legacy} ${dest}`,
+    `      mkdir -p ${dest} && mv ${legacy}/* ${dest}/ && rmdir ${legacy}`,
     manifest
       ? `      then update each "path" in ${manifest} from ${legacy}/<name> to ${dest}/<name>`
       : `      then update each project's registered path from ${legacy}/<name> to ${dest}/<name>`,
@@ -284,6 +285,7 @@ export function update({ home, env = {} }) {
   const out = [];
   const say = (l) => out.push(l);
   const run = (...a) => git(home, a);
+  const legacyWarning = legacyProjectsWarning(home, env);
   let upstream;
   try { upstream = run('rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'); }
   catch { throw new Error('this checkout has no upstream branch; `git branch --set-upstream-to origin/main` first'); }
@@ -292,7 +294,7 @@ export function update({ home, env = {} }) {
   const target = run('rev-parse', '@{u}');
   if (old === target) {
     say(`No Deceit is up to date (${old.slice(0, 7)}).`);
-    for (const l of legacyProjectsWarning(home, env)) say(l);
+    for (const l of legacyWarning) say(l);
     return out;
   }
   let canFf = true;
@@ -316,6 +318,6 @@ export function update({ home, env = {} }) {
   say(`reread: ${c.reread ? 'yes' : 'no'}${c.reread ? '  (AGENTS.md / skills / agents, a hooks.json, or core/ / harness/ changed — restart your harness session)' : ''}`);
   say(`rebootstrap: ${c.rebootstrap ? 'yes' : 'no'}${c.rebootstrap ? '  (a harness entry file was added/removed/renamed — re-run `nd bootstrap`)' : ''}`);
   if (c.bbBump) say('bb.edn changed: check `bb --version` against :min-bb-version and update bb if needed.');
-  for (const l of legacyProjectsWarning(home, env)) say(l);
+  for (const l of legacyWarning) say(l);
   return out;
 }

@@ -142,7 +142,7 @@ denial is written to an append-only ledger.
 
 No Deceit is a **git checkout you keep and `git pull`** — the same shape as
 firstmate. The checkout is your *home*: shared code and docs are tracked;
-your personal material lives beside them in four gitignored directories.
+your personal material lives beside them in three gitignored directories.
 
 ```
 no-deceit/                  the home. `git clone` once, `nd update` forever
@@ -246,9 +246,8 @@ ancestor-directory `CLAUDE.md`/`AGENTS.md` lookup never reaches this home's
 own developer memory (how to modify the plugin, test commands, grader
 internals) from inside a governed project. The default is a sibling of the
 home, `<home>-projects` (e.g. `~/no-deceit-projects` next to `~/no-deceit`);
-override it with the `ND_PROJECTS_DIR` environment variable or the
-`projectsDir` key in `config/config.json`. A configured directory that
-resolves inside the home is refused, with the reason. `nd bootstrap` creates
+override it with the `ND_PROJECTS_DIR` environment variable. A directory
+that resolves inside the home is refused, with the reason. `nd bootstrap` creates
 the resolved directory (reporting it) and `nd doctor`/`nd project add` always
 re-resolve it, so a change takes effect on the next run.
 
@@ -257,7 +256,7 @@ under `<home>/projects`, `nd bootstrap` and `nd update` detect it and print a
 warning naming the inheritance consequence above and the exact steps — nothing
 is moved automatically:
 ```bash
-mv <home>/projects <home>-projects
+mkdir -p <home>-projects && mv <home>/projects/* <home>-projects/ && rmdir <home>/projects
 # then update each project's registered "path" in projects.edn/projects.json
 # from <home>/projects/<name> to <home>-projects/<name>
 ```

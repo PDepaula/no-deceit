@@ -114,7 +114,7 @@ switch (sub) {
                                   --since/--until: ISO date or relative 7d/24h/30m/1w)
   nd project add <git-url|path> [--name n] [--summary "…"]
                                   clone (or adopt a local dir) into the projects directory (outside the
-                                  home by default; ND_PROJECTS_DIR or config projectsDir overrides),
+                                  home by default; ND_PROJECTS_DIR overrides),
                                   register it in the data home's project manifest, and opt it in (nd init)
   nd bootstrap [--dry-run] [--claude] [--opencode] [--pi] [--cursor]
                                   create the home layout and link this checkout into each harness
@@ -308,8 +308,11 @@ switch (sub) {
     say(`  ledger:      ${home.ledger}`);
     say(`  home:        ${env.ND_HOME || `(none — XDG fallback; run \`nd bootstrap\` in a checkout)`}`);
     say(`  data home:   ${dataPaths(env).dataDir} (evidence/, verdicts/, curricula/, projects.{edn,json,md})`);
-    try { say(`  projects:    ${projectsDir(env)} (override: ND_PROJECTS_DIR or config.json projectsDir)`); }
-    catch (e) { say(`  projects:    MISCONFIGURED — ${e.message}`); }
+    if (!env.ND_HOME) say('  projects:    (no home)');
+    else {
+      try { say(`  projects:    ${projectsDir(env)} (override: ND_PROJECTS_DIR)`); }
+      catch (e) { say(`  projects:    MISCONFIGURED — ${e.message}`); }
+    }
     say(`  config:      ${home.configFile}`);
     say(`  grader model:${cfg.graderModel} (override via config.json graderModel)`);
     say(`  grader timeout: ${cfg.graderTimeoutMs} ms`);

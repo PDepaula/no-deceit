@@ -243,7 +243,7 @@ test('bootstrap links each detected harness, is idempotent, and writes nothing o
   } finally { s.cleanup(); }
 });
 
-test('bootstrap refuses a config-file projects dir that resolves inside the home, and changes nothing', () => {
+test('bootstrap refuses an ND_PROJECTS_DIR that resolves inside the home, and changes nothing', () => {
   const s = scratch();
   try {
     const home = join(s.dir, 'home'); mkdirSync(home);
@@ -264,11 +264,17 @@ test('bootstrap and update warn (without moving anything) about a pre-redesign i
     mkdirSync(join(home, 'data'), { recursive: true });
     writeFileSync(join(home, 'data', 'projects.edn'), '{:name "legacy-app" :path "' + join(home, 'projects', 'legacy-app') + '"}\n');
 
-    const out = bootstrap({ home, userHome, env }).join('\n');
+    const lines = bootstrap({ home, userHome, env });
+    const out = lines.join('\n');
     assert.match(out, /WARNING.*legacy-app/);
-    assert.match(out, new RegExp(`mv ${join(home, 'projects')} ${home}-projects`));
     assert.ok(existsSync(join(home, 'projects', 'legacy-app')), 'never moved automatically');
     assert.ok(existsSync(`${home}-projects`), 'the new default dir is still created for future adds');
+
+    const move = lines.find((l) => l.includes(`mkdir -p ${home}-projects`)).trim();
+    execFileSync('sh', ['-c', move]);
+    assert.ok(existsSync(join(`${home}-projects`, 'legacy-app')), 'the printed move lands each project directly in the projects dir');
+    assert.ok(!existsSync(join(`${home}-projects`, 'projects')));
+    assert.ok(!existsSync(join(home, 'projects')));
   } finally { s.cleanup(); }
 });
 
@@ -532,8 +538,11 @@ test('update warns about a pre-redesign install with projects still under <home>
     const out = update({ home, env: {} }).join('\n');
     assert.match(out, /up to date/);
     assert.match(out, /WARNING.*legacy-app/);
-    assert.match(out, new RegExp(`mv ${join(home, 'projects')} ${home}-projects`));
+    assert.match(out, new RegExp(`mkdir -p ${home}-projects && mv ${join(home, 'projects')}/\\* ${home}-projects/ && rmdir ${join(home, 'projects')}`));
     assert.ok(existsSync(join(home, 'projects', 'legacy-app')));
+
+    const elsewhere = join(s.dir, 'elsewhere');
+    assert.match(update({ home, env: { ND_PROJECTS_DIR: elsewhere } }).join('\n'), new RegExp(`mkdir -p ${elsewhere} && mv`));
   } finally { s.cleanup(); }
 });
 

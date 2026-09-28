@@ -22,8 +22,8 @@ One-line index; the what / why / what-you-should-notice is in
 ## Unreleased
 
 - **Changed:** governed projects now live outside the home by default (a
-  sibling of the home, `<home>-projects`; overridable with `ND_PROJECTS_DIR`
-  or config `projectsDir`, resolved in `core/state.mjs` `projectsDir`, the
+  sibling of the home, `<home>-projects`; overridable with `ND_PROJECTS_DIR`,
+  resolved in `core/state.mjs` `projectsDir`, the
   same way `dataPaths` resolves `data/`). Previously they lived at
   `<home>/projects/<app>`, so Claude Code's ancestor-directory
   `CLAUDE.md`/`AGENTS.md` lookup also loaded the home's own developer memory

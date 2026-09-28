@@ -27,27 +27,27 @@ function scratch() {
   return { dir, env, repo, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
-test('projectsDir defaults to a sibling of the home, or <HOME>/no-deceit-projects with no home', () => {
+test('projectsDir defaults to a sibling of the normalized home, and requires a home', () => {
   assert.equal(projectsDir({ ND_HOME: '/h', HOME: '/u' }), '/h-projects');
-  assert.equal(projectsDir({ HOME: '/u' }), '/u/no-deceit-projects');
+  assert.equal(projectsDir({ ND_HOME: '/h/', HOME: '/u' }), '/h-projects');
+  assert.equal(projectsDir({ ND_HOME: '.' }), `${process.cwd()}-projects`);
+  assert.throws(() => projectsDir({ HOME: '/u' }), /no home/);
+  assert.throws(() => projectsDir({ ND_HOME: '', HOME: '/u' }), /no home/);
 });
 
-test('projectsDir honours ND_PROJECTS_DIR, then config projectsDir, over the default', () => {
+test('projectsDir honours ND_PROJECTS_DIR over the default, and ignores a config.json projectsDir key', () => {
   assert.equal(projectsDir({ ND_HOME: '/h', HOME: '/u', ND_PROJECTS_DIR: '/elsewhere' }), '/elsewhere');
   const s = scratch();
   try {
-    const { configFile } = homePaths({ ...s.env, ND_HOME: join(s.dir, 'h') });
+    const home = join(s.dir, 'h');
+    const { configFile } = homePaths({ ...s.env, ND_HOME: home });
     mkdirSync(join(configFile, '..'), { recursive: true });
     writeFileSync(configFile, JSON.stringify({ projectsDir: join(s.dir, 'configured-projects') }));
-    assert.equal(projectsDir({ ...s.env, ND_HOME: join(s.dir, 'h') }), join(s.dir, 'configured-projects'));
-    assert.equal(
-      projectsDir({ ...s.env, ND_HOME: join(s.dir, 'h'), ND_PROJECTS_DIR: join(s.dir, 'env-wins') }),
-      join(s.dir, 'env-wins'),
-    );
+    assert.equal(projectsDir({ ...s.env, ND_HOME: home }), `${home}-projects`);
   } finally { s.cleanup(); }
 });
 
-test('projectsDir refuses a configured directory that resolves inside the home', () => {
+test('projectsDir refuses an ND_PROJECTS_DIR that resolves inside the home', () => {
   assert.throws(() => projectsDir({ ND_HOME: '/h', ND_PROJECTS_DIR: '/h' }), /resolves inside the home/);
   assert.throws(() => projectsDir({ ND_HOME: '/h', ND_PROJECTS_DIR: '/h/projects' }), /resolves inside the home/);
   assert.doesNotThrow(() => projectsDir({ ND_HOME: '/h', ND_PROJECTS_DIR: '/h-projects' }));
