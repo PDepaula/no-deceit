@@ -142,16 +142,18 @@ denial is written to an append-only ledger.
 
 No Deceit is a **git checkout you keep and `git pull`** — the same shape as
 firstmate. The checkout is your *home*: shared code and docs are tracked;
-your personal material lives beside them in four gitignored directories.
+your personal material lives beside them in three gitignored directories.
 
 ```
 no-deceit/                  the home. `git clone` once, `nd update` forever
 ├── core/ hooks/ bin/ harness/ skills/ agents/ gold/ docs/    tracked, shareable
-├── projects/               GITIGNORED  governed projects (flat clones, each with its own .no-deceit/)
 ├── data/                   GITIGNORED  its own nested private git repo: curricula, refs, evidence,
 │                                       verdicts, projects.edn (the manifest the grader checks P2 against)
 ├── state/                  GITIGNORED  ledger.jsonl, sessions, migrated-from-xdg (the one-shot XDG copy record)
 └── config/                 GITIGNORED  config.json (overrides of the defaults)
+
+no-deceit-projects/         OUTSIDE the home by default: governed projects (flat clones, each with
+                            its own .no-deceit/). Configurable — see "Governed projects" below.
 ```
 
 **Why the split.** Curricula and evidence are the most valuable files here and
@@ -167,8 +169,9 @@ bin/nd bootstrap --dry-run     # show what it would do
 bin/nd bootstrap               # create the layout, link the harnesses
 ```
 
-`nd bootstrap` creates `projects/ data/ state/ config/` (and `git init`s
-`data/`), then links this checkout into each harness whose config dir exists
+`nd bootstrap` creates `data/ state/ config/` (and `git init`s `data/`) plus
+the projects directory outside the home (see "Governed projects and
+updating" below), then links this checkout into each harness whose config dir exists
 (or only those you name: `--claude --opencode --pi --cursor`). It never
 overwrites a link or file it did not make, never edits your shell profile
 (it prints the `PATH` line for `bin/`), and copies an older XDG ledger,
@@ -226,29 +229,47 @@ fallback.
 ```bash
 nd project add https://github.com/you/app --summary "one-line domain summary"
 nd project add ~/code/existing-app --name app   # adopt a local dir in place (never moved)
-cd projects/app                                   # start your harness here, book open beside it
+cd ../no-deceit-projects/app                      # start your harness here, book open beside it
 ```
 
-`nd project add` clones a remote into `projects/<name>` (a local directory is
-governed where it is; a directory inside another git repo is refused: add that
-repo's top level instead, or `git init` the directory first when the enclosing
-repo is this home or `$HOME`), adds it to the project manifest the grader checks
-P2 against (the existing `projects.edn` or `projects.json` in the data home,
-which honors `ND_DATA_DIR`; else a new `data/projects.edn`), and opts it in
-(`nd init`, Tier 2). Projects keep their own remotes; No Deceit does not touch
-delivery.
+`nd project add` clones a remote into the projects directory (a local directory
+is governed where it is; a directory inside another git repo is refused: add
+that repo's top level instead, `git init` the directory first when the
+enclosing repo is `$HOME`, or move it out into the projects directory first
+when the enclosing repo is this home), adds it to the project manifest the
+grader checks P2 against (the existing `projects.edn` or `projects.json` in
+the data home, which honors `ND_DATA_DIR`; else a new `data/projects.edn`),
+and opts it in (`nd init`, Tier 2). Projects keep their own remotes; No Deceit
+does not touch delivery.
 
-**Known issue:** Claude Code reads `CLAUDE.md` from every parent directory, so a
-session in `<home>/projects/<app>` also loads this home's own `CLAUDE.md` /
-`AGENTS.md` (No Deceit's developer memory, not instructions for your project).
-A fix is pending a design decision.
+**Projects live outside the home by default**, so that Claude Code's
+ancestor-directory `CLAUDE.md`/`AGENTS.md` lookup never reaches this home's
+own developer memory (how to modify the plugin, test commands, grader
+internals) from inside a governed project. The default is a sibling of the
+home, `<home>-projects` (e.g. `~/no-deceit-projects` next to `~/no-deceit`);
+override it with the `ND_PROJECTS_DIR` environment variable. A directory
+that resolves inside the home is refused, with the reason. A local project
+you adopt from inside the home is still governed, but `nd project add` warns
+and prints the move into the projects directory. `nd bootstrap` creates
+the resolved directory (reporting it) and `nd doctor`/`nd project add` always
+re-resolve it, so a change takes effect on the next run.
+
+**Upgrading an install from before this change?** If your projects are still
+under `<home>/projects`, `nd bootstrap` and `nd update` detect it and print a
+warning naming the inheritance consequence above and the exact steps — nothing
+is moved automatically:
+```bash
+mkdir -p "<home>-projects" && mv "<home>/projects"/* "<home>-projects"/ && rmdir "<home>/projects"
+# then update each project's registered "path" in projects.edn/projects.json
+# from <home>/projects/<name> to <home>-projects/<name>
+```
 
 ```bash
 nd update    # fetch, fast-forward only, print the release notes since your last update
 ```
 
 `nd update` never merges, stashes, resets or forces, and never touches
-`projects/ data/ state/ config/`. It refuses if your checkout has diverged.
+`data/ state/ config/` or the projects directory. It refuses if your checkout has diverged.
 After a successful update it prints the new `docs/releases/` entries in order,
 then `reread: yes|no` (`AGENTS.md`/`skills/`/`agents/`, a `hooks.json`, or
 `core/`/`harness/` changed: a running session read them at launch, restart the

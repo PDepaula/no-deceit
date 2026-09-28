@@ -3,8 +3,14 @@
 // "what changed" classification. No fs / git / clock / env reads here; the
 // shell in home.mjs feeds these strings and applies the results.
 
-/** The gitignored, personal directories of a home. `nd update` never touches them. */
-export const PRIVATE_DIRS = ['projects', 'data', 'state', 'config'];
+/**
+ * The gitignored, personal directories of a home. `nd update` never touches
+ * them. `projects/` is not one of these: by default it lives outside the
+ * home entirely (`core/state.mjs` `projectsDir`), so ancestor-directory
+ * lookups (Claude Code's `CLAUDE.md`/`AGENTS.md`) never reach this home's own
+ * developer memory from inside a governed project.
+ */
+export const PRIVATE_DIRS = ['data', 'state', 'config'];
 
 /** One `data/projects.edn` line: `{:name "x" :path "/abs" :summary "…"}`. Double quotes in values become single quotes (the manifest reader has no escapes). */
 export function renderManifestEntry({ name, path, summary = '' }) {

@@ -16,6 +16,7 @@ import {
   readAllLedger,
   projectPaths,
   homePaths,
+  projectsDir,
 } from './state.mjs';
 
 function scratch() {
@@ -25,6 +26,32 @@ function scratch() {
   mkdirSync(repo, { recursive: true });
   return { dir, env, repo, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
+
+test('projectsDir defaults to a sibling of the normalized home, and requires a home', () => {
+  assert.equal(projectsDir({ ND_HOME: '/h', HOME: '/u' }), '/h-projects');
+  assert.equal(projectsDir({ ND_HOME: '/h/', HOME: '/u' }), '/h-projects');
+  assert.equal(projectsDir({ ND_HOME: '.' }), `${process.cwd()}-projects`);
+  assert.throws(() => projectsDir({ HOME: '/u' }), /no home/);
+  assert.throws(() => projectsDir({ ND_HOME: '', HOME: '/u' }), /no home/);
+});
+
+test('projectsDir honours ND_PROJECTS_DIR over the default, and ignores a config.json projectsDir key', () => {
+  assert.equal(projectsDir({ ND_HOME: '/h', HOME: '/u', ND_PROJECTS_DIR: '/elsewhere' }), '/elsewhere');
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'h');
+    const { configFile } = homePaths({ ...s.env, ND_HOME: home });
+    mkdirSync(join(configFile, '..'), { recursive: true });
+    writeFileSync(configFile, JSON.stringify({ projectsDir: join(s.dir, 'configured-projects') }));
+    assert.equal(projectsDir({ ...s.env, ND_HOME: home }), `${home}-projects`);
+  } finally { s.cleanup(); }
+});
+
+test('projectsDir refuses an ND_PROJECTS_DIR that resolves inside the home', () => {
+  assert.throws(() => projectsDir({ ND_HOME: '/h', ND_PROJECTS_DIR: '/h' }), /resolves inside the home/);
+  assert.throws(() => projectsDir({ ND_HOME: '/h', ND_PROJECTS_DIR: '/h/projects' }), /resolves inside the home/);
+  assert.doesNotThrow(() => projectsDir({ ND_HOME: '/h', ND_PROJECTS_DIR: '/h-projects' }));
+});
 
 test('loadConfig returns built-in defaults when no config file exists', () => {
   const s = scratch();

@@ -60,7 +60,8 @@ Read it before changing enforcement semantics.
 - `skills/no-deceit/SKILL.md` — the teaching layer.
 - Distribution manifests (packaging only — no policy lives here). The repo is
   a git-installed *home* (`nd bootstrap` symlinks `harness/*` into each
-  harness; gitignored `projects/ data/ state/ config/`; no npm publishing):
+  harness; gitignored `data/ state/ config/`; governed projects live outside
+  the home by default (`core/state.mjs` `projectsDir`); no npm publishing):
   `.claude-plugin/` is Claude Code's manifest and doubles as this repo's own
   marketplace (`source` stays `./`, see `docs/decisions/r1-r8.md`); `.cursor-plugin/plugin.json` gives Cursor its own `hooks`
   pointer at `harness/cursor/hooks.json` (Cursor's convention-based hook

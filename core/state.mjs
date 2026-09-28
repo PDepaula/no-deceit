@@ -10,7 +10,7 @@
 // would be a dependency, which D6 forbids).
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync, statSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
@@ -59,8 +59,9 @@ function xdg(env, varName, fallbackSub) {
 
 /**
  * A checkout is a No Deceit *home* once `nd bootstrap` has dropped the
- * `.nd-home` marker in it (the gitignored projects/ data/ state/ config/ dirs
- * live beside it). Returns the home root for a checkout root, else null.
+ * `.nd-home` marker in it (the three gitignored data/ state/ config/ dirs
+ * live beside it; governed projects live outside the home by default, see
+ * `projectsDir`). Returns the home root for a checkout root, else null.
  */
 export function detectHome(checkoutRoot) {
   return existsSync(join(checkoutRoot, '.nd-home')) ? checkoutRoot : null;
@@ -126,6 +127,25 @@ export function dataPaths(env = process.env) {
     refsDir: (topic) => join(dataDir, 'refs', topic),
     projectsManifests: ['projects.edn', 'projects.json', 'projects.md'].map((n) => join(dataDir, n)),
   };
+}
+
+/**
+ * Where `nd project add` clones or registers governed projects:
+ * `ND_PROJECTS_DIR`, else a sibling of the home (`<home>-projects`). Kept
+ * outside the home by default (unlike `dataPaths`) because Claude Code reads
+ * `CLAUDE.md`/`AGENTS.md` from every ancestor directory: a project under
+ * `<home>/projects/<app>` would also load this home's own developer memory.
+ * Requires a home (throws without `ND_HOME`), and refuses (throws) when the
+ * resolved directory is the home or falls inside it.
+ */
+export function projectsDir(env = process.env) {
+  if (!env.ND_HOME) throw new Error('no home: the projects directory is resolved against a No Deceit home; run `nd bootstrap` in a checkout first.');
+  const homeAbs = resolve(env.ND_HOME);
+  const dir = resolve(env.ND_PROJECTS_DIR || `${homeAbs}-projects`);
+  if (dir === homeAbs || dir.startsWith(homeAbs + sep)) {
+    throw new Error(`projects directory ${dir} resolves inside the home ${homeAbs}: every session there would also load the home's own AGENTS.md (developer memory — how to modify the plugin, test commands, grader internals), not just the project's. Point ND_PROJECTS_DIR outside the home — e.g. ${homeAbs}-projects.`);
+  }
+  return dir;
 }
 
 /** Project-scoped paths under <repo>/.no-deceit. */

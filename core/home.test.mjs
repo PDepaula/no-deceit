@@ -43,11 +43,12 @@ test('withDetectedHome uses the .nd-home marker but never overrides an explicit 
   } finally { s.cleanup(); }
 });
 
-test('ensureHome creates the four dirs, the marker, and data/ as its own git repo; idempotent', () => {
+test('ensureHome creates the three dirs, the marker, and data/ as its own git repo; idempotent', () => {
   const s = scratch();
   try {
     const made = ensureHome(s.dir);
-    assert.ok(['projects', 'data', 'state', 'config', 'data/.git'].every((m) => made.includes(m)));
+    assert.ok(['data', 'state', 'config', 'data/.git'].every((m) => made.includes(m)));
+    assert.ok(!made.includes('projects'), 'projects/ is no longer one of the home\'s own private dirs');
     assert.ok(existsSync(join(s.dir, '.nd-home')));
     assert.ok(existsSync(join(s.dir, 'data', '.git')));
     assert.deepEqual(ensureHome(s.dir), []);
@@ -78,7 +79,7 @@ test('projectAdd refuses a subdirectory of a git repo, advising to add the top l
     const mono = realpathSync(join(s.dir, 'mono'));
     g(mono, 'init', '-q');
     assert.throws(() => projectAdd({ home, env: { ND_HOME: '' }, source: join(mono, 'pkg'), name: 'pkg' }),
-      (e) => e.message.includes(`nd project add ${mono}`) && !e.message.includes('git init'));
+      (e) => e.message.includes(`nd project add "${mono}"`) && !e.message.includes('git init'));
     assert.ok(!existsSync(join(mono, 'pkg', '.no-deceit')));
     assert.ok(!existsSync(join(home, 'data', 'projects.edn')));
     const r = projectAdd({ home, env: { ND_HOME: '' }, source: mono });
@@ -87,21 +88,50 @@ test('projectAdd refuses a subdirectory of a git repo, advising to add the top l
   } finally { s.cleanup(); }
 });
 
-test('projectAdd refuses a scratch dir under the home\'s projects/ and advises git init, never governing the home', () => {
+test('projectAdd refuses a non-git dir inside the home and advises moving it into the projects dir, never governing the home', () => {
   const s = scratch();
   try {
-    mkdirSync(join(s.dir, 'home'));
-    const home = realpathSync(join(s.dir, 'home'));
+    mkdirSync(join(s.dir, 'my home'));
+    const home = realpathSync(join(s.dir, 'my home'));
     g(home, 'init', '-q');
     const scratchDir = join(home, 'projects', 'scratch'); mkdirSync(scratchDir, { recursive: true });
-    assert.throws(() => projectAdd({ home, env: { ND_HOME: '' }, source: scratchDir }), (e) =>
-      e.message.includes(`git init ${scratchDir} && nd project add ${scratchDir}`)
-      && [...e.message.matchAll(/nd project add (\S+)/g)].every((m) => m[1] === scratchDir));
+    writeFileSync(join(scratchDir, 'notes.txt'), 'n');
+    const moved = join(`${home}-projects`, 'scratch');
+    let msg = '';
+    assert.throws(() => projectAdd({ home, env: { ND_HOME: '' }, source: scratchDir }), (e) => { msg = e.message; return true; });
+    assert.match(msg, /this home, whose own developer AGENTS\.md/);
+    assert.ok(!msg.includes(`git init "${scratchDir}"`), 'never steers to git init in place inside the home');
     assert.ok(!existsSync(join(scratchDir, '.no-deceit')));
     assert.ok(!existsSync(join(home, '.no-deceit')));
-    g(scratchDir, 'init', '-q');
-    assert.equal(projectAdd({ home, env: { ND_HOME: '' }, source: scratchDir }).path, scratchDir);
-    assert.ok(existsSync(join(scratchDir, '.no-deceit', 'state.json')));
+
+    const steps = msg.slice(msg.indexOf('mkdir -p'), msg.indexOf(' && nd project add'));
+    execFileSync('sh', ['-c', steps]);
+    assert.ok(existsSync(join(moved, 'notes.txt')) && existsSync(join(moved, '.git')));
+    assert.ok(msg.endsWith(`nd project add "${moved}"`));
+    const r = projectAdd({ home, env: { ND_HOME: '' }, source: moved });
+    assert.equal(r.path, moved);
+    assert.deepEqual(r.warnings, []);
+  } finally { s.cleanup(); }
+});
+
+test('projectAdd still governs a git repo inside the home, but warns with the move into the projects dir', () => {
+  const s = scratch();
+  try {
+    mkdirSync(join(s.dir, 'my home'));
+    const home = realpathSync(join(s.dir, 'my home'));
+    const app = join(home, 'projects', 'app'); mkdirSync(app, { recursive: true });
+    g(app, 'init', '-q');
+    const r = projectAdd({ home, env: { ND_HOME: '' }, source: app });
+    assert.equal(r.path, app);
+    assert.ok(existsSync(join(app, '.no-deceit', 'state.json')));
+    const out = r.warnings.join('\n');
+    assert.match(out, /WARNING: .* is inside this home[\s\S]*developer AGENTS\.md/);
+    assert.ok(out.includes(`from ${app} to ${join(`${home}-projects`, 'app')}`));
+
+    execFileSync('sh', ['-c', r.warnings.find((l) => l.includes('mkdir -p')).trim()]);
+    assert.ok(existsSync(join(`${home}-projects`, 'app', '.git')), 'the printed move keeps the repo whole');
+    assert.ok(existsSync(join(`${home}-projects`, 'app', '.no-deceit', 'state.json')));
+    assert.ok(!existsSync(app));
   } finally { s.cleanup(); }
 });
 
@@ -114,8 +144,8 @@ test('projectAdd refuses a dir under a git-managed $HOME and advises git init, n
     g(userHome, 'init', '-q');
     const app = join(userHome, 'code', 'app');
     assert.throws(() => projectAdd({ home, userHome, env: { ND_HOME: '' }, source: app }), (e) =>
-      e.message.includes(`git init ${app} && nd project add ${app}`)
-      && [...e.message.matchAll(/nd project add (\S+)/g)].every((m) => m[1] === app));
+      e.message.includes(`git init "${app}" && nd project add "${app}"`)
+      && [...e.message.matchAll(/nd project add "([^"]+)"/g)].every((m) => m[1] === app));
     assert.ok(!existsSync(join(app, '.no-deceit')));
     assert.ok(!existsSync(join(userHome, '.no-deceit')));
   } finally { s.cleanup(); }
@@ -162,7 +192,7 @@ test('projectAdd registers in the manifest the grader reads: ND_DATA_DIR, and an
   } finally { s.cleanup(); }
 });
 
-test('projectAdd clones a remote into projects/<name>', () => {
+test('projectAdd clones a remote into the default projects dir, a sibling of the home', () => {
   const s = scratch();
   try {
     const home = join(s.dir, 'home'); mkdirSync(home);
@@ -171,9 +201,36 @@ test('projectAdd clones a remote into projects/<name>', () => {
     commit(origin, 'a.txt', 'a');
     const r = projectAdd({ home, env: { ND_HOME: '' }, source: `file://${origin}`, name: 'cloned' });
     assert.equal(r.cloned, true);
-    assert.equal(r.path, join(home, 'projects', 'cloned'));
-    assert.ok(existsSync(join(home, 'projects', 'cloned', 'a.txt')));
-    assert.ok(existsSync(join(home, 'projects', 'cloned', '.no-deceit', 'state.json')));
+    assert.equal(r.path, join(`${home}-projects`, 'cloned'));
+    assert.ok(!existsSync(join(home, 'projects')), 'the default no longer lives under the home');
+    assert.ok(existsSync(join(`${home}-projects`, 'cloned', 'a.txt')));
+    assert.ok(existsSync(join(`${home}-projects`, 'cloned', '.no-deceit', 'state.json')));
+  } finally { s.cleanup(); }
+});
+
+test('projectAdd honours ND_PROJECTS_DIR and refuses a configured projects dir inside the home', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home);
+    const app = join(s.dir, 'app'); mkdirSync(app);
+    const elsewhere = join(s.dir, 'elsewhere-projects');
+    const origin = join(s.dir, 'origin.git');
+    g(s.dir, 'init', '-q', '-b', 'main', origin);
+    commit(origin, 'a.txt', 'a');
+
+    const r = projectAdd({ home, env: { ND_HOME: '', ND_PROJECTS_DIR: elsewhere }, source: `file://${origin}`, name: 'cloned' });
+    assert.equal(r.path, join(elsewhere, 'cloned'));
+    assert.ok(existsSync(join(elsewhere, 'cloned', 'a.txt')));
+
+    assert.throws(
+      () => projectAdd({ home, env: { ND_HOME: '', ND_PROJECTS_DIR: join(home, 'projects') }, source: app }),
+      /resolves inside the home/,
+    );
+    assert.ok(!existsSync(join(app, '.no-deceit')));
+    assert.throws(
+      () => projectAdd({ home, env: { ND_HOME: '', ND_PROJECTS_DIR: home }, source: app }),
+      /resolves inside the home/,
+    );
   } finally { s.cleanup(); }
 });
 
@@ -198,7 +255,10 @@ test('bootstrap links each detected harness, is idempotent, and writes nothing o
     assert.ok(!existsSync(join(home, '.nd-home')));
     assert.ok(!existsSync(join(userHome, '.claude', 'skills', 'no-deceit')));
 
-    bootstrap({ home, userHome, env });
+    const lines = bootstrap({ home, userHome, env });
+    assert.ok(lines.some((l) => l.includes(`${home}-projects`) && /created/.test(l)));
+    assert.ok(existsSync(`${home}-projects`));
+    assert.ok(!existsSync(join(home, 'projects')));
     const claude = join(userHome, '.claude', 'skills', 'no-deceit');
     assert.equal(readlinkSync(claude), join(home, 'harness', 'claude-code'));
     assert.equal(readlinkSync(join(userHome, '.config', 'opencode', 'plugins', 'no-deceit.ts')), join(home, 'harness', 'opencode', 'no-deceit.ts'));
@@ -209,6 +269,41 @@ test('bootstrap links each detected harness, is idempotent, and writes nothing o
     const again = bootstrap({ home, userHome, env });
     assert.ok(again.some((l) => /already linked/.test(l)));
     assert.equal(JSON.parse(readFileSync(join(userHome, '.cursor', 'hooks.json'), 'utf8')).hooks.preToolUse.length, 1);
+  } finally { s.cleanup(); }
+});
+
+test('bootstrap refuses an ND_PROJECTS_DIR that resolves inside the home, and changes nothing', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home);
+    const userHome = fakeUser(s.dir);
+    const env = { ND_HOME: '', HOME: userHome, ND_PROJECTS_DIR: join(home, 'projects') };
+    assert.throws(() => bootstrap({ home, userHome, env }), /resolves inside the home/);
+    assert.ok(!existsSync(join(home, '.nd-home')));
+  } finally { s.cleanup(); }
+});
+
+test('bootstrap and update warn (without moving anything) about a pre-redesign install with projects still under <home>/projects', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'my home'); mkdirSync(home);
+    const userHome = fakeUser(s.dir);
+    const env = { ND_HOME: '', HOME: userHome };
+    mkdirSync(join(home, 'projects', 'legacy-app'), { recursive: true });
+    mkdirSync(join(home, 'data'), { recursive: true });
+    writeFileSync(join(home, 'data', 'projects.edn'), '{:name "legacy-app" :path "' + join(home, 'projects', 'legacy-app') + '"}\n');
+
+    const lines = bootstrap({ home, userHome, env });
+    const out = lines.join('\n');
+    assert.match(out, /WARNING.*legacy-app/);
+    assert.ok(existsSync(join(home, 'projects', 'legacy-app')), 'never moved automatically');
+    assert.ok(existsSync(`${home}-projects`), 'the new default dir is still created for future adds');
+
+    const move = lines.find((l) => l.includes(`mkdir -p "${home}-projects"`)).trim();
+    execFileSync('sh', ['-c', move]);
+    assert.ok(existsSync(join(`${home}-projects`, 'legacy-app')), 'the printed move lands each project directly in the projects dir');
+    assert.ok(!existsSync(join(`${home}-projects`, 'projects')));
+    assert.ok(!existsSync(join(home, 'projects')));
   } finally { s.cleanup(); }
 });
 
@@ -460,6 +555,39 @@ test('update refuses when local commits make the history diverge, and changes no
     const before = g(home, 'rev-parse', 'HEAD');
     assert.throws(() => update({ home }), /not an ancestor|only fast-forwards/);
     assert.equal(g(home, 'rev-parse', 'HEAD'), before);
+  } finally { s.cleanup(); }
+});
+
+test('update warns about a pre-redesign install with projects still under <home>/projects, without moving anything', () => {
+  const s = scratch();
+  try {
+    const { home } = twoClones(s);
+    ensureHome(home);
+    mkdirSync(join(home, 'projects', 'legacy-app'), { recursive: true });
+    const out = update({ home, env: {} }).join('\n');
+    assert.match(out, /up to date/);
+    assert.match(out, /WARNING.*legacy-app/);
+    assert.ok(out.includes(`mkdir -p "${home}-projects" && mv "${join(home, 'projects')}"/* "${home}-projects"/ && rmdir "${join(home, 'projects')}"`));
+    assert.ok(existsSync(join(home, 'projects', 'legacy-app')));
+
+    const elsewhere = join(s.dir, 'elsewhere');
+    assert.ok(update({ home, env: { ND_PROJECTS_DIR: elsewhere } }).join('\n').includes(`mkdir -p "${elsewhere}" && mv`));
+  } finally { s.cleanup(); }
+});
+
+test('update still fast-forwards when ND_PROJECTS_DIR resolves inside the home, and says why no move is suggested', () => {
+  const s = scratch();
+  try {
+    const { origin, home } = twoClones(s);
+    ensureHome(home);
+    mkdirSync(join(home, 'projects', 'legacy-app'), { recursive: true });
+    commit(origin, 'docs/releases/v0.9.0.md', '# v0.9.0');
+    const out = update({ home, env: { ND_PROJECTS_DIR: join(home, 'projects') } }).join('\n');
+    assert.match(out, /fast-forward/);
+    assert.equal(g(home, 'rev-parse', 'HEAD'), g(origin, 'rev-parse', 'HEAD'));
+    assert.match(out, /WARNING.*legacy-app/);
+    assert.match(out, /no move is suggested: projects directory .* resolves inside the home/);
+    assert.ok(!out.includes('mkdir -p'));
   } finally { s.cleanup(); }
 });
 

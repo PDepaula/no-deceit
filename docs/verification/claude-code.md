@@ -160,13 +160,20 @@ ordinary directory names in any repo, and matching `../../config` would deny
 commands like `npx tsc -p ../../config/tsconfig.base.json` as tamper. A
 deliberately disguised path is an accepted gap, per the enforcement ruling.
 
-### Known issue: inherited developer memory (open)
+### Inherited developer memory (resolved for the default layout)
 
 Claude Code loads `CLAUDE.md` from every ancestor of the session's cwd, so a
-session in `<home>/projects/<app>` also loads the home's own `CLAUDE.md` /
-`AGENTS.md`: No Deceit's developer memory, meant for work on this repo, not on
-the governed project. OpenCode stops its `AGENTS.md` walk at the project's git
-root and is not affected. A fix is pending a design decision.
+project governed *inside* the home (`<home>/projects/<app>`) would also load
+the home's own `CLAUDE.md` / `AGENTS.md`: No Deceit's developer memory, meant
+for work on this repo, not on the governed project. `nd project add` now
+places new projects outside the home by default (`core/state.mjs`
+`projectsDir`; overridable with `ND_PROJECTS_DIR`,
+refused if it resolves inside the home), so this no longer occurs for a
+default install. OpenCode stops its `AGENTS.md` walk at the project's git root
+and was never affected. An install from before this change, whose projects are
+still under `<home>/projects`, is not migrated automatically; `nd bootstrap`
+and `nd update` detect and warn about it (README, "Governed projects and
+updating").
 
 ## To do a live end-to-end check by hand
 
