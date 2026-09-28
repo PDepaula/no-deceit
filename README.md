@@ -182,7 +182,7 @@ home already has. The migration is recorded in `state/`, so a later
 | **Claude Code** | `~/.claude/skills/no-deceit` → `harness/claude-code` (a skills-dir plugin: hooks, skill and grader agent load with no marketplace and no install step; `git pull` updates it in place) | Full: hooks + `MessageDisplay` redaction |
 | **OpenCode** | `~/.config/opencode/plugins/no-deceit.ts` → `harness/opencode/no-deceit.ts` | `tool.execute.before` throws |
 | **Pi** | `~/.pi/agent/extensions/no-deceit.ts` → `harness/pi/no-deceit.ts` | `tool_call` returns `{block:true}` |
-| **Cursor** | merges a `preToolUse` entry into `~/.cursor/hooks.json` → `<home>/bin/nd --cursor` (absolute path; Cursor does not follow a plugin symlink) | `preToolUse` deny object |
+| **Cursor** | merges a `preToolUse` entry into `~/.cursor/hooks.json` → `'<home>/bin/nd' --cursor` (absolute path, single-quoted for Cursor's shell; Cursor does not follow a plugin symlink) | `preToolUse` deny object |
 
 Restart any running harness session after bootstrapping: hooks and skills are
 read at launch.

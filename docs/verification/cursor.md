@@ -17,16 +17,18 @@ re-prove settled primitives.
 
 `.cursor-plugin/plugin.json` `hooks` now points at `./harness/cursor/hooks.json`
 (guarded by `harness/packaging.test.mjs`). `nd bootstrap --cursor` merges a
-`preToolUse` entry into `~/.cursor/hooks.json` with the **absolute** command
-`<home>/bin/nd --cursor` (Cursor does not follow a plugin symlink), replacing
-any earlier `nd --cursor` entry and keeping other hooks. `nd --cursor` remains
-the transport for one more release; it is a shim over `harness/cursor/run.mjs`.
+`preToolUse` entry into `~/.cursor/hooks.json` with the **absolute**,
+single-quoted command `'<home>/bin/nd' --cursor` (Cursor does not follow a
+plugin symlink; the quotes keep a home path with spaces intact through Cursor's
+shell), replacing any earlier `nd --cursor` entry (bare, absolute or quoted)
+and keeping other hooks. `nd --cursor` remains the transport for one more
+release; it is a shim over `harness/cursor/run.mjs`.
 The merged file and the relocated manifest were not re-run against a live
 `cursor-agent`. An npm install is no longer offered.
 
 Coming from the plugin-marketplace route? Remove it **before**
 `nd bootstrap --cursor`, or the plugin's `nd --cursor` hook and the merged
-`<home>/bin/nd --cursor` entry both fire on every `preToolUse` (bootstrap does
+`'<home>/bin/nd' --cursor` entry both fire on every `preToolUse` (bootstrap does
 not inspect Cursor's plugin store): uninstall the No Deceit plugin in Cursor
 (Settings → Plugins → No Deceit → Uninstall), then drop the marketplace with
 `cursor-agent plugin marketplace remove github.com/PDepaula/no-deceit`.
