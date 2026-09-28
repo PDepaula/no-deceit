@@ -11,7 +11,7 @@
 // CURSOR_AGENT, or PI_CODING_AGENT set). The grader is spawned from this CLI
 // or the hook, never by the tutor.
 
-import { defaultEnv, gitToplevel, dataPaths, homePaths, projectPaths, isGoverned, readLedger, readAllLedger, loadConfig, readProjectState } from '../core/state.mjs';
+import { defaultEnv, gitToplevel, dataPaths, homePaths, projectPaths, isGoverned, readLedger, readAllLedger, loadConfig, readProjectState, projectsDir } from '../core/state.mjs';
 import { setTier, setMode, renderStatus, renderStatusShort } from '../core/control.mjs';
 import { parseTierArgs } from '../core/curriculum.mjs';
 import { runCurriculumBuild, checkCurriculumFiles, reviewCurriculumFiles, markReviewed } from '../core/scout.mjs';
@@ -113,13 +113,14 @@ switch (sub) {
                                   weekly-style ledger summary (default window: 7 days;
                                   --since/--until: ISO date or relative 7d/24h/30m/1w)
   nd project add <git-url|path> [--name n] [--summary "…"]
-                                  clone (or adopt a local dir) into the home's projects/, register it in
-                                  the data home's project manifest, and opt it in (nd init)
+                                  clone (or adopt a local dir) into the projects directory (outside the
+                                  home by default; ND_PROJECTS_DIR or config projectsDir overrides),
+                                  register it in the data home's project manifest, and opt it in (nd init)
   nd bootstrap [--dry-run] [--claude] [--opencode] [--pi] [--cursor]
                                   create the home layout and link this checkout into each harness
                                   (default: every harness whose config dir exists)
   nd update                       fetch and fast-forward this checkout; print the release notes between
-                                  the old and new HEAD (never touches projects/ data/ state/ config/)
+                                  the old and new HEAD (never touches data/ state/ config/ or the projects dir)
   nd doctor [--grader-probe]      report paths (incl. the data home) and run the armed self-check;
                                   --grader-probe also runs a minimal grader login check
   nd --cursor                     Cursor preToolUse transport (stdin JSON → stdout decision);
@@ -155,7 +156,7 @@ switch (sub) {
 
   case 'update': {
     guardAgentShell('update');
-    try { for (const l of update({ home: CHECKOUT_ROOT })) say(l); }
+    try { for (const l of update({ home: CHECKOUT_ROOT, env })) say(l); }
     catch (e) { die(`No Deceit: ${e.message}`); }
     break;
   }
@@ -307,6 +308,8 @@ switch (sub) {
     say(`  ledger:      ${home.ledger}`);
     say(`  home:        ${env.ND_HOME || `(none — XDG fallback; run \`nd bootstrap\` in a checkout)`}`);
     say(`  data home:   ${dataPaths(env).dataDir} (evidence/, verdicts/, curricula/, projects.{edn,json,md})`);
+    try { say(`  projects:    ${projectsDir(env)} (override: ND_PROJECTS_DIR or config.json projectsDir)`); }
+    catch (e) { say(`  projects:    MISCONFIGURED — ${e.message}`); }
     say(`  config:      ${home.configFile}`);
     say(`  grader model:${cfg.graderModel} (override via config.json graderModel)`);
     say(`  grader timeout: ${cfg.graderTimeoutMs} ms`);

@@ -117,6 +117,43 @@ test('nd project add refuses until the checkout is a home', () => {
   } finally { s.cleanup(); }
 });
 
+test('nd project add clones into the default projects dir (a sibling of the home), and nd doctor reports it', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home, { recursive: true });
+    const env = { ...s.env, ND_HOME: home };
+    const origin = join(s.dir, 'origin.git');
+    execFileSync('git', ['init', '-q', '-b', 'main', origin]);
+    writeFileSync(join(origin, 'a.txt'), 'a');
+    execFileSync('git', ['-C', origin, 'add', '-A']);
+    execFileSync('git', ['-C', origin, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'c']);
+
+    const r = run(['project', 'add', `file://${origin}`, '--name', 'app'], env, s.dir);
+    assert.match(r.out, new RegExp(`Cloned app at ${join(`${home}-projects`, 'app')}`));
+    assert.ok(existsSync(join(`${home}-projects`, 'app', 'a.txt')));
+    assert.ok(!existsSync(join(home, 'projects')));
+
+    const doc = run(['doctor'], env, s.dir);
+    assert.match(doc.out, new RegExp(`projects:    ${home}-projects`));
+  } finally { s.cleanup(); }
+});
+
+test('ND_PROJECTS_DIR overrides where nd project add clones and what nd doctor reports; a value inside the home is refused', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home, { recursive: true });
+    const elsewhere = join(s.dir, 'elsewhere');
+    const doc = run(['doctor'], { ...s.env, ND_HOME: home, ND_PROJECTS_DIR: elsewhere }, s.dir);
+    assert.match(doc.out, new RegExp(`projects:    ${elsewhere}`));
+
+    const app = join(s.dir, 'app'); mkdirSync(app);
+    const bad = run(['project', 'add', app], { ...s.env, ND_HOME: home, ND_PROJECTS_DIR: join(home, 'projects') }, s.dir, true);
+    assert.notEqual(bad.code, 0);
+    assert.match(bad.out, /resolves inside the home/);
+    assert.ok(!existsSync(join(app, '.no-deceit')));
+  } finally { s.cleanup(); }
+});
+
 test('nd audit --oracle reports graded_up 0 and exits 0', () => {
   const s = scratch();
   try {

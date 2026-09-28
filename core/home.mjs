@@ -13,7 +13,7 @@ import {
 import { join, resolve, dirname, basename } from 'node:path';
 import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
-import { projectPaths, loadConfig, readProjectState, homePaths, dataPaths, gitToplevel } from './state.mjs';
+import { projectPaths, loadConfig, readProjectState, homePaths, dataPaths, gitToplevel, projectsDir } from './state.mjs';
 import {
   PRIVATE_DIRS, addManifestEntry, manifestHasProject, projectNameFrom, isRemoteSource,
   marketplaceInstalls, mergeCursorHooks, cursorHookCommand, pathHint, classifyChanges,
@@ -36,7 +36,7 @@ export function initProject(repoRoot, env) {
   return { paths: p, state: readProjectState(repoRoot, env) };
 }
 
-/** Create projects/ data/ state/ config/, the `.nd-home` marker, and `data/`'s nested git repo. Idempotent. */
+/** Create data/ state/ config/, the `.nd-home` marker, and `data/`'s nested git repo. Idempotent. */
 export function ensureHome(home) {
   const made = [];
   for (const d of PRIVATE_DIRS) {
@@ -54,7 +54,8 @@ export function ensureHome(home) {
 
 /**
  * `nd project add <git-url|path> [--name n] [--summary s] [--path]`.
- * A remote is cloned into projects/<name>; an existing local directory is
+ * A remote is cloned into the projects directory (`core/state.mjs`
+ * `projectsDir`, outside the home by default); an existing local directory is
  * governed in place (never moved), and must be its git repo's top level (the
  * repo root the hooks resolve). Registers it in the project manifest the grader
  * reads (the first existing projects.{edn,json,md} in the data home, else
@@ -79,16 +80,17 @@ export function projectAdd({ home, userHome = homedir(), env, source, name, summ
   const projName = name || (remote ? projectNameFrom(source) : basename(target));
   if (!/^[A-Za-z0-9][\w.-]*$/.test(projName)) throw new Error(`invalid project name "${projName}" (use --name)`);
   ensureHome(home);
+  const projDir = projectsDir({ ...env, ND_HOME: home });
   const dp = dataPaths({ ...env, ND_HOME: home });
   const manifest = dp.projectsManifests.find((f) => existsSync(f)) || dp.projectsManifests[0];
   const current = existsSync(manifest) ? readFileSync(manifest, 'utf8') : '';
   if (manifestHasProject(current, manifest, projName)) throw new Error(`project "${projName}" is already in ${manifest}`);
   if (remote) {
-    target = join(home, 'projects', projName);
+    target = join(projDir, projName);
     if (existsSync(target)) throw new Error(`${target} already exists`);
   }
   const next = addManifestEntry(current, manifest, { name: projName, path: target, summary });
-  if (remote) git(home, ['clone', '--', source, target]);
+  if (remote) { mkdirSync(projDir, { recursive: true }); git(home, ['clone', '--', source, target]); }
   const { state } = initProject(target, env);
   mkdirSync(dirname(manifest), { recursive: true });
   writeFileSync(manifest, next);
@@ -125,6 +127,35 @@ function linkAction(target, linkPath) {
 }
 
 /**
+ * Warn (never move) about a pre-redesign install whose projects still live
+ * under `<home>/projects`: every session in `<home>/projects/<app>` also
+ * loads this home's own developer `AGENTS.md` (how to modify the plugin, test
+ * commands, grader internals) through Claude Code's ancestor-directory
+ * `CLAUDE.md`/`AGENTS.md` lookup. Per the captain's ruling ("even just
+ * warning and flagging the consequences is enough"), this only warns — it
+ * never moves a file or edits the manifest.
+ */
+function legacyProjectsWarning(home, env) {
+  const legacy = join(home, 'projects');
+  if (!existsSync(legacy)) return [];
+  let names;
+  try { names = readdirSync(legacy).filter((n) => !n.startsWith('.')); } catch { return []; }
+  if (!names.length) return [];
+  const dest = `${home}-projects`;
+  const manifest = dataPaths({ ...env, ND_HOME: home }).projectsManifests.find((f) => existsSync(f));
+  return [
+    `  WARNING: ${names.length} project(s) still under ${legacy} (${names.join(', ')}). Claude Code reads CLAUDE.md/AGENTS.md`,
+    `    from every ancestor directory, so every session in ${legacy}/<app> also loads this home's own`,
+    `    developer AGENTS.md (how to modify the plugin, test commands, grader internals) instead of just`,
+    `    the project's. This is not moved automatically. To fix it:`,
+    `      mv ${legacy} ${dest}`,
+    manifest
+      ? `      then update each "path" in ${manifest} from ${legacy}/<name> to ${dest}/<name>`
+      : `      then update each project's registered path from ${legacy}/<name> to ${dest}/<name>`,
+  ];
+}
+
+/**
  * Work out (and unless dryRun, apply) the bootstrap. Harnesses default to
  * those whose user-level config dir exists. Returns lines to print.
  */
@@ -132,6 +163,9 @@ export function bootstrap({ home, userHome = homedir(), env, only = [], dryRun =
   const out = [];
   const say = (l) => out.push(l);
   const want = (h) => (only.length ? only.includes(h) : true);
+  let projDir;
+  try { projDir = projectsDir({ ...env, ND_HOME: home }); }
+  catch (e) { throw new Error(`bootstrap stopped, nothing changed. ${e.message}`); }
   const dirs = {
     claude: join(userHome, '.claude'),
     opencode: join(userHome, '.config', 'opencode'),
@@ -183,8 +217,11 @@ export function bootstrap({ home, userHome = homedir(), env, only = [], dryRun =
   say(`No Deceit home: ${home}${dryRun ? ' (dry run — nothing written)' : ''}`);
   if (!dryRun) {
     const made = ensureHome(home);
-    say(made.length ? `  layout: created ${made.join(', ')}` : '  layout: projects/ data/ state/ config/ present; data/ is its own git repo');
+    say(made.length ? `  layout: created ${made.join(', ')}` : '  layout: data/ state/ config/ present; data/ is its own git repo');
+    if (!existsSync(projDir)) { mkdirSync(projDir, { recursive: true }); say(`  projects: created ${projDir} (outside the home, so ancestor CLAUDE.md/AGENTS.md lookups never reach this home's own memory)`); }
+    else say(`  projects: ${projDir} present`);
   }
+  for (const l of legacyProjectsWarning(home, env)) say(l);
 
   // Continuity, once per home: copy (never move, never overwrite) the pre-home
   // XDG ledger, config and data into the home, which they stop being read from
@@ -240,9 +277,10 @@ export function bootstrap({ home, userHome = homedir(), env, only = [], dryRun =
 
 /**
  * `nd update`: fetch, fast-forward only, then report. Never merges, stashes,
- * resets or forces, and never touches projects/ data/ state/ config/.
+ * resets or forces, and never touches data/ state/ config/ or the projects
+ * directory.
  */
-export function update({ home }) {
+export function update({ home, env = {} }) {
   const out = [];
   const say = (l) => out.push(l);
   const run = (...a) => git(home, a);
@@ -252,12 +290,16 @@ export function update({ home }) {
   const old = run('rev-parse', 'HEAD');
   run('fetch', '--quiet');
   const target = run('rev-parse', '@{u}');
-  if (old === target) { say(`No Deceit is up to date (${old.slice(0, 7)}).`); return out; }
+  if (old === target) {
+    say(`No Deceit is up to date (${old.slice(0, 7)}).`);
+    for (const l of legacyProjectsWarning(home, env)) say(l);
+    return out;
+  }
   let canFf = true;
   try { run('merge-base', '--is-ancestor', old, target); } catch { canFf = false; }
   if (!canFf) throw new Error(`refusing: HEAD ${old.slice(0, 7)} is not an ancestor of ${upstream} (${target.slice(0, 7)}) — local commits or a diverged history. nd update only fast-forwards; resolve it with git yourself.`);
   run('merge', '--ff-only', '--quiet', target);
-  say(`Updated ${old.slice(0, 7)} → ${target.slice(0, 7)} (fast-forward; projects/ data/ state/ config/ untouched).`);
+  say(`Updated ${old.slice(0, 7)} → ${target.slice(0, 7)} (fast-forward; data/ state/ config/ and the projects directory untouched).`);
   const c = classifyChanges(run('diff', '--name-status', old, target));
   if (c.releaseFiles.length) {
     say('');
@@ -274,5 +316,6 @@ export function update({ home }) {
   say(`reread: ${c.reread ? 'yes' : 'no'}${c.reread ? '  (AGENTS.md / skills / agents, a hooks.json, or core/ / harness/ changed — restart your harness session)' : ''}`);
   say(`rebootstrap: ${c.rebootstrap ? 'yes' : 'no'}${c.rebootstrap ? '  (a harness entry file was added/removed/renamed — re-run `nd bootstrap`)' : ''}`);
   if (c.bbBump) say('bb.edn changed: check `bb --version` against :min-bb-version and update bb if needed.');
+  for (const l of legacyProjectsWarning(home, env)) say(l);
   return out;
 }

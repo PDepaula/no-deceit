@@ -21,6 +21,20 @@ One-line index; the what / why / what-you-should-notice is in
 
 ## Unreleased
 
+- **Changed:** governed projects now live outside the home by default (a
+  sibling of the home, `<home>-projects`; overridable with `ND_PROJECTS_DIR`
+  or config `projectsDir`, resolved in `core/state.mjs` `projectsDir`, the
+  same way `dataPaths` resolves `data/`). Previously they lived at
+  `<home>/projects/<app>`, so Claude Code's ancestor-directory
+  `CLAUDE.md`/`AGENTS.md` lookup also loaded the home's own developer memory
+  (how to modify the plugin, test commands, grader internals) into every
+  governed session — the "Known issue" phase 4 shipped with a README note. A
+  configured projects directory that resolves inside the home is refused,
+  with the reason. `projects/` is no longer one of the home's own gitignored
+  dirs (`core/update.mjs` `PRIVATE_DIRS`). Existing installs with projects
+  still under `<home>/projects` are not moved automatically: `nd bootstrap`
+  and `nd update` detect them and print a warning naming the consequence and
+  the exact move steps.
 - **Fixed:** the blind unlock grader is no longer spawned with
   `claude -p --bare`. `--bare` never reads OAuth credentials, so on a machine
   whose only login is a Claude subscription the child printed "Not logged

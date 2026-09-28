@@ -10,7 +10,7 @@
 // would be a dependency, which D6 forbids).
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync, statSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
@@ -126,6 +126,30 @@ export function dataPaths(env = process.env) {
     refsDir: (topic) => join(dataDir, 'refs', topic),
     projectsManifests: ['projects.edn', 'projects.json', 'projects.md'].map((n) => join(dataDir, n)),
   };
+}
+
+/**
+ * Where `nd project add` clones or registers governed projects. Resolution:
+ * `ND_PROJECTS_DIR`, else config `projectsDir`, else a sibling of the home
+ * (`<home>-projects`), or with no home the XDG-ish fallback
+ * `<HOME>/no-deceit-projects`. Kept outside the home by default (unlike
+ * `dataPaths`) because Claude Code reads `CLAUDE.md`/`AGENTS.md` from every
+ * ancestor directory: a project under `<home>/projects/<app>` would also load
+ * this home's own developer memory. Refuses (throws) when the resolved
+ * directory is the home or falls inside it.
+ */
+export function projectsDir(env = process.env) {
+  const home = env.ND_HOME;
+  const userHome = env.HOME || homedir();
+  const configured = env.ND_PROJECTS_DIR || loadConfig(env).projectsDir;
+  const dir = resolve(configured || (home ? `${home}-projects` : join(userHome, 'no-deceit-projects')));
+  if (home) {
+    const homeAbs = resolve(home);
+    if (dir === homeAbs || dir.startsWith(homeAbs + sep)) {
+      throw new Error(`projects directory ${dir} resolves inside the home ${homeAbs}: every session there would also load the home's own AGENTS.md (developer memory — how to modify the plugin, test commands, grader internals), not just the project's. Point ND_PROJECTS_DIR, or config.json's "projectsDir", outside the home — e.g. ${homeAbs}-projects.`);
+    }
+  }
+  return dir;
 }
 
 /** Project-scoped paths under <repo>/.no-deceit. */

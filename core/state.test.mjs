@@ -16,6 +16,7 @@ import {
   readAllLedger,
   projectPaths,
   homePaths,
+  projectsDir,
 } from './state.mjs';
 
 function scratch() {
@@ -25,6 +26,32 @@ function scratch() {
   mkdirSync(repo, { recursive: true });
   return { dir, env, repo, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
+
+test('projectsDir defaults to a sibling of the home, or <HOME>/no-deceit-projects with no home', () => {
+  assert.equal(projectsDir({ ND_HOME: '/h', HOME: '/u' }), '/h-projects');
+  assert.equal(projectsDir({ HOME: '/u' }), '/u/no-deceit-projects');
+});
+
+test('projectsDir honours ND_PROJECTS_DIR, then config projectsDir, over the default', () => {
+  assert.equal(projectsDir({ ND_HOME: '/h', HOME: '/u', ND_PROJECTS_DIR: '/elsewhere' }), '/elsewhere');
+  const s = scratch();
+  try {
+    const { configFile } = homePaths({ ...s.env, ND_HOME: join(s.dir, 'h') });
+    mkdirSync(join(configFile, '..'), { recursive: true });
+    writeFileSync(configFile, JSON.stringify({ projectsDir: join(s.dir, 'configured-projects') }));
+    assert.equal(projectsDir({ ...s.env, ND_HOME: join(s.dir, 'h') }), join(s.dir, 'configured-projects'));
+    assert.equal(
+      projectsDir({ ...s.env, ND_HOME: join(s.dir, 'h'), ND_PROJECTS_DIR: join(s.dir, 'env-wins') }),
+      join(s.dir, 'env-wins'),
+    );
+  } finally { s.cleanup(); }
+});
+
+test('projectsDir refuses a configured directory that resolves inside the home', () => {
+  assert.throws(() => projectsDir({ ND_HOME: '/h', ND_PROJECTS_DIR: '/h' }), /resolves inside the home/);
+  assert.throws(() => projectsDir({ ND_HOME: '/h', ND_PROJECTS_DIR: '/h/projects' }), /resolves inside the home/);
+  assert.doesNotThrow(() => projectsDir({ ND_HOME: '/h', ND_PROJECTS_DIR: '/h-projects' }));
+});
 
 test('loadConfig returns built-in defaults when no config file exists', () => {
   const s = scratch();

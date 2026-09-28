@@ -43,11 +43,12 @@ test('withDetectedHome uses the .nd-home marker but never overrides an explicit 
   } finally { s.cleanup(); }
 });
 
-test('ensureHome creates the four dirs, the marker, and data/ as its own git repo; idempotent', () => {
+test('ensureHome creates the three dirs, the marker, and data/ as its own git repo; idempotent', () => {
   const s = scratch();
   try {
     const made = ensureHome(s.dir);
-    assert.ok(['projects', 'data', 'state', 'config', 'data/.git'].every((m) => made.includes(m)));
+    assert.ok(['data', 'state', 'config', 'data/.git'].every((m) => made.includes(m)));
+    assert.ok(!made.includes('projects'), 'projects/ is no longer one of the home\'s own private dirs');
     assert.ok(existsSync(join(s.dir, '.nd-home')));
     assert.ok(existsSync(join(s.dir, 'data', '.git')));
     assert.deepEqual(ensureHome(s.dir), []);
@@ -162,7 +163,7 @@ test('projectAdd registers in the manifest the grader reads: ND_DATA_DIR, and an
   } finally { s.cleanup(); }
 });
 
-test('projectAdd clones a remote into projects/<name>', () => {
+test('projectAdd clones a remote into the default projects dir, a sibling of the home', () => {
   const s = scratch();
   try {
     const home = join(s.dir, 'home'); mkdirSync(home);
@@ -171,9 +172,36 @@ test('projectAdd clones a remote into projects/<name>', () => {
     commit(origin, 'a.txt', 'a');
     const r = projectAdd({ home, env: { ND_HOME: '' }, source: `file://${origin}`, name: 'cloned' });
     assert.equal(r.cloned, true);
-    assert.equal(r.path, join(home, 'projects', 'cloned'));
-    assert.ok(existsSync(join(home, 'projects', 'cloned', 'a.txt')));
-    assert.ok(existsSync(join(home, 'projects', 'cloned', '.no-deceit', 'state.json')));
+    assert.equal(r.path, join(`${home}-projects`, 'cloned'));
+    assert.ok(!existsSync(join(home, 'projects')), 'the default no longer lives under the home');
+    assert.ok(existsSync(join(`${home}-projects`, 'cloned', 'a.txt')));
+    assert.ok(existsSync(join(`${home}-projects`, 'cloned', '.no-deceit', 'state.json')));
+  } finally { s.cleanup(); }
+});
+
+test('projectAdd honours ND_PROJECTS_DIR and refuses a configured projects dir inside the home', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home);
+    const app = join(s.dir, 'app'); mkdirSync(app);
+    const elsewhere = join(s.dir, 'elsewhere-projects');
+    const origin = join(s.dir, 'origin.git');
+    g(s.dir, 'init', '-q', '-b', 'main', origin);
+    commit(origin, 'a.txt', 'a');
+
+    const r = projectAdd({ home, env: { ND_HOME: '', ND_PROJECTS_DIR: elsewhere }, source: `file://${origin}`, name: 'cloned' });
+    assert.equal(r.path, join(elsewhere, 'cloned'));
+    assert.ok(existsSync(join(elsewhere, 'cloned', 'a.txt')));
+
+    assert.throws(
+      () => projectAdd({ home, env: { ND_HOME: '', ND_PROJECTS_DIR: join(home, 'projects') }, source: app }),
+      /resolves inside the home/,
+    );
+    assert.ok(!existsSync(join(app, '.no-deceit')));
+    assert.throws(
+      () => projectAdd({ home, env: { ND_HOME: '', ND_PROJECTS_DIR: home }, source: app }),
+      /resolves inside the home/,
+    );
   } finally { s.cleanup(); }
 });
 
@@ -198,7 +226,10 @@ test('bootstrap links each detected harness, is idempotent, and writes nothing o
     assert.ok(!existsSync(join(home, '.nd-home')));
     assert.ok(!existsSync(join(userHome, '.claude', 'skills', 'no-deceit')));
 
-    bootstrap({ home, userHome, env });
+    const lines = bootstrap({ home, userHome, env });
+    assert.ok(lines.some((l) => l.includes(`${home}-projects`) && /created/.test(l)));
+    assert.ok(existsSync(`${home}-projects`));
+    assert.ok(!existsSync(join(home, 'projects')));
     const claude = join(userHome, '.claude', 'skills', 'no-deceit');
     assert.equal(readlinkSync(claude), join(home, 'harness', 'claude-code'));
     assert.equal(readlinkSync(join(userHome, '.config', 'opencode', 'plugins', 'no-deceit.ts')), join(home, 'harness', 'opencode', 'no-deceit.ts'));
@@ -209,6 +240,35 @@ test('bootstrap links each detected harness, is idempotent, and writes nothing o
     const again = bootstrap({ home, userHome, env });
     assert.ok(again.some((l) => /already linked/.test(l)));
     assert.equal(JSON.parse(readFileSync(join(userHome, '.cursor', 'hooks.json'), 'utf8')).hooks.preToolUse.length, 1);
+  } finally { s.cleanup(); }
+});
+
+test('bootstrap refuses a config-file projects dir that resolves inside the home, and changes nothing', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home);
+    const userHome = fakeUser(s.dir);
+    const env = { ND_HOME: '', HOME: userHome, ND_PROJECTS_DIR: join(home, 'projects') };
+    assert.throws(() => bootstrap({ home, userHome, env }), /resolves inside the home/);
+    assert.ok(!existsSync(join(home, '.nd-home')));
+  } finally { s.cleanup(); }
+});
+
+test('bootstrap and update warn (without moving anything) about a pre-redesign install with projects still under <home>/projects', () => {
+  const s = scratch();
+  try {
+    const home = join(s.dir, 'home'); mkdirSync(home);
+    const userHome = fakeUser(s.dir);
+    const env = { ND_HOME: '', HOME: userHome };
+    mkdirSync(join(home, 'projects', 'legacy-app'), { recursive: true });
+    mkdirSync(join(home, 'data'), { recursive: true });
+    writeFileSync(join(home, 'data', 'projects.edn'), '{:name "legacy-app" :path "' + join(home, 'projects', 'legacy-app') + '"}\n');
+
+    const out = bootstrap({ home, userHome, env }).join('\n');
+    assert.match(out, /WARNING.*legacy-app/);
+    assert.match(out, new RegExp(`mv ${join(home, 'projects')} ${home}-projects`));
+    assert.ok(existsSync(join(home, 'projects', 'legacy-app')), 'never moved automatically');
+    assert.ok(existsSync(`${home}-projects`), 'the new default dir is still created for future adds');
   } finally { s.cleanup(); }
 });
 
@@ -460,6 +520,20 @@ test('update refuses when local commits make the history diverge, and changes no
     const before = g(home, 'rev-parse', 'HEAD');
     assert.throws(() => update({ home }), /not an ancestor|only fast-forwards/);
     assert.equal(g(home, 'rev-parse', 'HEAD'), before);
+  } finally { s.cleanup(); }
+});
+
+test('update warns about a pre-redesign install with projects still under <home>/projects, without moving anything', () => {
+  const s = scratch();
+  try {
+    const { home } = twoClones(s);
+    ensureHome(home);
+    mkdirSync(join(home, 'projects', 'legacy-app'), { recursive: true });
+    const out = update({ home, env: {} }).join('\n');
+    assert.match(out, /up to date/);
+    assert.match(out, /WARNING.*legacy-app/);
+    assert.match(out, new RegExp(`mv ${join(home, 'projects')} ${home}-projects`));
+    assert.ok(existsSync(join(home, 'projects', 'legacy-app')));
   } finally { s.cleanup(); }
 });
 
