@@ -204,7 +204,7 @@ test('bootstrap links each detected harness, is idempotent, and writes nothing o
     assert.equal(readlinkSync(join(userHome, '.config', 'opencode', 'plugins', 'no-deceit.ts')), join(home, 'harness', 'opencode', 'no-deceit.ts'));
     assert.equal(readlinkSync(join(userHome, '.pi', 'agent', 'extensions', 'no-deceit.ts')), join(home, 'harness', 'pi', 'no-deceit.ts'));
     const cursor = JSON.parse(readFileSync(join(userHome, '.cursor', 'hooks.json'), 'utf8'));
-    assert.deepEqual(cursor.hooks.preToolUse.map((h) => h.command), [`${join(home, 'bin', 'nd')} --cursor`]);
+    assert.deepEqual(cursor.hooks.preToolUse.map((h) => h.command), [`'${join(home, 'bin', 'nd')}' --cursor`]);
 
     const again = bootstrap({ home, userHome, env });
     assert.ok(again.some((l) => /already linked/.test(l)));

@@ -104,7 +104,7 @@ test('nd bootstrap --cursor runs bootstrap for Cursor, not the Cursor hook trans
     mkdirSync(join(s.dir, '.cursor'));
     const r = run(['bootstrap', '--dry-run', '--cursor'], { ...s.env, HOME: s.dir }, s.dir);
     assert.match(r.out, /dry run/);
-    assert.match(r.out, /cursor: preToolUse → .*nd --cursor merged into/);
+    assert.match(r.out, /cursor: preToolUse → '.*\/bin\/nd' --cursor merged into/);
     assert.doesNotMatch(r.out, /"permission"/);
   } finally { s.cleanup(); }
 });

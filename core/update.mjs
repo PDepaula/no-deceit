@@ -72,15 +72,20 @@ export function marketplaceInstalls(installedJson, settingsJson) {
   return [...found].sort();
 }
 
+/** Cursor's shell command for this home's `nd`, single-quoted so any path survives the shell. */
+export function cursorHookCommand(ndPath) {
+  return `'${String(ndPath).replace(/'/g, `'\\''`)}' --cursor`;
+}
+
 /**
  * Merge Cursor's `preToolUse` entry for this home into a hooks.json object.
- * Any earlier No Deceit entry (`nd --cursor`, bare or absolute) is replaced.
+ * Any earlier No Deceit entry (`nd --cursor`, bare, absolute or quoted) is replaced.
  */
 export function mergeCursorHooks(existing, ndPath) {
   const base = existing && typeof existing === 'object' ? existing : {};
   const hooks = { ...(base.hooks || {}) };
-  const ours = { command: `${ndPath} --cursor`, failClosed: true, timeout: 20 };
-  const others = (Array.isArray(hooks.preToolUse) ? hooks.preToolUse : []).filter((h) => !/(^|\/)nd --cursor$/.test(String((h && h.command) || '')));
+  const ours = { command: cursorHookCommand(ndPath), failClosed: true, timeout: 20 };
+  const others = (Array.isArray(hooks.preToolUse) ? hooks.preToolUse : []).filter((h) => !/(^|\/)nd'? --cursor$/.test(String((h && h.command) || '')));
   hooks.preToolUse = [...others, ours];
   return { version: 1, ...base, hooks };
 }

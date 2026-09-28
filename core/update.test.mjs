@@ -1,8 +1,12 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
+import { mkdtempSync, writeFileSync, chmodSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import {
   renderManifestEntry, manifestHasProject, addManifestEntry, projectNameFrom, isRemoteSource,
-  marketplaceInstalls, mergeCursorHooks, classifyChanges, versionCompare,
+  marketplaceInstalls, mergeCursorHooks, cursorHookCommand, classifyChanges, versionCompare,
 } from './update.mjs';
 import { manifestProjectPath } from './evidence.mjs';
 
@@ -47,11 +51,22 @@ test('marketplaceInstalls finds no-deceit@<marketplace>, ignores others and the 
 test('mergeCursorHooks appends ours, keeps others, and replaces an earlier No Deceit entry', () => {
   const other = { command: 'other-tool', timeout: 5 };
   const first = mergeCursorHooks({ version: 1, hooks: { preToolUse: [other], stop: [{ command: 'x' }] } }, '/h/bin/nd');
-  assert.deepEqual(first.hooks.preToolUse.map((h) => h.command), ['other-tool', '/h/bin/nd --cursor']);
+  assert.deepEqual(first.hooks.preToolUse.map((h) => h.command), ['other-tool', `'/h/bin/nd' --cursor`]);
   assert.deepEqual(first.hooks.stop, [{ command: 'x' }]);
-  const again = mergeCursorHooks(mergeCursorHooks({ hooks: { preToolUse: [{ command: 'nd --cursor' }] } }, '/old/bin/nd'), '/h/bin/nd');
-  assert.deepEqual(again.hooks.preToolUse.map((h) => h.command), ['/h/bin/nd --cursor']);
+  const legacy = [{ command: 'nd --cursor' }, { command: '/old/bin/nd --cursor' }];
+  const again = mergeCursorHooks(mergeCursorHooks({ hooks: { preToolUse: legacy } }, '/old/bin/nd'), '/h/bin/nd');
+  assert.deepEqual(again.hooks.preToolUse.map((h) => h.command), [`'/h/bin/nd' --cursor`]);
   assert.equal(mergeCursorHooks(null, '/h/bin/nd').version, 1);
+});
+
+test('cursorHookCommand survives the shell for a home path with spaces and quotes', () => {
+  const dir = mkdtempSync(join(tmpdir(), "nd home it's "));
+  try {
+    const nd = join(dir, 'nd');
+    writeFileSync(nd, '#!/bin/sh\nprintf "%s|" "$0" "$@"\n');
+    chmodSync(nd, 0o755);
+    assert.equal(execFileSync('/bin/sh', ['-c', cursorHookCommand(nd)], { encoding: 'utf8' }), `${nd}|--cursor|`);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('classifyChanges: release notes in version order, reread, rebootstrap, bb bump', () => {

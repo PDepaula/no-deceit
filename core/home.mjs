@@ -16,7 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { projectPaths, loadConfig, readProjectState, homePaths, dataPaths, gitToplevel } from './state.mjs';
 import {
   PRIVATE_DIRS, addManifestEntry, manifestHasProject, projectNameFrom, isRemoteSource,
-  marketplaceInstalls, mergeCursorHooks, pathHint, classifyChanges,
+  marketplaceInstalls, mergeCursorHooks, cursorHookCommand, pathHint, classifyChanges,
 } from './update.mjs';
 
 function git(cwd, args, opts = {}) {
@@ -228,7 +228,7 @@ export function bootstrap({ home, userHome = homedir(), env, only = [], dryRun =
   if (wantCursor) {
     const cursorHooks = mergeCursorHooks(cursorExisting, join(home, 'bin', 'nd'));
     if (!dryRun) { mkdirSync(dirs.cursor, { recursive: true }); writeFileSync(cursorFile, JSON.stringify(cursorHooks, null, 2) + '\n'); }
-    say(`  cursor: preToolUse → ${join(home, 'bin', 'nd')} --cursor merged into ${cursorFile}`);
+    say(`  cursor: preToolUse → ${cursorHookCommand(join(home, 'bin', 'nd'))} merged into ${cursorFile}`);
   }
 
   say(`  PATH:   not edited. Add to your shell profile:  ${pathHint(join(home, 'bin'))}`);
